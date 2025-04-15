@@ -3,7 +3,7 @@ package openai
 
 import (
 	"fmt"
-	openaiInternal "macbot/openai/internal"
+	openaiInternal "openai/internal"
 
 	"github.com/playwright-community/playwright-go"
 )

@@ -5,8 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"macbot/openai/chat"
 	"net/http"
+	"openai/chat"
 	"slices"
 	"time"
 )

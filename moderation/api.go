@@ -7,9 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	openai "macbot/openai/internal"
-	"macbot/util"
+	"openai/util"
 	"net/http"
+	openai "openai/internal"
 	"strings"
 )
 

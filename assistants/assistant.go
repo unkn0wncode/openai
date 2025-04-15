@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"macbot/openai/chat"
 	"net/http"
+	"openai/chat"
 )
 
 // Assistant is an object that stores settings for running a chat model in threads.

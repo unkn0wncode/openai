@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	openai "macbot/openai/internal"
 	"math"
 	"net/http"
+	openai "openai/internal"
 )
 
 const (
@@ -58,8 +58,8 @@ type Vector []float64
 
 // result contains one embedding in response.
 type result struct {
-	Object    string  `json:"object"`
-	Index     int     `json:"index"`
+	Object    string `json:"object"`
+	Index     int    `json:"index"`
 	Embedding Vector `json:"embedding"`
 }
 

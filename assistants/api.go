@@ -6,10 +6,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"macbot/openai/chat"
-	openai "macbot/openai/internal"
-	"macbot/util"
+	"openai/util"
 	"net/http"
+	"openai/chat"
+	openai "openai/internal"
 	"regexp"
 	"time"
 )

@@ -6,10 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	openai "macbot/openai/internal"
-	"macbot/openai/openrouter"
-	"macbot/util"
 	"net/http"
+	openai "openai/internal"
+	"openai/util"
 	"slices"
 	"strings"
 	"time"
@@ -39,9 +38,6 @@ type Request struct {
 	Messages []Message `json:"messages"` // previous messages, including "system" prompt, user input and whole history
 
 	// optional
-
-	// Alternative to Model. If set, the request will be sent to OpenRouter API instead of OpenAI.
-	ModelOpenRouter string `json:"-"`
 
 	// What sampling temperature to use, between 0 and 2.
 	// Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.
@@ -124,12 +120,6 @@ type Request struct {
 // Encodes functions into the request body based on their names.
 // Passes model from OpenRouter's model field.
 func (data Request) MarshalJSON() ([]byte, error) {
-	if data.ModelOpenRouter != "" {
-		data.Model = data.ModelOpenRouter
-		// OpenRouter doesn't support functions
-		data.Functions = nil
-	}
-
 	// if there are no functions, don't encode the field at all
 	if len(data.Functions) == 0 {
 		type Alias Request
@@ -422,7 +412,7 @@ func (data Request) trimMessages() []Message {
 }
 
 func (data Request) execute() (*response, error) {
-	if data.Model == "" && data.ModelOpenRouter == "" {
+	if data.Model == "" {
 		data.Model = DefaultModel
 	}
 
@@ -444,18 +434,11 @@ func (data Request) execute() (*response, error) {
 	}
 
 	var req *http.Request
-	if data.ModelOpenRouter == "" {
-		req, err = http.NewRequest(http.MethodPost, apiURL, bytes.NewBuffer(b))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create request: %w", err)
-		}
-		openai.AddHeaders(req)
-	} else {
-		req, err = openrouter.NewRequest(http.MethodPost, apiURL, bytes.NewBuffer(b))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create openrouter request: %w", err)
-		}
+	req, err = http.NewRequest(http.MethodPost, apiURL, bytes.NewBuffer(b))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+	openai.AddHeaders(req)
 
 	// Enable LogTripper if forced
 	if ForceEnableLogTripper && openai.LogTripper.Log == nil {
@@ -574,9 +557,6 @@ func (resp *response) checkFirst() (string, error) {
 		openai.FinishReasonStop,
 		openai.FinishReasonFunctionCall,
 		openai.FinishReasonToolCalls,
-	}
-	if openRouterReasons := openrouter.OkFinishReasons(resp.Model); openRouterReasons != nil {
-		expectedFinishReasons = openRouterReasons
 	}
 	if !slices.Contains(expectedFinishReasons, finishReason) {
 		return content, fmt.Errorf("got unexpected finish reason: %s", finishReason)

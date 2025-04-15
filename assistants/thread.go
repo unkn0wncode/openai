@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"macbot/openai/chat"
-	openai "macbot/openai/internal"
 	"net/http"
+	"openai/chat"
+	openai "openai/internal"
 )
 
 // Thread is an object that stores the state of a conversation with a user.

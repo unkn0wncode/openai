@@ -6,9 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	openai "macbot/openai/internal"
-	"macbot/openai/openrouter"
 	"net/http"
+	openai "openai/internal"
 )
 
 const (
@@ -122,18 +121,11 @@ func (data Request) execute() (*response, error) {
 	}
 
 	var req *http.Request
-	if data.ModelOpenRouter == "" {
-		req, err = http.NewRequest(http.MethodPost, apiURL, bytes.NewBuffer(b))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create request: %w", err)
-		}
-		openai.AddHeaders(req)
-	} else {
-		req, err = openrouter.NewRequest(http.MethodPost, apiURL, bytes.NewBuffer(b))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create openrouter request: %w", err)
-		}
+	req, err = http.NewRequest(http.MethodPost, apiURL, bytes.NewBuffer(b))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+	openai.AddHeaders(req)
 
 	resp, err := openai.Cli.Do(req)
 	if err != nil {

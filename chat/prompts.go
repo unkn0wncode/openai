@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	openai "macbot/openai/internal"
+	openai "openai/internal"
 )
 
 // SinglePrompt sends a request to the Chat API with a single user prompt and no additional context or settings.

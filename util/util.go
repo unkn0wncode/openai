@@ -1,6 +1,9 @@
-package openai
+package util
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 // SplitMsg splits a message into parts that are under lengthLimit characters.
 // Splits by newlines or spaces if possible.
@@ -39,3 +42,17 @@ func findSplitIndex(text string) int {
 	}
 	return len(text)
 }
+
+// Retry executes a function up to a specified number of attempts with a delay between attempts.
+// Returns the first successful result or the last error encountered.
+func Retry(f func() error, attempts int, interval time.Duration) (err error) {
+	for i := range attempts {
+		if err = f(); err == nil {
+			return nil
+		}
+		if i < attempts-1 {
+			time.Sleep(interval)
+		}
+	}
+	return err
+} 
