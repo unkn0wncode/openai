@@ -1,0 +1,35 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, build with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Hidden files
+.*
+
+# Private configs
+!.gitignore
+config.json
+
+*.nb
+
+# Logs
+*.log
+*.log.*.gz
+
+# Cached/temp data
+*.dump
+
+# Datasets
+tiktoken/*
+*.dat
+
+# Debug output
+screenshot.png
