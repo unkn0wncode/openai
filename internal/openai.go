@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"macbot/framework"
-	"macbot/util"
-	"macbot/util/servmon"
 	"net/http"
+	"openai/util"
 	"os"
 	"sync"
 	"time"
@@ -24,8 +22,6 @@ var (
 	Log = log.New(logFileOpenai, "", log.Ldate|log.Ltime|log.Lshortfile)
 	// LogStd is a logger for OpenAI-related events that also duplicates to console
 	LogStd = log.New(logMultOpenaiStd, "", log.Ldate|log.Ltime|log.Lshortfile)
-
-	Mon = servmon.New("OpenAI", 30*time.Minute, 0)
 )
 
 const (
