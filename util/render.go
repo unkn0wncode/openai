@@ -1,9 +1,9 @@
-// Package openai / render.go implements rendering of URLs as images.
-package openai
+// Package util / render.go implements rendering of URLs as images.
+package util
 
 import (
 	"fmt"
-	openaiInternal "openai/internal"
+	"log/slog"
 
 	"github.com/playwright-community/playwright-go"
 )
@@ -20,7 +20,8 @@ func RenderURL(url string) ([]byte, error) {
 	}
 	defer func() {
 		if err := pw.Stop(); err != nil {
-			openaiInternal.LogStd.Println("Error stopping Playwright:", err)
+			// openaiInternal.LogStd.Println("Error stopping Playwright:", err)
+			slog.Default().Error(fmt.Sprintf("Error stopping Playwright: %s", err))
 		}
 	}()
 
@@ -30,7 +31,7 @@ func RenderURL(url string) ([]byte, error) {
 	}
 	defer func() {
 		if err := browser.Close(); err != nil {
-			openaiInternal.LogStd.Println("Error closing browser:", err)
+			slog.Default().Error(fmt.Sprintf("Error closing browser: %s", err))
 		}
 	}()
 

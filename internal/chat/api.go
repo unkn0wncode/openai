@@ -11,6 +11,7 @@ import (
 	openai "openai/internal"
 	"openai/models"
 	"openai/roles"
+	"openai/tools"
 	"openai/util"
 	"slices"
 	"strings"
@@ -57,7 +58,7 @@ func (rfs ResponseFormatStr) MarshalJSON() ([]byte, error) {
 		rf.Schema = []byte(rfs)
 	}
 
-	return marshal(rf)
+	return openai.Marshal(rf)
 }
 
 // response is the response body for the Chat Completion API.
@@ -103,7 +104,7 @@ func countTokens(data chat.Request) int {
 		dup.Messages[i] = newMsg
 	}
 
-	b, err := marshal(dup)
+	b, err := openai.Marshal(dup)
 	if err != nil {
 		panic("failed to marshal request body: " + err.Error())
 	}
@@ -121,7 +122,7 @@ func countTokens(data chat.Request) int {
 func (c *Client) PromptPrice(data chat.Request) float64 {
 	pricing, ok := models.Data[data.Model]
 	if !ok {
-		c.Config.Log.Warn("No pricing for found model '%s'", data.Model)
+		c.Config.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", data.Model))
 		return 0
 	}
 	return float64(countTokens(data)) * pricing.PriceIn
@@ -181,12 +182,37 @@ func (c *Client) execute(data chat.Request) (*response, error) {
 		return nil, fmt.Errorf("prompt is likely too long: ~%d tokens, max %d tokens", inputTokens, contextTokenLimit(data.Model))
 	}
 
+	// drop images of unsupported types from messages
+	for i, msg := range data.Messages {
+		newImages := []chat.Image{}
+		for _, img := range msg.Images {
+			// check if URL contains a supported file extension
+			addr := strings.ToLower(img.URL)
+			isSupported := false
+			for _, ext := range supportedImageTypes {
+				if strings.Contains(addr, "."+ext) {
+					isSupported = true
+					break
+				}
+			}
+			if !isSupported && !strings.HasPrefix(addr, "data:image/") {
+				c.Config.Log.Warn(fmt.Sprintf(
+					"Drop image URL '%s' due to lack of supported file extension",
+					img.URL,
+				))
+				continue
+			}
+			newImages = append(newImages, img)
+		}
+		data.Messages[i].Images = newImages
+	}
+
 	// Ensure MaxTokens is set for specific models
 	if data.MaxTokens == 0 && data.Model == models.GPT4Vision {
 		data.MaxTokens = min(outputTokenLimit(data.Model), contextTokenLimit(data.Model)-inputTokens)
 	}
 
-	b, err := marshal(data)
+	b, err := c.marshalRequest(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
@@ -247,11 +273,11 @@ func (c *Client) execute(data chat.Request) (*response, error) {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	c.Config.Log.Info(
+	c.Config.Log.Info(fmt.Sprintf(
 		"Consumed OpenAI tokens: %d + %d = %d ($%f) on model '%s' in %s",
 		res.Usage.Prompt, res.Usage.Completion,
 		res.Usage.Total, c.Cost(&res), res.Model, duration,
-	)
+	))
 
 	return &res, nil
 }
@@ -259,7 +285,7 @@ func (c *Client) execute(data chat.Request) (*response, error) {
 // handleBadRequest handles the case when the API returns a 400 Bad Request status.
 // Logs the request duration and returns an error with the response body.
 func (c *Client) handleBadRequest(resp *http.Response, model string, duration time.Duration) error {
-	c.Config.Log.Debug("Chat request timing: %s", duration)
+	c.Config.Log.Debug(fmt.Sprintf("Chat request timing: %s", duration))
 	body, _ := io.ReadAll(resp.Body)
 	errMsg := fmt.Errorf(
 		"request (model %s) failed with status: %s, response body: %s",
@@ -315,23 +341,23 @@ func (c *Client) checkFirst(resp *response) (string, error) {
 		return content, fmt.Errorf("got unexpected finish reason: %s", finishReason)
 	}
 	if content != "" {
-		c.Config.Log.Debug("OpenAI response:", content)
+		c.Config.Log.Debug(fmt.Sprintf("OpenAI response: %s", content))
 	}
 	if resp.Choices[0].Message.FunctionCall.Name != "" {
-		c.Config.Log.Info(
+		c.Config.Log.Info(fmt.Sprintf(
 			"OpenAI called function: %+v",
 			resp.Choices[0].Message.FunctionCall,
-		)
+		))
 	}
 	if len(resp.Choices[0].Message.ToolCalls) != 0 {
 		var funcCalls []string
 		for _, tc := range resp.Choices[0].Message.ToolCalls {
 			funcCalls = append(funcCalls, fmt.Sprintf("%+v", tc.Function))
 		}
-		c.Config.Log.Info(
+		c.Config.Log.Info(fmt.Sprintf(
 			"OpenAI called functions:\n%s",
 			strings.Join(funcCalls, "\n"),
-		)
+		))
 	}
 
 	return content, nil
@@ -342,20 +368,40 @@ func (c *Client) checkFirst(resp *response) (string, error) {
 func (c *Client) Cost(resp *response) float64 {
 	pricing, ok := models.Data[resp.Model]
 	if !ok {
-		c.Config.Log.Warn("No pricing for found model '%s'", resp.Model)
+		c.Config.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", resp.Model))
 		return 0
 	}
 	return float64(resp.Usage.Prompt)*pricing.PriceIn + float64(resp.Usage.Completion)*pricing.PriceOut
 }
 
-func marshal(v interface{}) ([]byte, error) {
-	buffer := &bytes.Buffer{}
-	encoder := json.NewEncoder(buffer)
-	encoder.SetEscapeHTML(false)
-
-	if err := encoder.Encode(v); err != nil {
-		return nil, err
+// marshalRequest builds request body including function calls based on registered tools
+func (c *Client) marshalRequest(data chat.Request) ([]byte, error) {
+	if len(data.Functions) == 0 {
+		type Alias chat.Request
+		return openai.Marshal((*Alias)(&data))
 	}
-
-	return buffer.Bytes(), nil
+	// construct tools array for function calls
+	type toolEntry struct {
+		Type     string             `json:"type"`
+		Function tools.FunctionCall `json:"function"`
+	}
+	var toolList []toolEntry
+	for _, name := range data.Functions {
+		f, ok := c.Config.Tools.GetFunction(name)
+		if !ok {
+			return nil, fmt.Errorf("function '%s' is not registered", name)
+		}
+		toolList = append(toolList, toolEntry{
+			Type:     "function",
+			Function: f,
+		})
+	}
+	type Alias chat.Request
+	return openai.Marshal(&struct {
+		Tools []toolEntry `json:"tools"`
+		*Alias
+	}{
+		Tools: toolList,
+		Alias: (*Alias)(&data),
+	})
 }

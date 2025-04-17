@@ -7,54 +7,53 @@ import (
 	"fmt"
 	"openai/chat"
 	openai "openai/internal"
-	"openai/models"
 	"openai/roles"
 	"openai/tools"
 )
 
-// SinglePrompt sends a request to the Chat API with a single user prompt and no additional context or settings.
-// Returns the AI reply.
-func (c *Client) SinglePrompt(prompt, userID string) (string, error) {
-	req := chat.Request{
-		Model: models.Default,
-		Messages: []chat.Message{
-			{Role: roles.User, Content: prompt},
-		},
-		User: userID,
-	}
+// // ChatWithUser sends a request to the Chat API with a single user prompt and no additional context or settings.
+// // Returns the AI reply.
+// func (c *Client) ChatWithUser(prompt, userID string) (string, error) {
+// 	req := chat.Request{
+// 		Model: models.Default,
+// 		Messages: []chat.Message{
+// 			{Role: roles.User, Content: prompt},
+// 		},
+// 		User: userID,
+// 	}
 
-	return c.CustomPrompt(req)
-}
+// 	return c.Chat(req)
+// }
 
-// PrimedPrompt sends a request to the Chat API with a single user prompt primed by a given "system" message.
-// Returns the AI reply.
-func (c *Client) PrimedPrompt(systemMessage, prompt, userID string) (string, error) {
-	req := chat.Request{
-		Model: models.Default,
-		Messages: []chat.Message{
-			{Role: roles.System, Content: systemMessage},
-			{Role: roles.User, Content: prompt},
-		},
-		User: userID,
-	}
+// // ChatWithSystem sends a request to the Chat API with a single user prompt primed by a given "system" message.
+// // Returns the AI reply.
+// func (c *Client) ChatWithSystem(systemMessage, prompt, userID string) (string, error) {
+// 	req := chat.Request{
+// 		Model: models.Default,
+// 		Messages: []chat.Message{
+// 			{Role: roles.System, Content: systemMessage},
+// 			{Role: roles.User, Content: prompt},
+// 		},
+// 		User: userID,
+// 	}
 
-	return c.CustomPrompt(req)
-}
+// 	return c.Chat(req)
+// }
 
-// MessagesPrompt sends a request to the Chat API with a given sequence of messages.
-// Returns the AI reply.
-func (c *Client) MessagesPrompt(messages []chat.Message, userID string) (string, error) {
-	req := chat.Request{
-		Model:    models.Default,
-		Messages: messages,
-		User:     userID,
-	}
+// // ChatWithMessages sends a request to the Chat API with a given sequence of messages.
+// // Returns the AI reply.
+// func (c *Client) ChatWithMessages(messages []chat.Message, userID string) (string, error) {
+// 	req := chat.Request{
+// 		Model:    models.Default,
+// 		Messages: messages,
+// 		User:     userID,
+// 	}
 
-	return c.CustomPrompt(req)
-}
+// 	return c.Chat(req)
+// }
 
-// CustomPrompt sends a request to the Chat API with custom data.
-func (c *Client) CustomPrompt(req chat.Request) (string, error) {
+// Chat sends a request to the Chat API with custom data.
+func (c *Client) Chat(req chat.Request) (string, error) {
 	respData, err := c.execute(req)
 	if err != nil {
 		return "", err
@@ -68,7 +67,7 @@ func (c *Client) CustomPrompt(req chat.Request) (string, error) {
 			return "", err
 		}
 
-		var callsToReturn []openai.FunctionCallData
+		var callsToReturn []*openai.FunctionCallData
 		var callErrors []error
 		for i, tc := range aiMessage.ToolCalls {
 			f, ok := c.Config.Tools.GetFunction(tc.Function.Name)
@@ -106,9 +105,12 @@ func (c *Client) CustomPrompt(req chat.Request) (string, error) {
 					"failed to execute function '%s': %w",
 					tc.Function.Name, err,
 				))
-				c.Config.Log.Error("Function call error: %s", err)
+				c.Config.Log.Error(fmt.Sprintf("Function call error: %s", err))
 			}
-			c.Config.Log.Debug("Function '%s' returned: %s", tc.Function.Name, fResult)
+			c.Config.Log.Debug(fmt.Sprintf(
+				"Function '%s' returned: %s",
+				tc.Function.Name, fResult,
+			))
 
 			req.Messages = append(req.Messages, chat.Message{
 				Role:       roles.Tool,
@@ -125,11 +127,11 @@ func (c *Client) CustomPrompt(req chat.Request) (string, error) {
 					}
 				}
 				if uses >= f.CallLimit {
-					c.Config.Log.Warn(
+					c.Config.Log.Warn(fmt.Sprintf(
 						"Function '%s' has reached its CallLimit (%d) times, forcing non-function response",
 						tc.Function.Name,
 						uses,
-					)
+					))
 					req.ToolChoice = "none"
 				}
 			}
@@ -182,7 +184,7 @@ func (c *Client) CustomPrompt(req chat.Request) (string, error) {
 		//	req.Model = ModelChatGPT16k
 		//}
 
-		return c.CustomPrompt(req)
+		return c.Chat(req)
 	}
 
 	return c.checkFirst(respData)

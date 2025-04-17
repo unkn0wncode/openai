@@ -3,6 +3,7 @@ package openai
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -112,4 +113,18 @@ func LoadTokenEncoders() error {
 	}
 
 	return nil
+}
+
+// Marshal marshals the given value to JSON.
+// HTML escaping is disabled.
+func Marshal(v any) ([]byte, error) {
+	buffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(buffer)
+	encoder.SetEscapeHTML(false)
+
+	if err := encoder.Encode(v); err != nil {
+		return nil, err
+	}
+
+	return buffer.Bytes(), nil
 }

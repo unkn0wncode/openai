@@ -4,7 +4,6 @@ package chat
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	openai "openai/internal"
 	"openai/tools"
 	"strings"
@@ -96,50 +95,6 @@ type Request struct {
 	ReturnFunctionCalls bool `json:"-"` // default false
 }
 
-// MarshalJSON implements json.Marshaler interface.
-// Encodes functions into the request body based on their names.
-// Passes model from OpenRouter's model field.
-func (data Request) MarshalJSON() ([]byte, error) {
-	// if there are no functions, don't encode the field at all
-	if len(data.Functions) == 0 {
-		type Alias Request
-		return marshal(&struct {
-			Functions struct{} `json:"-"`
-			*Alias
-		}{
-			Alias: (*Alias)(&data),
-		})
-	}
-
-	type Tool struct {
-		Type     string             `json:"type"`
-		Function tools.FunctionCall `json:"function"`
-	}
-
-	// find functions by names
-	var tools []Tool
-	for _, name := range data.Functions {
-		f, ok := funcCalls[name]
-		if !ok {
-			return nil, fmt.Errorf("function '%s' is not registered", name)
-		}
-		tools = append(tools, Tool{
-			Type:     "function",
-			Function: f,
-		})
-	}
-
-	// encode actual functions into the request body
-	type Alias Request
-	return marshal(&struct {
-		Tools []Tool `json:"tools"`
-		*Alias
-	}{
-		Tools: tools,
-		Alias: (*Alias)(&data),
-	})
-}
-
 // ResponseFormatStr represents a format that the model must output.
 // Should be one of:
 //   - "text" (default, normal text)
@@ -168,7 +123,7 @@ func (rfs ResponseFormatStr) MarshalJSON() ([]byte, error) {
 		rf.Schema = []byte(rfs)
 	}
 
-	return marshal(rf)
+	return openai.Marshal(rf)
 }
 
 // Message represents a message in API request or response.
@@ -207,7 +162,7 @@ type Image struct {
 // If Images are present, they are encoded into Content array.
 func (data Message) MarshalJSON() ([]byte, error) {
 	type Alias Message
-	b, err := marshal(&struct {
+	b, err := openai.Marshal(&struct {
 		*Alias
 	}{
 		Alias: (*Alias)(&data),
@@ -234,35 +189,18 @@ func (data Message) MarshalJSON() ([]byte, error) {
 			})
 		}
 		for _, img := range data.Images {
-			// check if URL contains a supported file extension
-			addr := strings.ToLower(img.URL)
-			isSupported := false
-			for _, ext := range supportedImageTypes {
-				if strings.Contains(addr, "."+ext) {
-					isSupported = true
-					break
-				}
-			}
-			if !isSupported && !strings.HasPrefix(addr, "data:image/") {
-				openai.LogStd.Printf(
-					"Drop image URL '%s' due to lack of supported file extension",
-					img.URL,
-				)
-				continue
-			}
-
 			content = append(content, ContentElement{
 				Type:  "image_url",
 				Image: ImageElement(img),
 			})
 		}
 
-		contentB, err := marshal(content)
+		contentB, err := openai.Marshal(content)
 		if err != nil {
 			return nil, err
 		}
 
-		plainContent, err := marshal(struct {
+		plainContent, err := openai.Marshal(struct {
 			Content string `json:"content"`
 		}{
 			Content: data.Content,
@@ -281,16 +219,4 @@ func (data Message) MarshalJSON() ([]byte, error) {
 
 	// delete empty FunctionCall if present
 	return []byte(strings.ReplaceAll(string(b), `,"function_call":{}`, "")), nil
-}
-
-func marshal(v interface{}) ([]byte, error) {
-	buffer := &bytes.Buffer{}
-	encoder := json.NewEncoder(buffer)
-	encoder.SetEscapeHTML(false)
-
-	if err := encoder.Encode(v); err != nil {
-		return nil, err
-	}
-
-	return buffer.Bytes(), nil
 }
