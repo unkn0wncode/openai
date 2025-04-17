@@ -1,15 +1,19 @@
-// Package chat / functioncalls.go handles function calls, or tools, in chat API.
+// Package tools / functioncalls.go handles function calls, or tools, in chat API.
 // Allows external packages to register functions that AI can request to be executed.
-package chat
+package tools
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 )
 
-// funcCalls stores all registered functions.
-var funcCalls = map[string]FunctionCall{}
+// Registry holds user-defined tools that AI can request to use.
+type Registry struct {
+	sync.RWMutex
+	FunctionCalls map[string]FunctionCall
+}
 
 var (
 	// ErrDoNotRespond is to be returned by an AI function when it has completed its work
@@ -60,53 +64,57 @@ type FunctionCall struct {
 // CreateFunction creates a function that can be added to AI request to be run as needed.
 // To allow AI to call a function in a particular request, add the function name
 // to the request's "functions" field.
-func CreateFunction(fc FunctionCall) {
+func (r *Registry) CreateFunction(fc FunctionCall) error {
+	r.Lock()
+	defer r.Unlock()
+
 	if fc.Name == "" || fc.ParamsSchema == nil || fc.Description == "" {
-		panic("function '" + fc.Name + "' is missing required field(s)")
+		return fmt.Errorf("function '%s' is missing required field(s)", fc.Name)
 	}
 
-	if _, ok := funcCalls[fc.Name]; ok {
-		panic("function '" + fc.Name + "' is already registered, names must be unique")
+	if _, ok := r.FunctionCalls[fc.Name]; ok {
+		return fmt.Errorf("function '%s' is already registered, names must be unique", fc.Name)
 	}
 
-	funcCalls[fc.Name] = fc
+	r.FunctionCalls[fc.Name] = fc
+	return nil
+}
+
+// DeleteFunction deletes a function from the registry.
+func (r *Registry) DeleteFunction(name string) error {
+	r.Lock()
+	defer r.Unlock()
+
+	if _, ok := r.FunctionCalls[name]; !ok {
+		return fmt.Errorf("function '%s' is not found in registry", name)
+	}
+
+	delete(r.FunctionCalls, name)
+	return nil
 }
 
 // CountFunctions returns the number of registered functions.
-func CountFunctions() int {
-	return len(funcCalls)
+func (r *Registry) CountFunctions() int {
+	r.RLock()
+	defer r.RUnlock()
+
+	return len(r.FunctionCalls)
 }
 
 // GetFunction returns a registered function by its name.
 // Returns false if the function is not registered.
-func GetFunction(name string) (FunctionCall, bool) {
-	fc, ok := funcCalls[name]
+func (r *Registry) GetFunction(name string) (FunctionCall, bool) {
+	r.RLock()
+	defer r.RUnlock()
+
+	fc, ok := r.FunctionCalls[name]
 	return fc, ok
 }
 
-// FunctionCall represents a function call in API response.
-// Contains name of the function to be called and its arguments
-// as a JSON object encoded into a string.
-// Must be verified as AI may provide invalid JSON or incorrect arguments.
-type FunctionCallData struct {
-	Name      string `json:"name,omitempty"`
-	Arguments string `json:"arguments,omitempty"` // has JSON object, but as a string
-}
-
-type ToolCallData struct {
-	ID       string           `json:"id,omitempty"`
-	Type     string           `json:"type,omitempty"` // only "function" now
-	Function FunctionCallData `json:"function,omitempty"`
-}
-
-// UnmarshalArguments decodes JSON-encoded arguments into target.
-func (data FunctionCallData) UnmarshalArguments(target any) error {
-	return json.Unmarshal([]byte(data.Arguments), target)
-}
-
-// ToolChoiceOption represents a choice of tool to be forced for used by AI.
+// ToolChoiceOption represents a choice of tool to be forced for use by AI.
 type ToolChoiceOption string
 
+// MarshalJSON implements json.Marshaler.
 func (tco ToolChoiceOption) MarshalJSON() ([]byte, error) {
 	switch tco {
 	case "none", "auto":

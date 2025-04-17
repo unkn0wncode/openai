@@ -5,70 +5,42 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"openai/util"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/pkoukk/tiktoken-go"
-)
-
-var (
-	logFileOpenai, _ = os.OpenFile("./openai/openai.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	logMultOpenaiStd = io.MultiWriter(logFileOpenai, os.Stdout)
-	// Log is a logger for OpenAI system related events
-	Log = log.New(logFileOpenai, "", log.Ldate|log.Ltime|log.Lshortfile)
-	// LogStd is a logger for OpenAI-related events that also duplicates to console
-	LogStd = log.New(logMultOpenaiStd, "", log.Ldate|log.Ltime|log.Lshortfile)
 )
 
 const (
 	BaseAPI = "https://api.openai.com/"
 
-	FinishReasonStop         = "stop"
-	FinishReasonLength       = "length"
-	FinishReasonFilter       = "content_filter"
-	FinishReasonFunctionCall = "function_call"
-	FinishReasonToolCalls    = "tool_calls"
-	FinishReasonNull         = "null"
-
-	// Deprecated: tiktoken is used for precise token counting instead of rough estimation based in characters count.
+	// Deprecated: tiktoken is used for precise token counting instead of
+	// rough estimation based in characters count.
 	// charPerToken = 4
 )
 
-// loggingTransport is a custom HTTP transport that logs request and response dumps.
-type loggingTransport struct {
-	Log *log.Logger
+// LoggingTransport is a custom HTTP transport that logs request and response dumps.
+type LoggingTransport struct {
+	Log       *slog.Logger
+	EnableLog bool
 }
 
-// LogTripper is a transport instance for logging HTTP requests and responses.
-var LogTripper = &loggingTransport{
-	// Log: LogStd,
-}
-
-// openAIClient is a wrapper for http.Client with OpenAI-specific behaviors.
-type openAIClient struct {
+// HTTPClient is a wrapper for http.Client with OpenAI-specific behaviors.
+type HTTPClient struct {
 	*http.Client
 }
 
-// Cli is an HTTP client to be used for OpenAI API requests.
-var Cli = &openAIClient{
-	Client: &http.Client{
-		Timeout:   30 * time.Second,
-		Transport: LogTripper,
-	},
-}
-
 // RoundTrip logs the request and response while performing round trip, if logger is set.
-func (lt *loggingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+func (lt *LoggingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	log := lt.Log
-	if log == nil {
+	if log == nil || !lt.EnableLog {
 		return http.DefaultTransport.RoundTrip(r)
 	}
 
-	logBytes, dumpErr := util.Dump(r)
+	reqBytes, dumpErr := util.Dump(r)
 	if dumpErr != nil {
 		return nil, fmt.Errorf("failed to dump request: %w", dumpErr)
 	}
@@ -80,16 +52,15 @@ func (lt *loggingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	if dumpErr != nil {
 		return nil, fmt.Errorf("failed to dump response: %w", dumpErr)
 	}
-	logBytes = append(logBytes, respBytes...)
 
-	log.Printf("%s\n", logBytes)
+	log.Debug("request:\n%s\nresponse:\n%s", string(reqBytes), string(respBytes))
 
 	return resp, err
 }
 
 // Do performs the HTTP request but makes a copy of body beforehand and sets it back afterwards
 // to allow retrying the same request multiple times with no data loss.
-func (c *openAIClient) Do(req *http.Request) (*http.Response, error) {
+func (c *HTTPClient) Do(req *http.Request) (*http.Response, error) {
 	if req.Body == nil {
 		return c.Client.Do(req)
 	}
@@ -141,11 +112,4 @@ func LoadTokenEncoders() error {
 	}
 
 	return nil
-}
-
-// AddHeaders adds the basic required headers to given API request.
-// Includes Authorization and Content-Type.
-func AddHeaders(req *http.Request) {
-	req.Header.Add("Authorization", "Bearer "+framework.Conf.OpenAIToken)
-	req.Header.Add("Content-Type", "application/json")
 }

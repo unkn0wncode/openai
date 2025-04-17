@@ -1,10 +1,6 @@
 package chat
 
 import (
-	"macbot/commands"
-	"macbot/framework"
-	"macbot/util"
-
 	"github.com/unkn0wncode/brocord"
 )
 

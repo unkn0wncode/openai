@@ -5,71 +5,73 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"openai/chat"
 	openai "openai/internal"
+	"openai/models"
+	"openai/roles"
+	"openai/tools"
 )
 
 // SinglePrompt sends a request to the Chat API with a single user prompt and no additional context or settings.
 // Returns the AI reply.
-func SinglePrompt(prompt, userID string) (string, error) {
-	req := Request{
-		Model: DefaultModel,
-		Messages: []Message{
-			{Role: RoleUser, Content: prompt},
+func (c *Client) SinglePrompt(prompt, userID string) (string, error) {
+	req := chat.Request{
+		Model: models.Default,
+		Messages: []chat.Message{
+			{Role: roles.User, Content: prompt},
 		},
 		User: userID,
 	}
 
-	return CustomPrompt(req)
+	return c.CustomPrompt(req)
 }
 
 // PrimedPrompt sends a request to the Chat API with a single user prompt primed by a given "system" message.
 // Returns the AI reply.
-func PrimedPrompt(systemMessage, prompt, userID string) (string, error) {
-	req := Request{
-		Model: DefaultModel,
-		Messages: []Message{
-			{Role: RoleSystem, Content: systemMessage},
-			{Role: RoleUser, Content: prompt},
+func (c *Client) PrimedPrompt(systemMessage, prompt, userID string) (string, error) {
+	req := chat.Request{
+		Model: models.Default,
+		Messages: []chat.Message{
+			{Role: roles.System, Content: systemMessage},
+			{Role: roles.User, Content: prompt},
 		},
 		User: userID,
 	}
 
-	return CustomPrompt(req)
+	return c.CustomPrompt(req)
 }
 
 // MessagesPrompt sends a request to the Chat API with a given sequence of messages.
 // Returns the AI reply.
-func MessagesPrompt(messages []Message, userID string) (string, error) {
-	req := Request{
-		Model:    DefaultModel,
+func (c *Client) MessagesPrompt(messages []chat.Message, userID string) (string, error) {
+	req := chat.Request{
+		Model:    models.Default,
 		Messages: messages,
 		User:     userID,
 	}
 
-	return CustomPrompt(req)
+	return c.CustomPrompt(req)
 }
 
 // CustomPrompt sends a request to the Chat API with custom data.
-func CustomPrompt(req Request) (string, error) {
-	respData, err := req.execute()
+func (c *Client) CustomPrompt(req chat.Request) (string, error) {
+	respData, err := c.execute(req)
 	if err != nil {
-		openai.Mon.Fail(err)
 		return "", err
 	}
-	openai.Mon.Up()
 
 	// if response contains tool/function calls, it needs to be handled specially
 	aiMessage := respData.Choices[0].Message
 	if len(aiMessage.ToolCalls) > 0 {
-		_, err := respData.checkFirst()
+		_, err := c.checkFirst(respData)
 		if err != nil {
 			return "", err
 		}
 
-		var callsToReturn []FunctionCallData
+		var callsToReturn []openai.FunctionCallData
 		var callErrors []error
 		for i, tc := range aiMessage.ToolCalls {
-			f, ok := funcCalls[tc.Function.Name]
+			f, ok := c.Config.Tools.GetFunction(tc.Function.Name)
 			if !ok {
 				return "", fmt.Errorf("function '%s' is not registered", tc.Function.Name)
 			}
@@ -93,10 +95,10 @@ func CustomPrompt(req Request) (string, error) {
 			fResult, err := f.F([]byte(tc.Function.Arguments))
 			switch {
 			case err == nil:
-			case errors.Is(err, ErrDoNotRespond):
+			case errors.Is(err, tools.ErrDoNotRespond):
 				callErrors = append(callErrors, err)
 				if fResult == "" {
-					fResult = TextDoNotRespond
+					fResult = tools.TextDoNotRespond
 				}
 			default:
 				// return "", fmt.Errorf("failed to execute function '%s': %w", tc.Function.Name, err)
@@ -104,12 +106,12 @@ func CustomPrompt(req Request) (string, error) {
 					"failed to execute function '%s': %w",
 					tc.Function.Name, err,
 				))
-				openai.LogStd.Printf("Function call error: %s", err)
+				c.Config.Log.Error("Function call error: %s", err)
 			}
-			openai.Log.Printf("Function '%s' returned: %s", tc.Function.Name, fResult)
+			c.Config.Log.Debug("Function '%s' returned: %s", tc.Function.Name, fResult)
 
-			req.Messages = append(req.Messages, Message{
-				Role:       RoleTool,
+			req.Messages = append(req.Messages, chat.Message{
+				Role:       roles.Tool,
 				ToolCallID: tc.ID,
 				Content:    fResult,
 			})
@@ -118,12 +120,12 @@ func CustomPrompt(req Request) (string, error) {
 			if f.CallLimit > 0 {
 				uses := 0
 				for _, msg := range req.Messages {
-					if msg.Role == RoleFunction && msg.Name == tc.Function.Name {
+					if msg.Role == roles.Function && msg.Name == tc.Function.Name {
 						uses++
 					}
 				}
 				if uses >= f.CallLimit {
-					openai.Log.Printf(
+					c.Config.Log.Warn(
 						"Function '%s' has reached its CallLimit (%d) times, forcing non-function response",
 						tc.Function.Name,
 						uses,
@@ -135,14 +137,14 @@ func CustomPrompt(req Request) (string, error) {
 
 		// if any function calls gave error, return an error
 		if err := errors.Join(callErrors...); err != nil {
-			allDoNotRespond := errors.Is(err, ErrDoNotRespond)
+			allDoNotRespond := errors.Is(err, tools.ErrDoNotRespond)
 			for j := 0; allDoNotRespond && j < len(callErrors); j++ {
-				if !errors.Is(callErrors[j], ErrDoNotRespond) {
+				if !errors.Is(callErrors[j], tools.ErrDoNotRespond) {
 					allDoNotRespond = false
 				}
 			}
 			if allDoNotRespond {
-				err = ErrDoNotRespond
+				err = tools.ErrDoNotRespond
 			}
 
 			// try to return what we normally would plus all errors
@@ -152,7 +154,7 @@ func CustomPrompt(req Request) (string, error) {
 				return string(b), errors.Join(err, marshalErr)
 			}
 
-			respText, respCheckErr := respData.checkFirst()
+			respText, respCheckErr := c.checkFirst(respData)
 			return respText, errors.Join(err, respCheckErr)
 		}
 
@@ -180,8 +182,8 @@ func CustomPrompt(req Request) (string, error) {
 		//	req.Model = ModelChatGPT16k
 		//}
 
-		return CustomPrompt(req)
+		return c.CustomPrompt(req)
 	}
 
-	return respData.checkFirst()
+	return c.checkFirst(respData)
 }

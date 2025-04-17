@@ -5,30 +5,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	openai "openai/internal"
-	"openai/util"
-	"slices"
+	"openai/tools"
 	"strings"
-	"time"
 )
-
-const (
-	apiURL = openai.BaseAPI + "v1/chat/completions"
-
-	RoleSystem   = "system"
-	RoleUser     = "user"
-	RoleAI       = "assistant"
-	RoleFunction = "function"
-	RoleTool     = "tool"
-)
-
-// supportedImageTypes is a list of supported image file extensions.
-var supportedImageTypes = []string{"png", "jpeg", "jpg", "gif", "webp"}
-
-// Configuration flag to force enable LogTripper
-var ForceEnableLogTripper bool = false
 
 // Request is the request body for the Chat API.
 type Request struct {
@@ -104,7 +84,7 @@ type Request struct {
 	// "none", "auto", or "function_name".
 	// "none" prohibits function calls, "auto" allows them at AI's discretion and "function_name" forces the use of one specified function.
 	// If function name is given, it will be encoded in a tool format like {"type": "function", "function": {"name": "function_name"}}.
-	ToolChoice ToolChoiceOption `json:"tool_choice,omitempty"` // default "auto"
+	ToolChoice tools.ToolChoiceOption `json:"tool_choice,omitempty"` // default "auto"
 
 	// A unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse.
 	User string `json:"user,omitempty"` // default ""
@@ -132,8 +112,8 @@ func (data Request) MarshalJSON() ([]byte, error) {
 	}
 
 	type Tool struct {
-		Type     string       `json:"type"`
-		Function FunctionCall `json:"function"`
+		Type     string             `json:"type"`
+		Function tools.FunctionCall `json:"function"`
 	}
 
 	// find functions by names
@@ -208,13 +188,13 @@ type Message struct {
 
 	// FunctionCall can only be present if Role is "assistant".
 	// Deprecated: use ToolCalls instead.
-	FunctionCall FunctionCallData `json:"function_call,omitempty"`
+	FunctionCall openai.FunctionCallData `json:"function_call,omitempty"`
 
 	// ToolCallID is required for "tool" role and then must contain ID found in ToolCall.
 	ToolCallID string `json:"tool_call_id,omitempty"`
 
 	// ToolCalls can only be present if Role is "assistant".
-	ToolCalls []ToolCallData `json:"tool_calls,omitempty"`
+	ToolCalls []openai.ToolCallData `json:"tool_calls,omitempty"`
 }
 
 type Image struct {
@@ -301,298 +281,6 @@ func (data Message) MarshalJSON() ([]byte, error) {
 
 	// delete empty FunctionCall if present
 	return []byte(strings.ReplaceAll(string(b), `,"function_call":{}`, "")), nil
-}
-
-// response is the response body for the Chat Completion API.
-type response struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Created int    `json:"created"` // Unix timestamp
-	Model   string `json:"model"`
-	Usage   struct {
-		Prompt     int `json:"prompt_tokens"`
-		Completion int `json:"completion_tokens"`
-		Total      int `json:"total_tokens"`
-	} `json:"usage"`
-	Choices []struct {
-		Message      Message `json:"message"`
-		FinishReason string  `json:"finish_reason"` // stop/length/content_filter/null
-		Index        int     `json:"index"`
-	} `json:"choices"`
-	Error struct {
-		Message string `json:"message"`
-		Type    string `json:"type"`
-		Param   string `json:"param"`
-		Code    string `json:"code"`
-	} `json:"error"`
-}
-
-// countTokens returns the number of tokens in the request.
-func (data Request) countTokens() int {
-	dup := data
-	dup.Messages = make([]Message, len(data.Messages))
-
-	for i, msg := range data.Messages {
-		newMsg := msg
-
-		var images []Image
-		for _, img := range msg.Images {
-			if !strings.HasPrefix(img.URL, "data:image/") {
-				images = append(images, img)
-			}
-		}
-		newMsg.Images = images
-
-		dup.Messages[i] = newMsg
-	}
-
-	b, err := marshal(dup)
-	if err != nil {
-		panic("failed to marshal request body: " + err.Error())
-	}
-
-	if err := openai.LoadTokenEncoders(); err != nil {
-		panic("failed to load token encoders: " + err.Error())
-	}
-
-	return len(openai.TokenEncoderChat.Encode(string(b), nil, nil))
-}
-
-// PromptPrice returns approximate price of the request's input in USD.
-// Mind that output is not included and is priced higher, but usually is much shorter than input.
-// Returns zero if pricing for the model is not known.
-func (data Request) PromptPrice() float64 {
-	pricing, ok := ModelsData[data.Model]
-	if !ok {
-		openai.LogStd.Printf("No pricing for found model '%s'", data.Model)
-		return 0
-	}
-	return float64(data.countTokens()) * pricing.PriceIn
-}
-
-func (data Request) contextTokenLimit() int {
-	modelData, ok := ModelsData[data.Model]
-	if !ok {
-		return ModelsData[""].LimitContext
-	}
-	return modelData.LimitContext
-}
-
-func (data Request) outputTokenLimit() int {
-	modelData, ok := ModelsData[data.Model]
-	if !ok {
-		return ModelsData[""].LimitOutput
-	}
-	return modelData.LimitOutput
-}
-
-// trimMessages cuts off the oldest messages if the request is too long.
-func (data Request) trimMessages() []Message {
-	hasSystemPrompt := len(data.Messages) > 0 && data.Messages[0].Role == RoleSystem
-	minMessages := 1
-	if hasSystemPrompt {
-		minMessages = 2
-	}
-
-	messages := data.Messages
-	for len(data.Messages) > minMessages && data.countTokens() > data.contextTokenLimit()-data.MaxTokens {
-		messages = nil
-		if hasSystemPrompt {
-			messages = append(messages, data.Messages[0])
-		}
-
-		for i := minMessages; i < len(data.Messages); i++ {
-			messages = append(messages, data.Messages[i])
-		}
-
-		data.Messages = messages
-	}
-
-	return messages
-}
-
-func (data Request) execute() (*response, error) {
-	if data.Model == "" {
-		data.Model = DefaultModel
-	}
-
-	// Trim messages if the request is too long
-	data.Messages = data.trimMessages()
-	inputTokens := data.countTokens()
-	if inputTokens > data.contextTokenLimit() {
-		return nil, fmt.Errorf("prompt is likely too long: ~%d tokens, max %d tokens", inputTokens, data.contextTokenLimit())
-	}
-
-	// Ensure MaxTokens is set for specific models
-	if data.MaxTokens == 0 && data.Model == ModelGPT4Vision {
-		data.MaxTokens = min(data.outputTokenLimit(), data.contextTokenLimit()-inputTokens)
-	}
-
-	b, err := marshal(data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request body: %w", err)
-	}
-
-	var req *http.Request
-	req, err = http.NewRequest(http.MethodPost, apiURL, bytes.NewBuffer(b))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	openai.AddHeaders(req)
-
-	// Enable LogTripper if forced
-	if ForceEnableLogTripper && openai.LogTripper.Log == nil {
-		enableLogTripper()
-	}
-
-	var resp *http.Response
-	var duration time.Duration
-
-	err = util.Retry(func() error {
-		startTime := time.Now()
-		resp, err = openai.Cli.Do(req)
-		duration = time.Since(startTime)
-		if err != nil {
-			return err
-		}
-
-		if resp.StatusCode == http.StatusOK {
-			// Disable LogTripper if it was enabled due to error and not forced
-			if openai.LogTripper.Log != nil && !ForceEnableLogTripper {
-				disableLogTripper()
-			}
-			return nil
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			return handleBadRequest(resp, data.Model, duration)
-		}
-
-		// Handle other non-OK statuses
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf(
-			"request (model %s) failed with status: %s, response body: %s",
-			data.Model, resp.Status, string(body),
-		)
-	}, 3, 3*time.Second)
-	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-
-	// Read the response body
-	rb, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	var res response
-	if err := json.Unmarshal(rb, &res); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	openai.Log.Printf(
-		"Consumed OpenAI tokens: %d + %d = %d ($%f) on model '%s' in %s",
-		res.Usage.Prompt, res.Usage.Completion,
-		res.Usage.Total, res.Cost(), res.Model, duration,
-	)
-
-	return &res, nil
-}
-
-// handleBadRequest handles the case when the API returns a 400 Bad Request status.
-// Logs the request duration and returns an error with the response body.
-func handleBadRequest(resp *http.Response, model string, duration time.Duration) error {
-	openai.Log.Printf("Chat request timing: %s", duration)
-	body, _ := io.ReadAll(resp.Body)
-	errMsg := fmt.Errorf(
-		"request (model %s) failed with status: %s, response body: %s",
-		model, resp.Status, string(body),
-	)
-	enableLogTripper()
-	return errMsg
-}
-
-// enableLogTripper enables LogTripper for the API requests and logs that it's enabled.
-func enableLogTripper() {
-	openai.LogStd.Printf("Enable LogTripper")
-	openai.LogTripper.Log = openai.LogStd
-}
-
-// disableLogTripper disables LogTripper for the API requests and logs that it's disabled.
-func disableLogTripper() {
-	openai.LogStd.Printf("Disable LogTripper")
-	openai.LogTripper.Log = nil
-}
-
-// checkFirst checks if API response is valid,
-// returns raw content or function call of first choice and error.
-func (resp *response) checkFirst() (string, error) {
-	if resp == nil {
-		return "", fmt.Errorf("response is nil")
-	}
-
-	if resp.Error.Message != "" {
-		return "", fmt.Errorf("got API error: %s", resp.Error.Message)
-	}
-
-	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("no choices returned")
-	}
-
-	if resp.Choices[0].Message.Refusal != "" {
-		return "", fmt.Errorf(
-			"AI returned refusal: %s",
-			resp.Choices[0].Message.Refusal,
-		)
-	}
-
-	finishReason := resp.Choices[0].FinishReason
-	content := resp.Choices[0].Message.Content
-	expectedFinishReasons := []string{
-		"",
-		openai.FinishReasonStop,
-		openai.FinishReasonFunctionCall,
-		openai.FinishReasonToolCalls,
-	}
-	if !slices.Contains(expectedFinishReasons, finishReason) {
-		return content, fmt.Errorf("got unexpected finish reason: %s", finishReason)
-	}
-	if content != "" {
-		openai.Log.Println("OpenAI response:", content)
-	}
-	if resp.Choices[0].Message.FunctionCall.Name != "" {
-		openai.Log.Printf(
-			"OpenAI called function: %+v",
-			resp.Choices[0].Message.FunctionCall,
-		)
-	}
-	if len(resp.Choices[0].Message.ToolCalls) != 0 {
-		var funcCalls []string
-		for _, tc := range resp.Choices[0].Message.ToolCalls {
-			funcCalls = append(funcCalls, fmt.Sprintf("%+v", tc.Function))
-		}
-		openai.Log.Printf(
-			"OpenAI called functions:\n%s",
-			strings.Join(funcCalls, "\n"),
-		)
-	}
-
-	return content, nil
-}
-
-// Cost returns the resulting cost of the completed request in USD.
-// Returns zero if pricing for the model is not known.
-func (resp *response) Cost() float64 {
-	pricing, ok := ModelsData[resp.Model]
-	if !ok {
-		openai.LogStd.Printf("No pricing for found model '%s'", resp.Model)
-		return 0
-	}
-	return float64(resp.Usage.Prompt)*pricing.PriceIn + float64(resp.Usage.Completion)*pricing.PriceOut
 }
 
 func marshal(v interface{}) ([]byte, error) {

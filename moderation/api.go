@@ -7,9 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"openai/util"
 	"net/http"
 	openai "openai/internal"
+	"openai/util"
 	"strings"
 )
 
