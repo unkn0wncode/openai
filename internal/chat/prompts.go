@@ -53,7 +53,7 @@ import (
 // }
 
 // Chat sends a request to the Chat API with custom data.
-func (c *Client) Chat(req chat.Request) (string, error) {
+func (c *ChatClient) Chat(req chat.Request) (string, error) {
 	respData, err := c.execute(req)
 	if err != nil {
 		return "", err

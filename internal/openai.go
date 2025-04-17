@@ -98,7 +98,7 @@ func LoadTokenEncoders() error {
 		return nil
 	}
 
-	err := os.Setenv("TIKTOKEN_CACHE_DIR", "./openai/tiktoken")
+	err := os.Setenv("TIKTOKEN_CACHE_DIR", "./tiktoken")
 	if err != nil {
 		return fmt.Errorf("failed to set TIKTOK_CACHE_DIR env variable: %w", err)
 	}

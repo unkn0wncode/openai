@@ -25,7 +25,7 @@ const (
 // supportedImageTypes is a list of supported image file extensions.
 var supportedImageTypes = []string{"png", "jpeg", "jpg", "gif", "webp"}
 
-type Client struct {
+type ChatClient struct {
 	Config         *openai.Config
 	AutoLogTripper bool // if true, LogTripper is enabled on errors and disabled on successes
 }
@@ -116,17 +116,17 @@ func countTokens(data chat.Request) int {
 	return len(openai.TokenEncoderChat.Encode(string(b), nil, nil))
 }
 
-// PromptPrice returns approximate price of the request's input in USD.
-// Mind that output is not included and is priced higher, but usually is much shorter than input.
-// Returns zero if pricing for the model is not known.
-func (c *Client) PromptPrice(data chat.Request) float64 {
-	pricing, ok := models.Data[data.Model]
-	if !ok {
-		c.Config.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", data.Model))
-		return 0
-	}
-	return float64(countTokens(data)) * pricing.PriceIn
-}
+// // promptPrice returns approximate price of the request's input in USD.
+// // Mind that output is not included and is priced higher, but usually is much shorter than input.
+// // Returns zero if pricing for the model is not known.
+// func (c *Client) promptPrice(data chat.Request) float64 {
+// 	pricing, ok := models.Data[data.Model]
+// 	if !ok {
+// 		c.Config.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", data.Model))
+// 		return 0
+// 	}
+// 	return float64(countTokens(data)) * pricing.PriceIn
+// }
 
 func contextTokenLimit(model string) int {
 	modelData, ok := models.Data[model]
@@ -170,7 +170,7 @@ func trimMessages(data chat.Request) []chat.Message {
 	return messages
 }
 
-func (c *Client) execute(data chat.Request) (*response, error) {
+func (c *ChatClient) execute(data chat.Request) (*response, error) {
 	if data.Model == "" {
 		data.Model = models.Default
 	}
@@ -276,7 +276,7 @@ func (c *Client) execute(data chat.Request) (*response, error) {
 	c.Config.Log.Info(fmt.Sprintf(
 		"Consumed OpenAI tokens: %d + %d = %d ($%f) on model '%s' in %s",
 		res.Usage.Prompt, res.Usage.Completion,
-		res.Usage.Total, c.Cost(&res), res.Model, duration,
+		res.Usage.Total, c.cost(&res), res.Model, duration,
 	))
 
 	return &res, nil
@@ -284,7 +284,7 @@ func (c *Client) execute(data chat.Request) (*response, error) {
 
 // handleBadRequest handles the case when the API returns a 400 Bad Request status.
 // Logs the request duration and returns an error with the response body.
-func (c *Client) handleBadRequest(resp *http.Response, model string, duration time.Duration) error {
+func (c *ChatClient) handleBadRequest(resp *http.Response, model string, duration time.Duration) error {
 	c.Config.Log.Debug(fmt.Sprintf("Chat request timing: %s", duration))
 	body, _ := io.ReadAll(resp.Body)
 	errMsg := fmt.Errorf(
@@ -296,20 +296,20 @@ func (c *Client) handleBadRequest(resp *http.Response, model string, duration ti
 }
 
 // enableLogTripper enables LogTripper for the API requests and logs that it's enabled.
-func (c *Client) enableLogTripper() {
+func (c *ChatClient) enableLogTripper() {
 	c.Config.Log.Debug("Enable LogTripper")
 	c.Config.EnableLogTripper()
 }
 
 // disableLogTripper disables LogTripper for the API requests and logs that it's disabled.
-func (c *Client) disableLogTripper() {
+func (c *ChatClient) disableLogTripper() {
 	c.Config.Log.Debug("Disable LogTripper")
 	c.Config.DisableLogTripper()
 }
 
 // checkFirst checks if API response is valid,
 // returns raw content or function call of first choice and error.
-func (c *Client) checkFirst(resp *response) (string, error) {
+func (c *ChatClient) checkFirst(resp *response) (string, error) {
 	if resp == nil {
 		return "", fmt.Errorf("response is nil")
 	}
@@ -363,9 +363,9 @@ func (c *Client) checkFirst(resp *response) (string, error) {
 	return content, nil
 }
 
-// Cost returns the resulting cost of the completed request in USD.
+// cost returns the resulting cost of the completed request in USD.
 // Returns zero if pricing for the model is not known.
-func (c *Client) Cost(resp *response) float64 {
+func (c *ChatClient) cost(resp *response) float64 {
 	pricing, ok := models.Data[resp.Model]
 	if !ok {
 		c.Config.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", resp.Model))
@@ -375,7 +375,7 @@ func (c *Client) Cost(resp *response) float64 {
 }
 
 // marshalRequest builds request body including function calls based on registered tools
-func (c *Client) marshalRequest(data chat.Request) ([]byte, error) {
+func (c *ChatClient) marshalRequest(data chat.Request) ([]byte, error) {
 	if len(data.Functions) == 0 {
 		type Alias chat.Request
 		return openai.Marshal((*Alias)(&data))

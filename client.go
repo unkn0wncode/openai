@@ -8,14 +8,19 @@ import (
 
 // Client provides access to OpenAI APIs.
 type Client struct {
-	*chat.Client
+	*chat.ChatClient
 	config *openai.Config
 }
 
 // NewClient creates a new OpenAI client with given token and default settings.
 // Settings can be changed by accessing exported fields.
 func NewClient(token string) *Client {
-	return &Client{
-		config: openai.NewConfig(token),
+	c := &Client{
+		config:     openai.NewConfig(token),
 	}
+	c.ChatClient = &chat.ChatClient{
+		Config: c.config,
+	}
+
+	return c
 }
