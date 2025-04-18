@@ -12,7 +12,8 @@ import (
 
 // Config contains configuration options for the OpenAI client.
 type Config struct {
-	sync.Mutex // mutex is actually not used but protects from copying by value
+	// mutex is actually not used but protects other fields from copying by value
+	mux sync.Mutex
 
 	Token      string
 	HTTPClient *HTTPClient
