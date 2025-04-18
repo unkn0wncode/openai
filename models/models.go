@@ -51,6 +51,12 @@ const (
 	Davinci         = "davinci"
 	DavinciInstruct = "davinci-instruct-beta"
 	GPTInstruct     = "gpt-3.5-turbo-instruct"
+
+	// Moderation models
+	DefaultModeration = OmniMod
+	ModTextLatest     = "text-moderation-latest"
+	ModTextStable     = "text-moderation-stable"
+	OmniMod           = "omni-moderation-latest"
 )
 
 // Data contains price per 1 token for each model, separately for input and output, and token limits.

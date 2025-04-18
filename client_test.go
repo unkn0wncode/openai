@@ -68,7 +68,7 @@ func TestClient_Chat_Function(t *testing.T) {
 			return `{"result":true}`, nil
 		},
 	}
-	require.NoError(t, c.Config.Tools.CreateFunction(testFunc))
+	require.NoError(t, c.ChatClient.Config.Tools.CreateFunction(testFunc))
 
 	// Prepare request with forced function call
 	req := chat.Request{
@@ -85,4 +85,26 @@ func TestClient_Chat_Function(t *testing.T) {
 
 	// t.Logf("resp: %s", resp)
 	// t.FailNow()
+}
+
+// TestClient_Moderation checks the moderation functionality in moderation API.
+func TestClient_Moderation(t *testing.T) {
+	c := NewClient(testToken)
+	bld := c.NewModerationBuilder()
+
+	t.Run("safe", func(t *testing.T) {
+		bld.AddText("hi")
+		res, err := bld.Execute()
+		require.NoError(t, err)
+		require.NotEmpty(t, res)
+		require.False(t, res[0].Flagged)
+	})
+
+	t.Run("harmful", func(t *testing.T) {
+		bld.AddText("fuck you")
+		res, err := bld.Execute()
+		require.NoError(t, err)
+		require.NotEmpty(t, res)
+		require.True(t, res[0].Flagged)
+	})
 }

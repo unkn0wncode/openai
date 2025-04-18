@@ -4,11 +4,13 @@ package openai
 import (
 	openai "openai/internal"
 	"openai/internal/chat"
+	"openai/internal/moderation"
 )
 
 // Client provides access to OpenAI APIs.
 type Client struct {
 	*chat.ChatClient
+	*moderation.ModerationClient
 	config *openai.Config
 }
 
@@ -16,9 +18,12 @@ type Client struct {
 // Settings can be changed by accessing exported fields.
 func NewClient(token string) *Client {
 	c := &Client{
-		config:     openai.NewConfig(token),
+		config: openai.NewConfig(token),
 	}
 	c.ChatClient = &chat.ChatClient{
+		Config: c.config,
+	}
+	c.ModerationClient = &moderation.ModerationClient{
 		Config: c.config,
 	}
 

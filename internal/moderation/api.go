@@ -9,26 +9,26 @@ import (
 	"io"
 	"net/http"
 	openai "openai/internal"
+	"openai/models"
 	"openai/util"
 	"strings"
 )
 
 const (
 	apiURL = openai.BaseAPI + "v1/moderations"
-
-	ModelDefault    = ModelOmni
-	ModelTextLatest = "text-moderation-latest"
-	ModelTextStable = "text-moderation-stable"
-	ModelOmni       = "omni-moderation-latest"
 )
 
-// MinConfidencePercent is the minimum confidence percentage for a flag to be reported.
-// Zero (default) means everything that API returns is reported.
-// Can be set externally.
-var MinConfidencePercent = 0
+type ModerationClient struct {
+	*openai.Config
+
+	// MinConfidencePercent is the minimum confidence percentage for a flag to be reported.
+	// Zero (default) means everything that API returns is reported.
+	// Can be set externally.
+	MinConfidencePercent int
+}
 
 // supportedImageTypes is a list of supported image file extensions.
-var supportedImageTypes = []string{"png", "jpeg", "jpg", "gif", "webp"}
+var supportedImageTypes = []string{"png", "jpeg", "jpg", "gif", "webp"} //!~ make common
 
 // request is the request body for the Moderation API.
 type request struct {
@@ -121,8 +121,8 @@ func (t Text) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// execute sends the request to the OpenAI Moderation API and returns the response.
-func (r *request) execute() (*response, error) {
+// send executes a moderation request using the client's HTTPClient and logger.
+func (c *ModerationClient) send(r *request) (*response, error) {
 	b, err := json.Marshal(r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
@@ -132,12 +132,12 @@ func (r *request) execute() (*response, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	openai.AddHeaders(req)
+	c.AddHeaders(req)
 
 	var resp *http.Response
 	err = util.Retry(func() error {
 		var err error
-		resp, err = openai.Cli.Do(req)
+		resp, err = c.HTTPClient.Do(req)
 		return err
 	}, 3, 0)
 	if err != nil {
@@ -161,15 +161,19 @@ func (r *request) execute() (*response, error) {
 // Ready for use at zero value.
 // Can be reused for multiple requests but not asynchronously.
 type Builder struct {
+	client               *ModerationClient
 	texts                []Text
 	images               []Image
 	MinConfidencePercent int
 }
 
-// NewBuilder returns a new Builder with default settings, ready for use.
-func NewBuilder() *Builder {
+// NewModerationBuilder returns a new Builder with client settings applied.
+func (c *ModerationClient) NewModerationBuilder() *Builder {
 	return &Builder{
-		MinConfidencePercent: MinConfidencePercent,
+		client:               c,
+		texts:                []Text{},
+		images:               []Image{},
+		MinConfidencePercent: c.MinConfidencePercent,
 	}
 }
 
@@ -201,7 +205,10 @@ func (b *Builder) AddImage(url string) *Builder {
 	}
 
 	if !supported {
-		openai.Log.Printf("OpenAI moderation got unsupported image type: %s\n", url)
+		b.client.Log.Warn(fmt.Sprintf(
+			"OpenAI moderation got unsupported image type: %s",
+			url,
+		))
 		return b
 	}
 
@@ -219,7 +226,7 @@ func (b *Builder) SetMinConfidence(minPercent int) *Builder {
 func (b *Builder) Clear() *Builder {
 	b.texts = nil
 	b.images = nil
-	b.MinConfidencePercent = MinConfidencePercent
+	b.MinConfidencePercent = b.client.MinConfidencePercent
 	return b
 }
 
@@ -260,18 +267,23 @@ func (bld *Builder) Execute() ([]*Result, error) {
 	for _, input := range inputSets {
 		req := &request{
 			Input: input,
-			Model: ModelDefault,
+			Model: models.DefaultModeration,
 		}
-
-		res, err := req.execute()
+		res, err := bld.client.send(req)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("failed to execute moderation request: %w", err))
+			errs = append(errs, fmt.Errorf(
+				"failed to execute moderation request: %w",
+				err,
+			))
 			results = append(results, nil)
 			continue
 		}
 
 		if len(res.Results) != 1 {
-			errs = append(errs, fmt.Errorf("expected 1 result, got %d: %+v", len(res.Results), res))
+			errs = append(errs, fmt.Errorf(
+				"expected 1 result, got %d: %+v",
+				len(res.Results), res,
+			))
 			results = append(results, res.Results[0]) // include first result
 			continue
 		}
@@ -280,37 +292,14 @@ func (bld *Builder) Execute() ([]*Result, error) {
 		result.WithConfidence(bld.MinConfidencePercent)
 		result.input = fmt.Sprint(input)
 		if result.Flagged {
-			openai.Log.Printf("OpenAI moderation flagged input: %s\n", result.input)
+			bld.client.Log.Info(fmt.Sprintf(
+				"OpenAI moderation flagged input: %s",
+				result.input,
+			))
 		}
 
 		results = append(results, result)
 	}
 
 	return results, errors.Join(errs...)
-}
-
-// CheckStrings checks the given input(s) using OpenAI Moderation API.
-// Inputs are evaluated independently using a legacy model.
-func CheckStrings(input string, moreInputs ...string) ([]*Result, error) {
-	inputs := append([]string{input}, moreInputs...)
-
-	data := &request{
-		Input: inputs,
-		Model: ModelTextLatest,
-	}
-
-	res, err := data.execute()
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute moderation request: %w", err)
-	}
-
-	for i := range res.Results {
-		res.Results[i].WithConfidence(MinConfidencePercent)
-		res.Results[i].input = inputs[i]
-		if res.Results[i].Flagged {
-			openai.Log.Printf("OpenAI moderation flagged input: %s\n", res.Results[i].input)
-		}
-	}
-
-	return res.Results, nil
 }
