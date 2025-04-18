@@ -27,9 +27,6 @@ type ModerationClient struct {
 	MinConfidencePercent int
 }
 
-// supportedImageTypes is a list of supported image file extensions.
-var supportedImageTypes = []string{"png", "jpeg", "jpg", "gif", "webp"} //!~ make common
-
 // request is the request body for the Moderation API.
 type request struct {
 	// required
@@ -197,7 +194,7 @@ func (b *Builder) AddImage(url string) *Builder {
 	}
 
 	supported := false
-	for _, ext := range supportedImageTypes {
+	for _, ext := range openai.SupportedImageTypes {
 		if strings.Contains(url, ext) {
 			supported = true
 			break

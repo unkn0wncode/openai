@@ -22,9 +22,6 @@ const (
 	apiURL = openai.BaseAPI + "v1/chat/completions"
 )
 
-// supportedImageTypes is a list of supported image file extensions.
-var supportedImageTypes = []string{"png", "jpeg", "jpg", "gif", "webp"}
-
 type ChatClient struct {
 	Config         *openai.Config
 	AutoLogTripper bool // if true, LogTripper is enabled on errors and disabled on successes
@@ -189,7 +186,7 @@ func (c *ChatClient) execute(data chat.Request) (*response, error) {
 			// check if URL contains a supported file extension
 			addr := strings.ToLower(img.URL)
 			isSupported := false
-			for _, ext := range supportedImageTypes {
+			for _, ext := range openai.SupportedImageTypes {
 				if strings.Contains(addr, "."+ext) {
 					isSupported = true
 					break

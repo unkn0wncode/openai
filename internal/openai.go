@@ -23,6 +23,9 @@ const (
 	// charPerToken = 4
 )
 
+// SupportedImageTypes is a list of supported image file extensions.
+var SupportedImageTypes = []string{"png", "jpeg", "jpg", "gif", "webp"}
+
 // LoggingTransport is a custom HTTP transport that logs request and response dumps.
 type LoggingTransport struct {
 	Log       *slog.Logger
