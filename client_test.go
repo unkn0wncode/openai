@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"openai/chat"
+	"openai/completion"
 	"openai/models"
 	"openai/roles"
 	"openai/tools"
@@ -107,4 +108,22 @@ func TestClient_Moderation(t *testing.T) {
 		require.NotEmpty(t, res)
 		require.True(t, res[0].Flagged)
 	})
+}
+
+// TestClient_Completion checks the completion functionality in completion API.
+func TestClient_Completion(t *testing.T) {
+	c := NewClient(testToken)
+
+	req := completion.Request{
+		Model:     models.GPTInstruct,
+		Prompt:    "hi, how are you?",
+		MaxTokens: 1024,
+	}
+
+	resp, err := c.Completion(req)
+	require.NoError(t, err)
+	require.NotEmpty(t, resp)
+
+	// t.Logf("resp: %s", resp)
+	// t.FailNow()
 }

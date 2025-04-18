@@ -18,6 +18,7 @@ const (
 	apiURL = openai.BaseAPI + "v1/moderations"
 )
 
+// ModerationClient is a client for the OpenAI Moderation API.
 type ModerationClient struct {
 	*openai.Config
 

@@ -4,6 +4,7 @@ package openai
 import (
 	openai "openai/internal"
 	"openai/internal/chat"
+	"openai/internal/completion"
 	"openai/internal/moderation"
 )
 
@@ -11,6 +12,8 @@ import (
 type Client struct {
 	*chat.ChatClient
 	*moderation.ModerationClient
+	*completion.CompletionClient
+
 	config *openai.Config
 }
 
@@ -24,6 +27,9 @@ func NewClient(token string) *Client {
 		Config: c.config,
 	}
 	c.ModerationClient = &moderation.ModerationClient{
+		Config: c.config,
+	}
+	c.CompletionClient = &completion.CompletionClient{
 		Config: c.config,
 	}
 
