@@ -165,6 +165,10 @@ func TestClient_Assistants(t *testing.T) {
 	require.NotNil(t, run)
 	require.NotNil(t, msg)
 
+	// Delete the assistant
+	err = c.DeleteAssistant(assistant.ID())
+	require.NoError(t, err)
+
 	// t.Logf("response: %s", msg.Content)
 	// t.FailNow()
 }

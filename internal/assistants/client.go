@@ -157,6 +157,40 @@ func (c *AssistantsClient) ListAssistant() ([]assistants.Assistant, error) {
 	return out, nil
 }
 
+// DeleteAssistant deletes an assistant by ID.
+func (c *AssistantsClient) DeleteAssistant(id string) error {
+	req, err := http.NewRequest(http.MethodDelete, assistantsURL+"/"+id, nil)
+	if err != nil {
+		return err
+	}
+	c.addHeaders(req)
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		data, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("error deleting assistant: %s %s", resp.Status, string(data))
+	}
+
+	var dto struct {
+		ID      string `json:"id"`
+		Object  string `json:"object"`
+		Deleted bool   `json:"deleted"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&dto); err != nil {
+		return err
+	}
+	if !dto.Deleted {
+		return fmt.Errorf("assistant not deleted")
+	}
+
+	return nil
+}
+
 // ID returns the assistant ID.
 func (h *assistantHandle) ID() string { return h.dto.ID }
 

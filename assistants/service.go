@@ -30,6 +30,9 @@ type AssistantsService interface {
 
 	// ListAssistant returns all assistants.
 	ListAssistant() ([]Assistant, error)
+
+	// DeleteAssistant deletes an assistant by ID.
+	DeleteAssistant(id string) error
 }
 
 // Assistant is a live handle on a server-side assistant.
