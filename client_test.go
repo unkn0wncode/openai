@@ -160,11 +160,11 @@ func TestClient_Assistants(t *testing.T) {
 	require.NotNil(t, msg)
 
 	// Run the thread
-	run, msg, err := thread.RunAndFetch(t.Context(), assistants.RunOptions{}) //!~ allow nil
+	run, msg, err := thread.RunAndFetch(t.Context(), assistants.RunOptions{}) // TODO: allow nil
 	require.NoError(t, err)
 	require.NotNil(t, run)
 	require.NotNil(t, msg)
 
-	t.Logf("response: %s", msg.Content)
-	t.FailNow()
+	// t.Logf("response: %s", msg.Content)
+	// t.FailNow()
 }

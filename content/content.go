@@ -63,6 +63,12 @@ func (a Any) MarshalJSON() ([]byte, error) {
 	return a.raw, nil
 }
 
+// String implements the fmt.Stringer interface.
+// Returns the raw content as a string.
+func (a Any) String() string {
+	return string(a.raw)
+}
+
 // Text is a string content.
 type Text struct {
 	Type string `json:"type"` // "text"
@@ -75,6 +81,12 @@ func (t Text) MarshalJSON() ([]byte, error) {
 	t.Type = "text"
 	type alias Text
 	return openai.Marshal(alias(t))
+}
+
+// String implements the fmt.Stringer interface.
+// Returns the text content.
+func (t Text) String() string {
+	return t.Text
 }
 
 // ImageURL is an image referenced by a URL or as base64 encoded data.
@@ -94,6 +106,12 @@ func (i ImageURL) MarshalJSON() ([]byte, error) {
 	return openai.Marshal(alias(i))
 }
 
+// String implements the fmt.Stringer interface.
+// Returns the image URL content.
+func (i ImageURL) String() string {
+	return i.Image.URL
+}
+
 // ImageFile is an image referenced by a file ID.
 type ImageFile struct {
 	Type string `json:"type"` // "image_file"
@@ -109,4 +127,10 @@ func (i ImageFile) MarshalJSON() ([]byte, error) {
 	i.Type = "image_file"
 	type alias ImageFile
 	return openai.Marshal(alias(i))
+}
+
+// String implements the fmt.Stringer interface.
+// Returns the image file content.
+func (i ImageFile) String() string {
+	return i.File.FileID
 }
