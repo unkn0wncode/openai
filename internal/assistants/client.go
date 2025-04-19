@@ -39,7 +39,7 @@ var (
 	_ assistants.AssistantsService = &AssistantsClient{}
 	_ assistants.Assistant         = &assistantHandle{}
 	_ assistants.Thread            = &threadHandle{}
-	// _ assistants.Run             = &runHandle{}
+	_ assistants.Run               = &runHandle{}
 )
 
 // assistantDTO maps the JSON for an assistant object.
