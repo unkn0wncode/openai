@@ -9,7 +9,7 @@ import (
 	"io"
 	"net/http"
 	"openai/assistants"
-	"openai/content"
+	"openai/content/output"
 	openai "openai/internal"
 	"openai/tools"
 	"time"
@@ -367,8 +367,8 @@ func (t *threadHandle) Messages(limit int, after string) ([]assistants.Message, 
 	// parse raw messages with content.Any to preserve typed array
 	var payload struct {
 		Data []struct {
-			Role    string        `json:"role"`
-			Content []content.Any `json:"content"`
+			Role    string       `json:"role"`
+			Content []output.Any `json:"content"`
 		} `json:"data"`
 		HasMore bool `json:"has_more"`
 	}
