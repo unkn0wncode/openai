@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"openai/assistants"
 	"openai/chat"
 	"openai/completion"
 	"openai/models"
@@ -126,4 +127,44 @@ func TestClient_Completion(t *testing.T) {
 
 	// t.Logf("resp: %s", resp)
 	// t.FailNow()
+}
+
+// TestClient_Assistants checks the assistants functionality in assistants API.
+func TestClient_Assistants(t *testing.T) {
+	c := NewClient(testToken)
+
+	// Create a new assistant
+	assistant, err := c.CreateAssistant(assistants.CreateParams{
+		Name:  "Test Assistant",
+		Model: models.DefaultNano,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, assistant)
+
+	// List assistantsList
+	assistantsList, err := c.ListAssistant()
+	require.NoError(t, err)
+	require.NotEmpty(t, assistantsList)
+
+	// Create a new thread
+	thread, err := assistant.NewThread(nil)
+	require.NoError(t, err)
+	require.NotNil(t, thread)
+
+	// Add a message to the thread
+	msg, err := thread.AddMessage(assistants.InputMessage{
+		Role:    roles.User,
+		Content: "Hello, how are you?",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, msg)
+
+	// Run the thread
+	run, msg, err := thread.RunAndFetch(t.Context(), assistants.RunOptions{}) //!~ allow nil
+	require.NoError(t, err)
+	require.NotNil(t, run)
+	require.NotNil(t, msg)
+
+	t.Logf("response: %s", msg.Content)
+	t.FailNow()
 }
