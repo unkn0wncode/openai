@@ -86,9 +86,9 @@ type Thread interface {
 	Messages(limit int, after string) ([]Message, bool, error)
 
 	// Run creates a new run on this thread.
-	Run(opts RunOptions) (Run, error)
+	Run(opts *RunOptions) (Run, error)
 	// RunAndFetch runs the assistant and fetches the next assistant message.
-	RunAndFetch(ctx context.Context, opts RunOptions, messages ...InputMessage) (Run, Message, error)
+	RunAndFetch(ctx context.Context, opts *RunOptions, messages ...InputMessage) (Run, *Message, error)
 }
 
 // Run represents a single execution of an assistant on a thread.

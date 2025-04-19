@@ -454,7 +454,10 @@ func (r *runHandle) Await(ctx context.Context) error {
 }
 
 // Run creates a new run on this thread.
-func (t *threadHandle) Run(opts assistants.RunOptions) (assistants.Run, error) {
+func (t *threadHandle) Run(opts *assistants.RunOptions) (assistants.Run, error) {
+	if opts == nil {
+		opts = &assistants.RunOptions{}
+	}
 	// prepare run creation payload with required assistant_id
 	payload := struct {
 		AssistantID            string                `json:"assistant_id"`
@@ -499,17 +502,20 @@ func (t *threadHandle) Run(opts assistants.RunOptions) (assistants.Run, error) {
 }
 
 // RunAndFetch runs the assistant on this thread, awaits completion, and returns the assistant message.
-func (t *threadHandle) RunAndFetch(ctx context.Context, opts assistants.RunOptions, msgs ...assistants.InputMessage) (assistants.Run, assistants.Message, error) {
+func (t *threadHandle) RunAndFetch(ctx context.Context, opts *assistants.RunOptions, msgs ...assistants.InputMessage) (assistants.Run, *assistants.Message, error) {
+	if opts == nil {
+		opts = &assistants.RunOptions{}
+	}
 	// add messages to thread
 	for _, m := range msgs {
 		if _, err := t.AddMessage(m); err != nil {
-			return nil, assistants.Message{}, fmt.Errorf("failed to add message: %w", err)
+			return nil, nil, fmt.Errorf("failed to add message: %w", err)
 		}
 	}
 	// create run
 	runIface, err := t.Run(opts)
 	if err != nil {
-		return nil, assistants.Message{}, fmt.Errorf("failed to create a run: %w", err)
+		return nil, nil, fmt.Errorf("failed to create a run: %w", err)
 	}
 	run := runIface
 
@@ -517,7 +523,7 @@ func (t *threadHandle) RunAndFetch(ctx context.Context, opts assistants.RunOptio
 	for {
 		// await terminal or requires_action
 		if err := run.Await(ctx); err != nil {
-			return run, assistants.Message{}, fmt.Errorf("failed to await run: %w", err)
+			return run, nil, fmt.Errorf("failed to await run: %w", err)
 		}
 		// if functions called
 		if run.IsExpectingToolOutputs() {
@@ -527,13 +533,13 @@ func (t *threadHandle) RunAndFetch(ctx context.Context, opts assistants.RunOptio
 			for _, tc := range rh.dto.RequiredAction.SubmitToolOutputs.ToolCalls {
 				f, ok := t.client.Config.Tools.GetFunction(tc.Function.Name)
 				if !ok {
-					return run, assistants.Message{}, fmt.Errorf("function '%s' is not registered", tc.Function.Name)
+					return run, nil, fmt.Errorf("function '%s' is not registered", tc.Function.Name)
 				}
 				// execute or skip
 				if f.F != nil {
 					res, ferr := f.F([]byte(tc.Function.Arguments))
 					if ferr != nil && !errors.Is(ferr, tools.ErrDoNotRespond) {
-						return run, assistants.Message{}, fmt.Errorf("failed to execute function '%s': %w", tc.Function.Name, ferr)
+						return run, nil, fmt.Errorf("failed to execute function '%s': %w", tc.Function.Name, ferr)
 					}
 					outputs = append(outputs, assistants.ToolOutput{ToolCallID: tc.ID, Output: res})
 				} else {
@@ -541,7 +547,7 @@ func (t *threadHandle) RunAndFetch(ctx context.Context, opts assistants.RunOptio
 				}
 			}
 			if err := run.SubmitToolOutputs(outputs...); err != nil {
-				return run, assistants.Message{}, fmt.Errorf("failed to submit tool outputs: %w", err)
+				return run, nil, fmt.Errorf("failed to submit tool outputs: %w", err)
 			}
 			continue
 		}
@@ -550,15 +556,15 @@ func (t *threadHandle) RunAndFetch(ctx context.Context, opts assistants.RunOptio
 	// if not completed
 	rc := run.(*runHandle).dto.Status
 	if rc != "completed" {
-		return run, assistants.Message{}, nil
+		return run, nil, nil
 	}
 	// fetch only the assistant's reply
 	msgs2, _, err := t.Messages(1, "")
 	if err != nil {
-		return run, assistants.Message{}, err
+		return run, nil, err
 	}
 	if len(msgs2) == 0 {
-		return run, assistants.Message{}, nil
+		return run, nil, nil
 	}
-	return run, msgs2[0], nil
+	return run, &msgs2[0], nil
 }

@@ -36,7 +36,7 @@ func TestMain(m *testing.M) {
 }
 
 // TestClient_Chat_hi checks the basic chat functionality by sending a "hi" message
-// and checking that the response.
+// and checking the response.
 func TestClient_Chat_hi(t *testing.T) {
 	c := NewClient(testToken)
 
@@ -152,15 +152,15 @@ func TestClient_Assistants(t *testing.T) {
 	require.NotNil(t, thread)
 
 	// Add a message to the thread
-	msg, err := thread.AddMessage(assistants.InputMessage{
+	addedMsg, err := thread.AddMessage(assistants.InputMessage{
 		Role:    roles.User,
 		Content: "Hello, how are you?",
 	})
 	require.NoError(t, err)
-	require.NotNil(t, msg)
+	require.NotNil(t, addedMsg)
 
 	// Run the thread
-	run, msg, err := thread.RunAndFetch(t.Context(), assistants.RunOptions{}) // TODO: allow nil
+	run, msg, err := thread.RunAndFetch(t.Context(), nil)
 	require.NoError(t, err)
 	require.NotNil(t, run)
 	require.NotNil(t, msg)
