@@ -1,4 +1,7 @@
-// Package output provides types that can be used as output when receiving messages.
+// Package output provides types that can be parsed as output when receiving messages.
+//
+// Some of these types can also be sent to the model as inputs, but they are intentionally
+// defined here to enable parsing through the Any type.
 package output
 
 import (
@@ -39,12 +42,26 @@ func (a *Any) Unmarshal() (any, error) {
 	switch a.Type {
 	case "text":
 		return unmarshalToType[Text](a)
+	case "output_text":
+		return unmarshalToType[OutputText](a)
 	case "image_url":
 		return unmarshalToType[ImageURL](a)
 	case "image_file":
 		return unmarshalToType[ImageFile](a)
 	case "refusal":
 		return unmarshalToType[Refusal](a)
+	case "message":
+		return unmarshalToType[Message](a)
+	case "file_search_call":
+		return unmarshalToType[FileSearchCall](a)
+	case "computer_call":
+		return unmarshalToType[ComputerCall](a)
+	case "computer_call_output":
+		return unmarshalToType[ComputerCallOutput](a)
+	case "web_search_call":
+		return unmarshalToType[WebSearchCall](a)
+	case "reasoning":
+		return unmarshalToType[Reasoning](a)
 	default:
 		return nil, fmt.Errorf("unsupported content type: %s", a.Type)
 	}
@@ -75,8 +92,8 @@ func (a Any) String() string {
 type Text struct {
 	Type string `json:"type"` // "text"
 	Text struct {
-		Value       string `json:"value"`
-		Annotations any    `json:"annotations,omitempty"`
+		Value       string          `json:"value"`
+		Annotations []AnyAnnotation `json:"annotations,omitempty"`
 	} `json:"text"`
 }
 
@@ -92,6 +109,31 @@ func (t Text) MarshalJSON() ([]byte, error) {
 // Returns the text content.
 func (t Text) String() string {
 	return t.Text.Value
+}
+
+// OutputText is a text content.
+type OutputText struct {
+	Type        string          `json:"type"` // "output_text"
+	Text        string          `json:"text"`
+	Annotations []AnyAnnotation `json:"annotations"` // required even when empty
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "output_text", discarding any prior value.
+// It also ensures that the "annotations" field is not nil.
+func (t OutputText) MarshalJSON() ([]byte, error) {
+	t.Type = "output_text"
+	if t.Annotations == nil {
+		t.Annotations = []AnyAnnotation{}
+	}
+	type alias OutputText
+	return openai.Marshal(alias(t))
+}
+
+// String implements the fmt.Stringer interface.
+// Returns the text content.
+func (t OutputText) String() string {
+	return t.Text
 }
 
 // ImageURL is an image referenced by a URL or as base64 encoded data.
@@ -173,6 +215,8 @@ func (a *AnyAnnotation) Unmarshal() (any, error) {
 		return unmarshalToType[AnnotationFileCitation](a)
 	case "file_path":
 		return unmarshalToType[AnnotationFilePath](a)
+	case "url_citation":
+		return unmarshalToType[AnnotationURLCitation](a)
 	default:
 		return nil, fmt.Errorf("unsupported annotation type: %s", a.Type)
 	}
@@ -216,6 +260,23 @@ func (a AnnotationFilePath) MarshalJSON() ([]byte, error) {
 	return openai.Marshal(alias(a))
 }
 
+// AnnotationURLCitation is an annotation type that references a URL.
+type AnnotationURLCitation struct {
+	Type       string `json:"type"` // "url_citation"
+	StartIndex int    `json:"start_index"`
+	EndIndex   int    `json:"end_index"`
+	URL        string `json:"url"`
+	Title      string `json:"title"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "url_citation", discarding any prior value.
+func (a AnnotationURLCitation) MarshalJSON() ([]byte, error) {
+	a.Type = "url_citation"
+	type alias AnnotationURLCitation
+	return openai.Marshal(alias(a))
+}
+
 // Refusal is a refusal to process the request.
 type Refusal struct {
 	Type    string `json:"type"` // "refusal"
@@ -234,4 +295,203 @@ func (r Refusal) MarshalJSON() ([]byte, error) {
 // Returns the refusal content.
 func (r Refusal) String() string {
 	return r.Refusal
+}
+
+// Message is a message object, indicating who sent the and its contents.
+type Message struct {
+	ID      string `json:"id"`
+	Type    string `json:"type"` // "message"
+	Role    string `json:"role"`
+	Content any    `json:"content"`          // string or []Any
+	Status  string `json:"status,omitempty"` // "in_progress", "completed", "incomplete"
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "message", discarding any prior value.
+func (m Message) MarshalJSON() ([]byte, error) {
+	m.Type = "message"
+	type alias Message
+	return openai.Marshal(alias(m))
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+// It tries to unmarshal the content as a string first, then as a []Any, then as any.
+func (m *Message) UnmarshalJSON(data []byte) error {
+	m.Type = "message"
+
+	var tmp struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+		Status  string `json:"status,omitempty"`
+	}
+	if err := json.Unmarshal(data, &tmp); err == nil {
+		m.Role = tmp.Role
+		m.Content = tmp.Content
+		m.Status = tmp.Status
+		return nil
+	}
+
+	var tmp2 struct {
+		Role    string `json:"role"`
+		Content []Any  `json:"content"`
+		Status  string `json:"status,omitempty"`
+	}
+	if err := json.Unmarshal(data, &tmp2); err == nil {
+		m.Role = tmp2.Role
+		m.Content = tmp2.Content
+		m.Status = tmp2.Status
+		return nil
+	}
+
+	var tmp3 struct {
+		Role    string `json:"role"`
+		Content any    `json:"content"`
+		Status  string `json:"status,omitempty"`
+	}
+	if err := json.Unmarshal(data, &tmp3); err == nil {
+		m.Role = tmp3.Role
+		m.Content = tmp3.Content
+		m.Status = tmp3.Status
+		return nil
+	} else {
+		return err
+	}
+}
+
+// FileSearchToolCall describes a use of the file search tool.
+type FileSearchCall struct {
+	Type    string             `json:"type"` // "file_search_call"
+	ID      string             `json:"id"`
+	Queries []string           `json:"queries"`
+	Status  string             `json:"status"` // "in_progress", "searching", "incomplete", "failed"
+	Results []FileSearchResult `json:"results"`
+}
+
+// FileSearchResult describes a result of a file search.
+type FileSearchResult struct {
+	FileID     string            `json:"file_id"`
+	FileName   string            `json:"filename"`
+	Score      float64           `json:"score"` // from 0 to 1
+	Text       string            `json:"text"`
+	Attributes map[string]string `json:"attributes"` // 16 pairs: keys 64 chars, values 512 chars
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "file_search_call", discarding any prior value.
+func (f FileSearchCall) MarshalJSON() ([]byte, error) {
+	f.Type = "file_search_call"
+	type alias FileSearchCall
+	return openai.Marshal(alias(f))
+}
+
+// ComputerCall describes a use of the computer use tool.
+type ComputerCall struct {
+	Type                string        `json:"type"` // "computer_call"
+	ID                  string        `json:"id"`
+	CallID              string        `json:"call_id"`
+	Action              any           `json:"action"`                // TODO: implement Click, DoubleClick, Drag, KeyPress, Move, Screenshot, Scroll, Type, Wait
+	PendingSafetyChecks []SafetyCheck `json:"pending_safety_checks"` // required even when empty
+	Status              string        `json:"status"`                // "in_progress", "completed", "incomplete"
+}
+
+// SafetyCheck describes a safety check that is pending for a computer call.
+type SafetyCheck struct {
+	ID      string `json:"id"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "computer_call", discarding any prior value.
+func (c ComputerCall) MarshalJSON() ([]byte, error) {
+	c.Type = "computer_call"
+	if c.PendingSafetyChecks == nil {
+		c.PendingSafetyChecks = []SafetyCheck{}
+	}
+	type alias ComputerCall
+	return openai.Marshal(alias(c))
+}
+
+// ComputerCallOutput describes the output of a computer call.
+type ComputerCallOutput struct {
+	Type                     string               `json:"type"` // "computer_call_output"
+	Output                   []ComputerScreenshot `json:"output"`
+	CallID                   string               `json:"call_id"`
+	ID                       string               `json:"id"`
+	Status                   string               `json:"status"` // "in_progress", "completed", "incomplete"
+	AcknowledgedSafetyChecks []SafetyCheck        `json:"acknowledged_safety_checks,omitempty"`
+}
+
+// ComputerScreenshot describes a screenshot of the computer in a computer use flow.
+type ComputerScreenshot struct {
+	Type     string `json:"type"` // "computer_screenshot"
+	FileID   string `json:"file_id,omitempty"`
+	ImageURL string `json:"image_url,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "computer_screenshot", discarding any prior value.
+func (c ComputerScreenshot) MarshalJSON() ([]byte, error) {
+	c.Type = "computer_screenshot"
+	type alias ComputerScreenshot
+	return openai.Marshal(alias(c))
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "computer_call_output", discarding any prior value.
+func (c ComputerCallOutput) MarshalJSON() ([]byte, error) {
+	c.Type = "computer_call_output"
+	type alias ComputerCallOutput
+	return openai.Marshal(alias(c))
+}
+
+// WebSearchCall describes a use of the web search tool.
+type WebSearchCall struct {
+	Type   string `json:"type"` // "web_search_call"
+	ID     string `json:"id"`
+	Status string `json:"status"` // "in_progress", "completed", "incomplete"
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "web_search_call", discarding any prior value.
+func (w WebSearchCall) MarshalJSON() ([]byte, error) {
+	w.Type = "web_search_call"
+	type alias WebSearchCall
+	return openai.Marshal(alias(w))
+}
+
+// TODO: FunctionCall (fucntion_call) should be wired with the tools package.
+// TODO: FunctionCallOutput (function_call_output) should be wired with the tools package.
+
+// Reasoning describes model's internal thinking process.
+type Reasoning struct {
+	Type    string             `json:"type"` // "reasoning"
+	ID      string             `json:"id"`
+	Status  string             `json:"status"` // "in_progress", "completed", "incomplete"
+	Summary []ReasoningSummary `json:"summary"` // required even when empty
+}
+
+// ReasoningSummary describes a summary of the reasoning.
+type ReasoningSummary struct {
+	Type string `json:"type"` // "summary_text"
+	Text string `json:"text"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "summary_text", discarding any prior value.
+func (r ReasoningSummary) MarshalJSON() ([]byte, error) {
+	r.Type = "summary_text"
+	type alias ReasoningSummary
+	return openai.Marshal(alias(r))
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "reasoning", discarding any prior value.
+func (r Reasoning) MarshalJSON() ([]byte, error) {
+	r.Type = "reasoning"
+	if r.Summary == nil {
+		r.Summary = []ReasoningSummary{}
+	}
+	type alias Reasoning
+	return openai.Marshal(alias(r))
 }

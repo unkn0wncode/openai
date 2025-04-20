@@ -39,10 +39,18 @@ func (a *Any) Unmarshal() (any, error) {
 	switch a.Type {
 	case "text":
 		return unmarshalToType[Text](a)
+	case "input_text":
+		return unmarshalToType[InputText](a)
 	case "image_url":
 		return unmarshalToType[ImageURL](a)
 	case "image_file":
 		return unmarshalToType[ImageFile](a)
+	case "input_image":
+		return unmarshalToType[InputImage](a)
+	case "input_file":
+		return unmarshalToType[InputFile](a)
+	case "message":
+		return unmarshalToType[Message](a)
 	default:
 		return nil, fmt.Errorf("unsupported content type: %s", a.Type)
 	}
@@ -89,6 +97,26 @@ func (t Text) String() string {
 	return t.Text
 }
 
+// InputText is a text content.
+type InputText struct {
+	Type string `json:"type"` // "input_text"
+	Text string `json:"text"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "input_text", discarding any prior value.
+func (i InputText) MarshalJSON() ([]byte, error) {
+	i.Type = "input_text"
+	type alias InputText
+	return openai.Marshal(alias(i))
+}
+
+// String implements the fmt.Stringer interface.
+// Returns the text content.
+func (i InputText) String() string {
+	return i.Text
+}
+
 // ImageURL is an image referenced by a URL or as base64 encoded data.
 type ImageURL struct {
 	Type  string `json:"type"` // "image_url"
@@ -121,6 +149,38 @@ type ImageFile struct {
 	} `json:"image_file"`
 }
 
+// InputImage is an image given to the model.
+type InputImage struct {
+	Type     string `json:"type"`             // "input_image"
+	Detail   string `json:"detail,omitempty"` // "auto", "high", "low"
+	ImageURL string `json:"image_url"`
+	FileID   string `json:"file_id"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "input_image", discarding any prior value.
+func (i InputImage) MarshalJSON() ([]byte, error) {
+	i.Type = "input_image"
+	type alias InputImage
+	return openai.Marshal(alias(i))
+}
+
+// InputFile is a file given to the model.
+type InputFile struct {
+	Type     string `json:"type"` // "input_file"
+	FileData string `json:"file_data"`
+	FileName string `json:"filename"`
+	FileID   string `json:"file_id"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "input_file", discarding any prior value.
+func (i InputFile) MarshalJSON() ([]byte, error) {
+	i.Type = "input_file"
+	type alias InputFile
+	return openai.Marshal(alias(i))
+}
+
 // MarshalJSON implements the json.Marshaler interface.
 // It fills in the "type" field with "image_file", discarding any prior value.
 func (i ImageFile) MarshalJSON() ([]byte, error) {
@@ -133,4 +193,57 @@ func (i ImageFile) MarshalJSON() ([]byte, error) {
 // Returns the image file content.
 func (i ImageFile) String() string {
 	return i.File.FileID
+}
+
+// Message is a message object, indicating who sent the and its contents.
+type Message struct {
+	Type    string `json:"type"` // "message"
+	Role    string `json:"role"`
+	Content any    `json:"content"` // string or []Any
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "message", discarding any prior value.
+func (m Message) MarshalJSON() ([]byte, error) {
+	m.Type = "message"
+	type alias Message
+	return openai.Marshal(alias(m))
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+// It tries to unmarshal the content as a string first, then as a []Any, then as any.
+func (m *Message) UnmarshalJSON(data []byte) error {
+	m.Type = "message"
+
+	var tmp struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	}
+	if err := json.Unmarshal(data, &tmp); err == nil {
+		m.Role = tmp.Role
+		m.Content = tmp.Content
+		return nil
+	}
+
+	var tmp2 struct {
+		Role    string `json:"role"`
+		Content []Any  `json:"content"`
+	}
+	if err := json.Unmarshal(data, &tmp2); err == nil {
+		m.Role = tmp2.Role
+		m.Content = tmp2.Content
+		return nil
+	}
+
+	var tmp3 struct {
+		Role    string `json:"role"`
+		Content any    `json:"content"`
+	}
+	if err := json.Unmarshal(data, &tmp3); err == nil {
+		m.Role = tmp3.Role
+		m.Content = tmp3.Content
+		return nil
+	} else {
+		return err
+	}
 }
