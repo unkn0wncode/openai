@@ -21,17 +21,20 @@ const (
 	filesURL      = openai.BaseAPI + "v1/files"
 )
 
-// RunRefreshInterval is the interval between status polls in Await.
-var RunRefreshInterval = 3 * time.Second
-
 // NewClient creates a new internal AssistantsClient with given configuration.
 func NewClient(cfg *openai.Config) *AssistantsClient {
-	return &AssistantsClient{Config: cfg}
+	return &AssistantsClient{
+		Config:             cfg,
+		RunRefreshInterval: 3 * time.Second,
+	}
 }
 
 // AssistantsClient provides methods to manage assistants.
 type AssistantsClient struct {
 	*openai.Config
+
+	// RunRefreshInterval is the interval between status polls in Await.
+	RunRefreshInterval time.Duration
 }
 
 // type conformity checks
@@ -66,6 +69,16 @@ type assistantHandle struct {
 func (c *AssistantsClient) addHeaders(req *http.Request) {
 	c.AddHeaders(req)
 	req.Header.Add("OpenAI-Beta", "assistants=v2")
+}
+
+// AssistantsRunRefreshInterval returns the interval between status polls in Await.
+func (c *AssistantsClient) AssistantsRunRefreshInterval() time.Duration {
+	return c.RunRefreshInterval
+}
+
+// SetAssistantsRunRefreshInterval sets the interval between status polls in Await.
+func (c *AssistantsClient) SetAssistantsRunRefreshInterval(interval time.Duration) {
+	c.RunRefreshInterval = interval
 }
 
 // CreateAssistant creates a new assistant with the given parameters.
@@ -462,7 +475,7 @@ func (r *runHandle) Await(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(RunRefreshInterval):
+		case <-time.After(r.client.RunRefreshInterval):
 		}
 		// refresh run state
 		runURL := fmt.Sprintf("%s/%s/runs/%s", threadsURL, r.dto.ThreadID, r.dto.ID)

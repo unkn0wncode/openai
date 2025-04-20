@@ -1,6 +1,9 @@
 package assistants
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // CreateParams holds the fields needed to create a new assistant.
 type CreateParams struct {
@@ -33,6 +36,12 @@ type AssistantsService interface {
 
 	// DeleteAssistant deletes an assistant by ID.
 	DeleteAssistant(id string) error
+
+	// AssistantsRunRefreshInterval returns the interval between status polls in Await.
+	AssistantsRunRefreshInterval() time.Duration
+
+	// SetAssistantsRunRefreshInterval sets the interval between status polls in Await.
+	SetAssistantsRunRefreshInterval(interval time.Duration)
 }
 
 // Assistant is a live handle on a server-side assistant.
