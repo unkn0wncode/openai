@@ -8,9 +8,10 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"openai/util"
 	"os"
 	"sync"
+
+	"github.com/unkn0wncode/openai/util"
 
 	"github.com/pkoukk/tiktoken-go"
 )

@@ -8,7 +8,8 @@ import (
 	"io"
 	"math"
 	"net/http"
-	openai "openai/internal"
+
+	openai "github.com/unkn0wncode/openai/internal"
 )
 
 const (

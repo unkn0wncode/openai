@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"openai/content/output"
-	openai "openai/internal"
-	"openai/models"
-	"openai/responses"
-	"openai/tools"
+
+	"github.com/unkn0wncode/openai/content/output"
+	openai "github.com/unkn0wncode/openai/internal"
+	"github.com/unkn0wncode/openai/models"
+	"github.com/unkn0wncode/openai/responses"
+	"github.com/unkn0wncode/openai/tools"
 )
 
 const responseAPI = openai.BaseAPI + "v1/responses"

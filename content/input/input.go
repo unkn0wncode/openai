@@ -6,7 +6,8 @@ package input
 import (
 	"encoding/json"
 	"fmt"
-	openai "openai/internal"
+
+	openai "github.com/unkn0wncode/openai/internal"
 )
 
 // Any is a partial representation of a content object with only the "type" field unmarshaled.

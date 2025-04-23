@@ -1,7 +1,7 @@
 // Package completion / prompts.go provides exported functions for sending requests to the Completion API with different level of control.
 package completion
 
-import "openai/completion"
+import "github.com/unkn0wncode/openai/completion"
 
 // Completion sends a request to the Completion API with custom data.
 func (c *CompletionClient) Completion(req completion.Request) (string, error) {

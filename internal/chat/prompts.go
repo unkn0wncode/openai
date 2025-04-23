@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"openai/chat"
-	openai "openai/internal"
-	"openai/roles"
-	"openai/tools"
+
+	"github.com/unkn0wncode/openai/chat"
+	openai "github.com/unkn0wncode/openai/internal"
+	"github.com/unkn0wncode/openai/roles"
+	"github.com/unkn0wncode/openai/tools"
 )
 
 // // ChatWithUser sends a request to the Chat API with a single user prompt and no additional context or settings.

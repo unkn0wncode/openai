@@ -8,10 +8,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	openai "openai/internal"
-	"openai/models"
-	"openai/util"
 	"strings"
+
+	openai "github.com/unkn0wncode/openai/internal"
+	"github.com/unkn0wncode/openai/models"
+	"github.com/unkn0wncode/openai/util"
 )
 
 const (

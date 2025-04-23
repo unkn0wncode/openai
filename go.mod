@@ -1,4 +1,4 @@
-module openai
+module github.com/unkn0wncode/openai
 
 go 1.24.2
 

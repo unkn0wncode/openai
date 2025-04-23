@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"openai/completion"
-	openai "openai/internal"
+
+	"github.com/unkn0wncode/openai/completion"
+	openai "github.com/unkn0wncode/openai/internal"
 )
 
 const (

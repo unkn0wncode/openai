@@ -8,11 +8,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"openai/assistants"
-	"openai/content/output"
-	openai "openai/internal"
-	"openai/tools"
 	"time"
+
+	"github.com/unkn0wncode/openai/assistants"
+	"github.com/unkn0wncode/openai/content/output"
+	openai "github.com/unkn0wncode/openai/internal"
+	"github.com/unkn0wncode/openai/tools"
 )
 
 const (

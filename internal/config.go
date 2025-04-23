@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"openai/tools"
 	"sync"
 	"time"
+
+	"github.com/unkn0wncode/openai/tools"
 )
 
 // Config contains configuration options for the OpenAI client.

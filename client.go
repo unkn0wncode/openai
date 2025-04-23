@@ -2,14 +2,14 @@
 package openai
 
 import (
-	"openai/assistants"
-	openai "openai/internal"
-	assistantsInternal "openai/internal/assistants"
-	"openai/internal/chat"
-	"openai/internal/completion"
-	"openai/internal/moderation"
-	"openai/responses"
-	responsesInternal "openai/internal/responses"
+	"github.com/unkn0wncode/openai/assistants"
+	openai "github.com/unkn0wncode/openai/internal"
+	assistantsInternal "github.com/unkn0wncode/openai/internal/assistants"
+	"github.com/unkn0wncode/openai/internal/chat"
+	"github.com/unkn0wncode/openai/internal/completion"
+	"github.com/unkn0wncode/openai/internal/moderation"
+	responsesInternal "github.com/unkn0wncode/openai/internal/responses"
+	"github.com/unkn0wncode/openai/responses"
 )
 
 // Client provides access to OpenAI APIs.

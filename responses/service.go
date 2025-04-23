@@ -4,7 +4,8 @@ package responses
 import (
 	"encoding/json"
 	"fmt"
-	"openai/content/output"
+
+	"github.com/unkn0wncode/openai/content/output"
 )
 
 const (

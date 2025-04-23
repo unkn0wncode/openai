@@ -7,14 +7,14 @@ import (
 	"strings"
 	"testing"
 
-	"openai/assistants"
-	"openai/chat"
-	"openai/completion"
-	"openai/models"
-	"openai/responses"
-	"openai/roles"
-	"openai/tools"
-	responsesInternal "openai/internal/responses"
+	"github.com/unkn0wncode/openai/assistants"
+	"github.com/unkn0wncode/openai/chat"
+	"github.com/unkn0wncode/openai/completion"
+	responsesInternal "github.com/unkn0wncode/openai/internal/responses"
+	"github.com/unkn0wncode/openai/models"
+	"github.com/unkn0wncode/openai/responses"
+	"github.com/unkn0wncode/openai/roles"
+	"github.com/unkn0wncode/openai/tools"
 
 	"github.com/stretchr/testify/require"
 )
@@ -234,7 +234,7 @@ func TestClient_Responses_Function(t *testing.T) {
 		Model: models.Default,
 		Input: "What's the weather like in San Francisco?",
 		Tools: []string{"get_current_weather"},
-		User: "test-user",
+		User:  "test-user",
 	}
 
 	response, err := c.Response(&req)

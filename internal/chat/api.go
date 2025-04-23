@@ -7,15 +7,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"openai/chat"
-	openai "openai/internal"
-	"openai/models"
-	"openai/roles"
-	"openai/tools"
-	"openai/util"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/unkn0wncode/openai/chat"
+	openai "github.com/unkn0wncode/openai/internal"
+	"github.com/unkn0wncode/openai/models"
+	"github.com/unkn0wncode/openai/roles"
+	"github.com/unkn0wncode/openai/tools"
+	"github.com/unkn0wncode/openai/util"
 )
 
 const (

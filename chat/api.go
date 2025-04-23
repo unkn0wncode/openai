@@ -4,9 +4,10 @@ package chat
 import (
 	"bytes"
 	"encoding/json"
-	openai "openai/internal"
-	"openai/tools"
 	"strings"
+
+	openai "github.com/unkn0wncode/openai/internal"
+	"github.com/unkn0wncode/openai/tools"
 )
 
 // Request is the request body for the Chat API.
