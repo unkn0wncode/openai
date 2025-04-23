@@ -39,10 +39,10 @@ type AssistantsClient struct {
 
 // type conformity checks
 var (
-	_ assistants.AssistantsService = &AssistantsClient{}
-	_ assistants.Assistant         = &assistantHandle{}
-	_ assistants.Thread            = &threadHandle{}
-	_ assistants.Run               = &runHandle{}
+	_ assistants.AssistantsService = (*AssistantsClient)(nil)
+	_ assistants.Assistant         = (*assistantHandle)(nil)
+	_ assistants.Thread            = (*threadHandle)(nil)
+	_ assistants.Run               = (*runHandle)(nil)
 )
 
 // assistantDTO maps the JSON for an assistant object.

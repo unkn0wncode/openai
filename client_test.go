@@ -11,8 +11,10 @@ import (
 	"openai/chat"
 	"openai/completion"
 	"openai/models"
+	"openai/responses"
 	"openai/roles"
 	"openai/tools"
+	responsesInternal "openai/internal/responses"
 
 	"github.com/stretchr/testify/require"
 )
@@ -51,8 +53,7 @@ func TestClient_Chat_hi(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, resp)
 
-	// t.Logf("resp: %s", resp)
-	// t.FailNow()
+	t.Logf("resp: %s", resp)
 }
 
 // TestClient_Chat_Function checks the function calling functionality in chat API.
@@ -85,14 +86,14 @@ func TestClient_Chat_Function(t *testing.T) {
 	require.True(t, called, "expected function to be called")
 	require.NotEmpty(t, resp)
 
-	// t.Logf("resp: %s", resp)
-	// t.FailNow()
+	t.Logf("resp: %s", resp)
 }
 
 // TestClient_Moderation checks the moderation functionality in moderation API.
 func TestClient_Moderation(t *testing.T) {
 	c := NewClient(testToken)
 	bld := c.NewModerationBuilder()
+	bld.SetMinConfidence(50)
 
 	t.Run("safe", func(t *testing.T) {
 		bld.AddText("hi")
@@ -100,6 +101,7 @@ func TestClient_Moderation(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, res)
 		require.False(t, res[0].Flagged)
+		t.Logf("res: %v", res[0].CategoryScores)
 	})
 
 	t.Run("harmful", func(t *testing.T) {
@@ -108,6 +110,7 @@ func TestClient_Moderation(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, res)
 		require.True(t, res[0].Flagged)
+		t.Logf("res: %v", res[0].CategoryScores)
 	})
 }
 
@@ -125,8 +128,7 @@ func TestClient_Completion(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, resp)
 
-	// t.Logf("resp: %s", resp)
-	// t.FailNow()
+	t.Logf("resp: %s", resp)
 }
 
 // TestClient_Assistants checks the assistants functionality in assistants API.
@@ -169,6 +171,80 @@ func TestClient_Assistants(t *testing.T) {
 	err = c.DeleteAssistant(assistant.ID())
 	require.NoError(t, err)
 
-	// t.Logf("response: %s", msg.Content)
-	// t.FailNow()
+	t.Logf("response: %s", msg.Content)
+}
+
+// TestClient_Responses_hi checks the responses functionality in responses API.
+func TestClient_Responses_hi(t *testing.T) {
+	c := NewClient(testToken)
+
+	req := &responses.Request{
+		Model: models.Default,
+		Input: "hi",
+	}
+
+	resp, err := c.Response(req)
+	require.NoError(t, err)
+	require.NotEmpty(t, resp)
+	require.NotEmpty(t, resp.ID)
+
+	// t.Logf("outputs count: %d, parsed: %d", len(resp.Outputs), len(resp.ParsedOutputs))
+	// for i := range resp.Outputs {
+	// 	if m, ok := resp.ParsedOutputs[i].(output.Message); ok {
+	// 		t.Logf("output %d is a message with content count: %d, parsed: %d", i, len(m.Content), len(m.ParsedContent))
+	// 		continue
+	// 	}
+	// 	t.Logf("output %d: %T, %#v", i, resp.Outputs[i], resp.ParsedOutputs[i])
+	// }
+
+	t.Logf("resp: %v", resp.Texts())
+}
+
+func TestClient_Responses_Function(t *testing.T) {
+	c := NewClient(testToken)
+
+	// Register a test function
+	testFunctionCalled := false
+	testFunctionArgs := ""
+
+	testFunction := tools.FunctionCall{
+		Name:         "get_current_weather",
+		Description:  "Get the current weather in a given location",
+		ParamsSchema: json.RawMessage(`{"type":"object","properties":{"location":{"type":"string","description":"The city and state, e.g. San Francisco, CA"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}},"required":["location"]}`),
+		F: func(params json.RawMessage) (string, error) {
+			testFunctionCalled = true
+			testFunctionArgs = string(params)
+			return `{"temperature": 22, "unit": "celsius", "description": "Sunny"}`, nil
+		},
+	}
+
+	// Register the function
+	c.Config().Tools.CreateFunction(testFunction)
+	toolReg := c.ResponsesService.(*responsesInternal.ResponsesClient).Config.Tools
+	require.NotNil(t, toolReg)
+	require.Len(t, toolReg.FunctionCalls, 1)
+	gotFunc, ok := toolReg.GetFunction("get_current_weather")
+	require.True(t, ok)
+	require.Equal(t, testFunction.Name, gotFunc.Name)
+	require.Equal(t, testFunction.Description, gotFunc.Description)
+	require.Equal(t, testFunction.ParamsSchema, gotFunc.ParamsSchema)
+
+	// Create a request with tools
+	req := responses.Request{
+		Model: models.Default,
+		Input: "What's the weather like in San Francisco?",
+		Tools: []string{"get_current_weather"},
+		User: "test-user",
+	}
+
+	response, err := c.Response(&req)
+	require.NoError(t, err)
+	require.True(t, testFunctionCalled)
+	require.NotEmpty(t, response.ID)
+
+	// The API might not include the location in the arguments, so we don't check for it
+	t.Logf("Function args: %s", testFunctionArgs)
+	require.NotEqual(t, testFunctionArgs, "{}", "Expected function arguments to be non-empty")
+	require.NotEmpty(t, response)
+	t.Logf("Function calling response: %v", response.Texts())
 }

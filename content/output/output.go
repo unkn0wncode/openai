@@ -60,6 +60,10 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[ComputerCallOutput](a)
 	case "web_search_call":
 		return unmarshalToType[WebSearchCall](a)
+	case "function_call":
+		return unmarshalToType[FunctionCall](a)
+	case "function_call_output":
+		return unmarshalToType[FunctionCallOutput](a)
 	case "reasoning":
 		return unmarshalToType[Reasoning](a)
 	default:
@@ -299,11 +303,12 @@ func (r Refusal) String() string {
 
 // Message is a message object, indicating who sent the and its contents.
 type Message struct {
-	ID      string `json:"id"`
-	Type    string `json:"type"` // "message"
-	Role    string `json:"role"`
-	Content any    `json:"content"`          // string or []Any
-	Status  string `json:"status,omitempty"` // "in_progress", "completed", "incomplete"
+	ID            string `json:"id"`
+	Type          string `json:"type"` // "message"
+	Role          string `json:"role"`
+	Status        string `json:"status,omitempty"` // "in_progress", "completed", "incomplete"
+	Content       []Any  `json:"content"`
+	ParsedContent []any  `json:"-"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -314,48 +319,17 @@ func (m Message) MarshalJSON() ([]byte, error) {
 	return openai.Marshal(alias(m))
 }
 
-// UnmarshalJSON implements the json.Unmarshaler interface.
-// It tries to unmarshal the content as a string first, then as a []Any, then as any.
-func (m *Message) UnmarshalJSON(data []byte) error {
-	m.Type = "message"
-
-	var tmp struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
-		Status  string `json:"status,omitempty"`
+// Parse parses the content of the message from []Any and places the parsed objects in ParsedContent.
+func (m *Message) Parse() error {
+	m.ParsedContent = nil
+	for _, c := range m.Content {
+		parsed, err := c.Unmarshal()
+		if err != nil {
+			return err
+		}
+		m.ParsedContent = append(m.ParsedContent, parsed)
 	}
-	if err := json.Unmarshal(data, &tmp); err == nil {
-		m.Role = tmp.Role
-		m.Content = tmp.Content
-		m.Status = tmp.Status
-		return nil
-	}
-
-	var tmp2 struct {
-		Role    string `json:"role"`
-		Content []Any  `json:"content"`
-		Status  string `json:"status,omitempty"`
-	}
-	if err := json.Unmarshal(data, &tmp2); err == nil {
-		m.Role = tmp2.Role
-		m.Content = tmp2.Content
-		m.Status = tmp2.Status
-		return nil
-	}
-
-	var tmp3 struct {
-		Role    string `json:"role"`
-		Content any    `json:"content"`
-		Status  string `json:"status,omitempty"`
-	}
-	if err := json.Unmarshal(data, &tmp3); err == nil {
-		m.Role = tmp3.Role
-		m.Content = tmp3.Content
-		m.Status = tmp3.Status
-		return nil
-	} else {
-		return err
-	}
+	return nil
 }
 
 // FileSearchToolCall describes a use of the file search tool.
@@ -460,14 +434,56 @@ func (w WebSearchCall) MarshalJSON() ([]byte, error) {
 	return openai.Marshal(alias(w))
 }
 
-// TODO: FunctionCall (fucntion_call) should be wired with the tools package.
-// TODO: FunctionCallOutput (function_call_output) should be wired with the tools package.
+// FunctionCall describes a use of a function call tool.
+type FunctionCall struct {
+	// required
+
+	Type      string `json:"type"` // "function_call"
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"` // has JSON object, but as a string
+
+	// optional
+
+	CallID string `json:"call_id"`
+	Status string `json:"status"` // "in_progress", "completed", "incomplete"
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "function_call", discarding any prior value.
+func (f FunctionCall) MarshalJSON() ([]byte, error) {
+	f.Type = "function_call"
+	type alias FunctionCall
+	return openai.Marshal(alias(f))
+}
+
+// FunctionCallOutput describes the output of a function call.
+type FunctionCallOutput struct {
+	// required
+
+	Type   string `json:"type"` // "function_call_output"
+	CallID string `json:"call_id"`
+	Output string `json:"output"` // expected to be JSON encoded as a string
+
+	// optional
+
+	ID     string `json:"id,omitempty"`
+	Status string `json:"status,omitempty"` // "in_progress", "completed", "incomplete"
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "function_call_output", discarding any prior value.
+func (f FunctionCallOutput) MarshalJSON() ([]byte, error) {
+	f.Type = "function_call_output"
+	type alias FunctionCallOutput
+	return openai.Marshal(alias(f))
+}
 
 // Reasoning describes model's internal thinking process.
 type Reasoning struct {
 	Type    string             `json:"type"` // "reasoning"
 	ID      string             `json:"id"`
-	Status  string             `json:"status"` // "in_progress", "completed", "incomplete"
+	Status  string             `json:"status"`  // "in_progress", "completed", "incomplete"
 	Summary []ReasoningSummary `json:"summary"` // required even when empty
 }
 

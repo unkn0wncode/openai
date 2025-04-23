@@ -8,6 +8,8 @@ import (
 	"openai/internal/chat"
 	"openai/internal/completion"
 	"openai/internal/moderation"
+	"openai/responses"
+	responsesInternal "openai/internal/responses"
 )
 
 // Client provides access to OpenAI APIs.
@@ -15,7 +17,8 @@ type Client struct {
 	*chat.ChatClient
 	*moderation.ModerationClient
 	*completion.CompletionClient
-	assistants.AssistantsService // assistant methods embedded for direct access
+	assistants.AssistantsService
+	responses.ResponsesService
 
 	config *openai.Config
 }
@@ -28,6 +31,10 @@ func NewClient(token string) *Client {
 	c.ModerationClient = &moderation.ModerationClient{Config: c.config}
 	c.CompletionClient = &completion.CompletionClient{Config: c.config}
 	c.AssistantsService = &assistantsInternal.AssistantsClient{Config: c.config}
-
+	c.ResponsesService = &responsesInternal.ResponsesClient{Config: c.config}
 	return c
+}
+
+func (c *Client) Config() *openai.Config {
+	return c.config
 }

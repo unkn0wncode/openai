@@ -1,4 +1,6 @@
 // Package input provides types that can be used as input when sending messages.
+// Only types that can be used as input but not as output are included.
+// Types that can be used as both input and output are in the output package.
 package input
 
 import (
@@ -51,13 +53,15 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[InputFile](a)
 	case "message":
 		return unmarshalToType[Message](a)
+	case "item_reference":
+		return unmarshalToType[ItemReference](a)
 	default:
 		return nil, fmt.Errorf("unsupported content type: %s", a.Type)
 	}
 }
 
 // unmarshalToType is a generic function that unmarshals Any into a given type.
-func unmarshalToType[T any](a *Any) (T, error) {
+func unmarshalToType[T any](a interface{ UnmarshalToTarget(any) error }) (T, error) {
 	var t T
 	if err := a.UnmarshalToTarget(&t); err != nil {
 		return t, err
@@ -246,4 +250,18 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 	} else {
 		return err
 	}
+}
+
+// ItemReference describes a reference to an item by ID.
+type ItemReference struct {
+	Type string `json:"type"` // "item_reference"
+	ID   string `json:"id"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "item_reference", discarding any prior value.
+func (i ItemReference) MarshalJSON() ([]byte, error) {
+	i.Type = "item_reference"
+	type alias ItemReference
+	return openai.Marshal(alias(i))
 }
