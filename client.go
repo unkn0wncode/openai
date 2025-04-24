@@ -10,6 +10,7 @@ import (
 	"github.com/unkn0wncode/openai/internal/moderation"
 	responsesInternal "github.com/unkn0wncode/openai/internal/responses"
 	"github.com/unkn0wncode/openai/responses"
+	"github.com/unkn0wncode/openai/tools"
 )
 
 // Client provides access to OpenAI APIs.
@@ -37,4 +38,8 @@ func NewClient(token string) *Client {
 
 func (c *Client) Config() *openai.Config {
 	return c.config
+}
+
+func (c *Client) Tools() *tools.Registry {
+	return c.config.Tools
 }
