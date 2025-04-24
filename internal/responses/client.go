@@ -15,8 +15,6 @@ import (
 	"github.com/unkn0wncode/openai/tools"
 )
 
-const responseAPI = openai.BaseAPI + "v1/responses"
-
 // ResponsesClient is the client for the Responses API.
 type ResponsesClient struct {
 	*openai.Config
@@ -100,7 +98,7 @@ func (c *ResponsesClient) executeRequest(data *responses.Request) (*response, er
 	// 	fmt.Printf("Request body: %s\n", string(b))
 	// }
 
-	req, err := http.NewRequest(http.MethodPost, responseAPI, bytes.NewBuffer(b))
+	req, err := http.NewRequest(http.MethodPost, c.BaseAPI+"v1/responses", bytes.NewBuffer(b))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

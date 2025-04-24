@@ -16,13 +16,11 @@ import (
 	"github.com/pkoukk/tiktoken-go"
 )
 
-const (
-	BaseAPI = "https://api.openai.com/"
+// DefaultBaseAPI is the default base URL for OpenAI API endpoints.
+const DefaultBaseAPI = "https://api.openai.com/"
 
-	// Deprecated: tiktoken is used for precise token counting instead of
-	// rough estimation based in characters count.
-	// charPerToken = 4
-)
+// Cli is the default HTTP client used by package-level functions.
+var Cli = &HTTPClient{Client: &http.Client{}}
 
 // SupportedImageTypes is a list of supported image file extensions.
 var SupportedImageTypes = []string{"png", "jpeg", "jpg", "gif", "webp"}

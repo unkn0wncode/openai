@@ -16,12 +16,6 @@ import (
 	"github.com/unkn0wncode/openai/tools"
 )
 
-const (
-	assistantsURL = openai.BaseAPI + "v1/assistants"
-	threadsURL    = openai.BaseAPI + "v1/threads"
-	filesURL      = openai.BaseAPI + "v1/files"
-)
-
 // NewClient creates a new internal AssistantsClient with given configuration.
 func NewClient(cfg *openai.Config) *AssistantsClient {
 	return &AssistantsClient{
@@ -88,7 +82,7 @@ func (c *AssistantsClient) CreateAssistant(params assistants.CreateParams) (assi
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest(http.MethodPost, assistantsURL, bytes.NewBuffer(b))
+	req, err := http.NewRequest(http.MethodPost, c.BaseAPI+"v1/assistants", bytes.NewBuffer(b))
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +108,7 @@ func (c *AssistantsClient) CreateAssistant(params assistants.CreateParams) (assi
 
 // LoadAssistant fetches an assistant by ID.
 func (c *AssistantsClient) LoadAssistant(id string) (assistants.Assistant, error) {
-	req, err := http.NewRequest(http.MethodGet, assistantsURL+"/"+id, nil)
+	req, err := http.NewRequest(http.MethodGet, c.BaseAPI+"v1/assistants/"+id, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +134,7 @@ func (c *AssistantsClient) LoadAssistant(id string) (assistants.Assistant, error
 
 // ListAssistant fetches all assistants (single page up to 100).
 func (c *AssistantsClient) ListAssistant() ([]assistants.Assistant, error) {
-	req, err := http.NewRequest(http.MethodGet, assistantsURL+"?limit=100", nil)
+	req, err := http.NewRequest(http.MethodGet, c.BaseAPI+"v1/assistants?limit=100", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +167,7 @@ func (c *AssistantsClient) ListAssistant() ([]assistants.Assistant, error) {
 
 // DeleteAssistant deletes an assistant by ID.
 func (c *AssistantsClient) DeleteAssistant(id string) error {
-	req, err := http.NewRequest(http.MethodDelete, assistantsURL+"/"+id, nil)
+	req, err := http.NewRequest(http.MethodDelete, c.BaseAPI+"v1/assistants/"+id, nil)
 	if err != nil {
 		return err
 	}
@@ -277,7 +271,7 @@ func (h *assistantHandle) NewThread(meta assistants.Metadata, messages ...assist
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest(http.MethodPost, threadsURL, bytes.NewBuffer(b))
+	req, err := http.NewRequest(http.MethodPost, h.client.BaseAPI+"v1/threads", bytes.NewBuffer(b))
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +296,7 @@ func (h *assistantHandle) NewThread(meta assistants.Metadata, messages ...assist
 
 // LoadThread fetches an existing thread by ID under this assistant.
 func (h *assistantHandle) LoadThread(id string) (assistants.Thread, error) {
-	req, err := http.NewRequest(http.MethodGet, threadsURL+"/"+id, nil)
+	req, err := http.NewRequest(http.MethodGet, h.client.BaseAPI+"v1/threads/"+id, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +328,7 @@ func (t *threadHandle) AddMessage(msg assistants.InputMessage) (assistants.Messa
 	if err != nil {
 		return assistants.Message{}, err
 	}
-	req, err := http.NewRequest(http.MethodPost, threadsURL+"/"+t.dto.ID+"/messages", bytes.NewBuffer(b))
+	req, err := http.NewRequest(http.MethodPost, t.client.BaseAPI+"v1/threads/"+t.dto.ID+"/messages", bytes.NewBuffer(b))
 	if err != nil {
 		return assistants.Message{}, err
 	}
@@ -360,7 +354,7 @@ func (t *threadHandle) Messages(limit int, after string) ([]assistants.Message, 
 	if limit < 1 || limit > 100 {
 		limit = 20
 	}
-	url := fmt.Sprintf("%s/%s/messages?limit=%d", threadsURL, t.dto.ID, limit)
+	url := fmt.Sprintf("%sv1/threads/%s/messages?limit=%d", t.client.BaseAPI, t.dto.ID, limit)
 	if after != "" {
 		url += "&after=" + after
 	}
@@ -438,7 +432,7 @@ func (r *runHandle) SubmitToolOutputs(outputs ...assistants.ToolOutput) error {
 	if err != nil {
 		return err
 	}
-	turl := fmt.Sprintf("%s/%s/runs/%s/submit_tool_outputs", threadsURL, r.dto.ThreadID, r.dto.ID)
+	turl := fmt.Sprintf("%sv1/threads/%s/runs/%s/submit_tool_outputs", r.client.BaseAPI, r.dto.ThreadID, r.dto.ID)
 	req, err := http.NewRequest(http.MethodPost, turl, bytes.NewBuffer(b))
 	if err != nil {
 		return err
@@ -479,7 +473,7 @@ func (r *runHandle) Await(ctx context.Context) error {
 		case <-time.After(r.client.RunRefreshInterval):
 		}
 		// refresh run state
-		runURL := fmt.Sprintf("%s/%s/runs/%s", threadsURL, r.dto.ThreadID, r.dto.ID)
+		runURL := fmt.Sprintf("%sv1/threads/%s/runs/%s", r.client.BaseAPI, r.dto.ThreadID, r.dto.ID)
 		req, err := http.NewRequest(http.MethodGet, runURL, nil)
 		if err != nil {
 			return err
@@ -527,7 +521,7 @@ func (t *threadHandle) Run(opts *assistants.RunOptions) (assistants.Run, error) 
 		return nil, fmt.Errorf("failed to marshal run payload: %w", err)
 	}
 	// POST to /threads/{threadID}/runs
-	url := fmt.Sprintf("%s/%s/runs", threadsURL, t.dto.ID)
+	url := fmt.Sprintf("%sv1/threads/%s/runs", t.client.BaseAPI, t.dto.ID)
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(b))
 	if err != nil {
 		return nil, err

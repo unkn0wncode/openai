@@ -19,10 +19,6 @@ import (
 	"github.com/unkn0wncode/openai/util"
 )
 
-const (
-	apiURL = openai.BaseAPI + "v1/chat/completions"
-)
-
 type ChatClient struct {
 	Config         *openai.Config
 	AutoLogTripper bool // if true, LogTripper is enabled on errors and disabled on successes
@@ -216,7 +212,9 @@ func (c *ChatClient) execute(data chat.Request) (*response, error) {
 	}
 
 	var req *http.Request
-	req, err = http.NewRequest(http.MethodPost, apiURL, bytes.NewBuffer(b))
+	req, err = http.NewRequest(http.MethodPost,
+		c.Config.BaseAPI+"v1/chat/completions",
+		bytes.NewBuffer(b))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

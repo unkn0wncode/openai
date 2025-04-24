@@ -16,6 +16,8 @@ type Config struct {
 	// mutex is actually not used but protects other fields from copying by value
 	mux sync.Mutex
 
+	// BaseAPI is the base URL for OpenAI API endpoints
+	BaseAPI    string
 	Token      string
 	HTTPClient *HTTPClient
 	Log        *slog.Logger
@@ -25,7 +27,8 @@ type Config struct {
 // NewConfig creates a default configuration with the provided token.
 func NewConfig(token string) *Config {
 	c := &Config{
-		Token: token,
+		BaseAPI: DefaultBaseAPI,
+		Token:   token,
 		HTTPClient: &HTTPClient{
 			Client: &http.Client{
 				Timeout:   30 * time.Second,

@@ -15,10 +15,6 @@ import (
 	"github.com/unkn0wncode/openai/util"
 )
 
-const (
-	apiURL = openai.BaseAPI + "v1/moderations"
-)
-
 // ModerationClient is a client for the OpenAI Moderation API.
 type ModerationClient struct {
 	*openai.Config
@@ -127,7 +123,7 @@ func (c *ModerationClient) send(r *request) (*response, error) {
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, apiURL, bytes.NewBuffer(b))
+	req, err := http.NewRequest(http.MethodPost, c.BaseAPI+"v1/moderations", bytes.NewBuffer(b))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

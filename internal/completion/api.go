@@ -12,11 +12,7 @@ import (
 	openai "github.com/unkn0wncode/openai/internal"
 )
 
-const (
-	apiURL = openai.BaseAPI + "v1/completions"
-
-	maxTokens = 2048
-)
+const maxTokens = 2048
 
 // CompletionClient is a client for the OpenAI Completion API.
 type CompletionClient struct {
@@ -74,7 +70,7 @@ func (c *CompletionClient) execute(data completion.Request) (*response, error) {
 	}
 
 	var req *http.Request
-	req, err = http.NewRequest(http.MethodPost, apiURL, bytes.NewBuffer(b))
+	req, err = http.NewRequest(http.MethodPost, c.BaseAPI+"v1/completions", bytes.NewBuffer(b))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
