@@ -16,8 +16,8 @@ import (
 	"github.com/unkn0wncode/openai/util"
 )
 
-// ModerationClient is a client for the OpenAI Moderation API.
-type ModerationClient struct {
+// Client is a client for the OpenAI Moderation API.
+type Client struct {
 	*openai.Config
 
 	// MinConfidencePercent is the minimum confidence percentage for a flag to be reported.
@@ -26,9 +26,14 @@ type ModerationClient struct {
 	MinConfidencePercent int
 }
 
+// NewClient creates a new Moderation client.
+func NewClient(config *openai.Config) *Client {
+	return &Client{Config: config}
+}
+
 // interface conformity checks
 var (
-	_ moderation.Service = (*ModerationClient)(nil)
+	_ moderation.Service = (*Client)(nil)
 	_ moderation.Builder = (*Builder)(nil)
 )
 
@@ -93,7 +98,7 @@ func (t Text) MarshalJSON() ([]byte, error) {
 }
 
 // send executes a moderation request using the client's HTTPClient and logger.
-func (c *ModerationClient) send(r *request) (*response, error) {
+func (c *Client) send(r *request) (*response, error) {
 	b, err := json.Marshal(r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
@@ -132,14 +137,14 @@ func (c *ModerationClient) send(r *request) (*response, error) {
 // Ready for use at zero value.
 // Can be reused for multiple requests but not asynchronously.
 type Builder struct {
-	client               *ModerationClient
+	client               *Client
 	texts                []Text
 	images               []Image
 	MinConfidencePercent int
 }
 
 // NewModerationBuilder returns a new Builder with client settings applied.
-func (c *ModerationClient) NewModerationBuilder() moderation.Builder {
+func (c *Client) NewModerationBuilder() moderation.Builder {
 	return &Builder{
 		client:               c,
 		texts:                []Text{},

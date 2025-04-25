@@ -14,13 +14,18 @@ import (
 
 const maxTokens = 2048
 
-// CompletionClient is a client for the OpenAI Completion API.
-type CompletionClient struct {
+// Client is a client for the OpenAI Completion API.
+type Client struct {
 	*openai.Config
 }
 
+// NewClient creates a new Completion client.
+func NewClient(config *openai.Config) *Client {
+	return &Client{Config: config}
+}
+
 // interface conformity checks
-var _ completion.Service = (*CompletionClient)(nil)
+var _ completion.Service = (*Client)(nil)
 
 // response is the request body for the Completion API.
 type response struct {
@@ -48,7 +53,7 @@ type response struct {
 }
 
 // countTokens returns the number of tokens in the request.
-func (c *CompletionClient) countTokens(data completion.Request) int {
+func (c *Client) countTokens(data completion.Request) int {
 	b, err := json.Marshal(data)
 	if err != nil {
 		panic("failed to marshal request body: " + err.Error())
@@ -62,7 +67,7 @@ func (c *CompletionClient) countTokens(data completion.Request) int {
 }
 
 // execute sends request to the Completion API and returns the response.
-func (c *CompletionClient) execute(data completion.Request) (*response, error) {
+func (c *Client) execute(data completion.Request) (*response, error) {
 	if tokens := c.countTokens(data); tokens > maxTokens {
 		return nil, fmt.Errorf("prompt is likely too long: total ~%d tokens, max %d tokens", tokens, maxTokens)
 	}
@@ -105,7 +110,7 @@ func (c *CompletionClient) execute(data completion.Request) (*response, error) {
 }
 
 // checkFirst checks if API response is valid, returns raw content and error.
-func (c *CompletionClient) checkFirst(resp *response) (string, error) {
+func (c *Client) checkFirst(resp *response) (string, error) {
 	if resp == nil {
 		return "", fmt.Errorf("response is nil")
 	}

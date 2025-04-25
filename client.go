@@ -5,10 +5,12 @@ import (
 	"github.com/unkn0wncode/openai/assistants"
 	"github.com/unkn0wncode/openai/chat"
 	"github.com/unkn0wncode/openai/completion"
+	"github.com/unkn0wncode/openai/embedding"
 	openai "github.com/unkn0wncode/openai/internal"
 	"github.com/unkn0wncode/openai/internal/inassistants"
 	"github.com/unkn0wncode/openai/internal/inchat"
 	"github.com/unkn0wncode/openai/internal/incompletion"
+	"github.com/unkn0wncode/openai/internal/inembedding"
 	"github.com/unkn0wncode/openai/internal/inmoderation"
 	"github.com/unkn0wncode/openai/internal/inresponses"
 	"github.com/unkn0wncode/openai/moderation"
@@ -23,6 +25,7 @@ type Client struct {
 	Completion completion.Service
 	Assistants assistants.Service
 	Responses  responses.Service
+	Embedding  embedding.Service
 
 	config *openai.Config
 }
@@ -31,11 +34,12 @@ type Client struct {
 // Settings can be changed by accessing exported fields.
 func NewClient(token string) *Client {
 	c := &Client{config: openai.NewConfig(token)}
-	c.Chat = &inchat.ChatClient{Config: c.config}
-	c.Moderation = &inmoderation.ModerationClient{Config: c.config}
-	c.Completion = &incompletion.CompletionClient{Config: c.config}
-	c.Assistants = &inassistants.AssistantsClient{Config: c.config}
-	c.Responses = &inresponses.ResponsesClient{Config: c.config}
+	c.Chat = inchat.NewClient(c.config)
+	c.Moderation = inmoderation.NewClient(c.config)
+	c.Completion = incompletion.NewClient(c.config)
+	c.Assistants = inassistants.NewClient(c.config)
+	c.Responses = inresponses.NewClient(c.config)
+	c.Embedding = inembedding.NewClient(c.config)
 	return c
 }
 

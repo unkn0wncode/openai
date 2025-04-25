@@ -15,21 +15,21 @@ import (
 	"github.com/unkn0wncode/openai/tools"
 )
 
-// ResponsesClient is the client for the Responses API.
-type ResponsesClient struct {
+// Client is the client for the Responses API.
+type Client struct {
 	*openai.Config
 }
 
-// NewResponsesClient creates a new ResponsesClient.
-func NewResponsesClient(config *openai.Config) *ResponsesClient {
-	return &ResponsesClient{Config: config}
+// NewClient creates a new ResponsesClient.
+func NewClient(config *openai.Config) *Client {
+	return &Client{Config: config}
 }
 
 // interface compliance checks
-var _ responses.Service = (*ResponsesClient)(nil)
+var _ responses.Service = (*Client)(nil)
 
 // marshalRequest marshals the request into a JSON object, including tools by name.
-func (c *ResponsesClient) marshalRequest(data *responses.Request) ([]byte, error) {
+func (c *Client) marshalRequest(data *responses.Request) ([]byte, error) {
 	if data == nil {
 		return nil, fmt.Errorf("request is nil")
 	}
@@ -75,7 +75,7 @@ func (c *ResponsesClient) marshalRequest(data *responses.Request) ([]byte, error
 }
 
 // execute sends request to the Responses API and returns the response.
-func (c *ResponsesClient) executeRequest(data *responses.Request) (*response, error) {
+func (c *Client) executeRequest(data *responses.Request) (*response, error) {
 	if data == nil {
 		return nil, fmt.Errorf("request is nil")
 	}
@@ -230,7 +230,7 @@ func (data *response) checkResponseData() (*responses.Response, error) {
 
 // Send sends a request to the Responses API with custom data.
 // Returns the AI reply, request ID, and any error.
-func (c *ResponsesClient) Send(req *responses.Request) (*responses.Response, error) {
+func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 	respData, err := c.executeRequest(req)
 	if err != nil {
 		return nil, err

@@ -247,3 +247,11 @@ func TestClient_Responses_Function(t *testing.T) {
 	require.NotEmpty(t, response)
 	t.Logf("Function calling response: %v", response.Texts())
 }
+
+func TestClient_Embedding(t *testing.T) {
+	c := NewClient(testToken)
+
+	vec, err := c.Embedding.One("Hello, world!")
+	require.NoError(t, err)
+	require.NotEmpty(t, vec)
+}

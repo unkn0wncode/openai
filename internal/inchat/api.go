@@ -19,13 +19,18 @@ import (
 	"github.com/unkn0wncode/openai/util"
 )
 
-type ChatClient struct {
+type Client struct {
 	Config         *openai.Config
 	AutoLogTripper bool // if true, LogTripper is enabled on errors and disabled on successes
 }
 
+// NewClient creates a new Chat client.
+func NewClient(config *openai.Config) *Client {
+	return &Client{Config: config}
+}
+
 // interface conformity checks
-var _ chat.Service = (*ChatClient)(nil)
+var _ chat.Service = (*Client)(nil)
 
 // ResponseFormatStr represents a format that the model must output.
 // Should be one of:
@@ -167,7 +172,7 @@ func trimMessages(data chat.Request) []chat.Message {
 	return messages
 }
 
-func (c *ChatClient) execute(data chat.Request) (*response, error) {
+func (c *Client) execute(data chat.Request) (*response, error) {
 	if data.Model == "" {
 		data.Model = models.Default
 	}
@@ -283,7 +288,7 @@ func (c *ChatClient) execute(data chat.Request) (*response, error) {
 
 // handleBadRequest handles the case when the API returns a 400 Bad Request status.
 // Logs the request duration and returns an error with the response body.
-func (c *ChatClient) handleBadRequest(resp *http.Response, model string, duration time.Duration) error {
+func (c *Client) handleBadRequest(resp *http.Response, model string, duration time.Duration) error {
 	c.Config.Log.Debug(fmt.Sprintf("Chat request timing: %s", duration))
 	body, _ := io.ReadAll(resp.Body)
 	errMsg := fmt.Errorf(
@@ -295,30 +300,30 @@ func (c *ChatClient) handleBadRequest(resp *http.Response, model string, duratio
 }
 
 // EnableAutoLogTripper enables automatic toggling of log tripper on errors/successes.
-func (c *ChatClient) EnableAutoLogTripper() {
+func (c *Client) EnableAutoLogTripper() {
 	c.AutoLogTripper = true
 }
 
 // DisableAutoLogTripper disables automatic toggling of log tripper on errors/successes.
-func (c *ChatClient) DisableAutoLogTripper() {
+func (c *Client) DisableAutoLogTripper() {
 	c.AutoLogTripper = false
 }
 
 // enableLogTripper enables LogTripper for the API requests and logs that it's enabled.
-func (c *ChatClient) enableLogTripper() {
+func (c *Client) enableLogTripper() {
 	c.Config.Log.Debug("Enable LogTripper")
 	c.Config.EnableLogTripper()
 }
 
 // disableLogTripper disables LogTripper for the API requests and logs that it's disabled.
-func (c *ChatClient) disableLogTripper() {
+func (c *Client) disableLogTripper() {
 	c.Config.Log.Debug("Disable LogTripper")
 	c.Config.DisableLogTripper()
 }
 
 // checkFirst checks if API response is valid,
 // returns raw content or function call of first choice and error.
-func (c *ChatClient) checkFirst(resp *response) (string, error) {
+func (c *Client) checkFirst(resp *response) (string, error) {
 	if resp == nil {
 		return "", fmt.Errorf("response is nil")
 	}
@@ -374,7 +379,7 @@ func (c *ChatClient) checkFirst(resp *response) (string, error) {
 
 // cost returns the resulting cost of the completed request in USD.
 // Returns zero if pricing for the model is not known.
-func (c *ChatClient) cost(resp *response) float64 {
+func (c *Client) cost(resp *response) float64 {
 	pricing, ok := models.Data[resp.Model]
 	if !ok {
 		c.Config.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", resp.Model))
@@ -384,7 +389,7 @@ func (c *ChatClient) cost(resp *response) float64 {
 }
 
 // marshalRequest builds request body including function calls based on registered tools
-func (c *ChatClient) marshalRequest(data chat.Request) ([]byte, error) {
+func (c *Client) marshalRequest(data chat.Request) ([]byte, error) {
 	if len(data.Functions) == 0 {
 		type Alias chat.Request
 		return openai.Marshal((*Alias)(&data))

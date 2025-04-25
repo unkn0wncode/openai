@@ -4,7 +4,7 @@ package incompletion
 import "github.com/unkn0wncode/openai/completion"
 
 // Completion sends a request to the Completion API with custom data.
-func (c *CompletionClient) Completion(req completion.Request) (string, error) {
+func (c *Client) Completion(req completion.Request) (string, error) {
 	respData, err := c.execute(req)
 	if err != nil {
 		return "", err

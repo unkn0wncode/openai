@@ -54,7 +54,7 @@ import (
 // }
 
 // Send sends a request to the Send API with custom data.
-func (c *ChatClient) Send(req chat.Request) (string, error) {
+func (c *Client) Send(req chat.Request) (string, error) {
 	respData, err := c.execute(req)
 	if err != nil {
 		return "", err
