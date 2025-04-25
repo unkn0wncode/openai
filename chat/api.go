@@ -18,6 +18,9 @@ type Service interface {
 	// NewMessage creates a new empty message.
 	NewMessage() *Message
 
+	// NewRequest creates a new empty request.
+	NewRequest() *Request
+
 	// EnableAutoLogTripper enables automatic toggling of log tripper on errors/successes.
 	EnableAutoLogTripper()
 	// DisableAutoLogTripper disables automatic toggling of log tripper on errors/successes.

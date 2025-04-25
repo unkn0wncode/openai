@@ -424,3 +424,8 @@ func (c *Client) marshalRequest(data chat.Request) ([]byte, error) {
 func (c *Client) NewMessage() *chat.Message {
 	return &chat.Message{}
 }
+
+// NewRequest creates a new empty request.
+func (c *Client) NewRequest() *chat.Request {
+	return &chat.Request{}
+}
