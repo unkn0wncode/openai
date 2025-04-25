@@ -70,7 +70,7 @@ func TestClient_Chat_Function(t *testing.T) {
 			return `{"result":true}`, nil
 		},
 	}
-	require.NoError(t, c.Chat.Config.Tools.CreateFunction(testFunc))
+	require.NoError(t, c.Tools().CreateFunction(testFunc))
 
 	// Prepare request with forced function call
 	req := chat.Request{

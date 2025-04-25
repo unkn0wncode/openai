@@ -10,6 +10,17 @@ import (
 	"github.com/unkn0wncode/openai/tools"
 )
 
+// Service defines methods to operate on chat.
+type Service interface {
+	// Send sends a request to the Chat API.
+	Send(req Request) (string, error)
+
+	// EnableAutoLogTripper enables automatic toggling of log tripper on errors/successes.
+	EnableAutoLogTripper()
+	// DisableAutoLogTripper disables automatic toggling of log tripper on errors/successes.
+	DisableAutoLogTripper()
+}
+
 // Request is the request body for the Chat API.
 type Request struct {
 	// required

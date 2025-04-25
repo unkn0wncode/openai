@@ -1,4 +1,4 @@
-package assistants
+package inassistants
 
 import (
 	"bytes"
@@ -34,10 +34,10 @@ type AssistantsClient struct {
 
 // type conformity checks
 var (
-	_ assistants.AssistantsService = (*AssistantsClient)(nil)
-	_ assistants.Assistant         = (*assistantHandle)(nil)
-	_ assistants.Thread            = (*threadHandle)(nil)
-	_ assistants.Run               = (*runHandle)(nil)
+	_ assistants.Service   = (*AssistantsClient)(nil)
+	_ assistants.Assistant = (*assistantHandle)(nil)
+	_ assistants.Thread    = (*threadHandle)(nil)
+	_ assistants.Run       = (*runHandle)(nil)
 )
 
 // assistantDTO maps the JSON for an assistant object.

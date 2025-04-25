@@ -1,5 +1,5 @@
-// Package modapieration provides a wrapper for the OpenAI Moderation API.
-package moderation
+// Package inmoderation provides a wrapper for the OpenAI Moderation API.
+package inmoderation
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 
 	openai "github.com/unkn0wncode/openai/internal"
 	"github.com/unkn0wncode/openai/models"
+	"github.com/unkn0wncode/openai/moderation"
 	"github.com/unkn0wncode/openai/util"
 )
 
@@ -25,6 +26,12 @@ type ModerationClient struct {
 	MinConfidencePercent int
 }
 
+// interface conformity checks
+var (
+	_ moderation.Service = (*ModerationClient)(nil)
+	_ moderation.Builder = (*Builder)(nil)
+)
+
 // request is the request body for the Moderation API.
 type request struct {
 	// required
@@ -36,40 +43,9 @@ type request struct {
 
 // response is the response body for the Moderation API.
 type response struct {
-	ID      string    `json:"id"`
-	Model   string    `json:"model"`
-	Results []*Result `json:"results"`
-}
-
-// Result is a single result of the Moderation API, includes the input,
-// whether it was flagged and moderation categories with their scores.
-type Result struct {
-	Flagged                   bool                `json:"flagged"`
-	Categories                map[string]bool     `json:"categories"`
-	CategoryScores            map[string]float64  `json:"category_scores"`
-	CategoryAppliedInputTypes map[string][]string `json:"category_applied_input_types"`
-
-	// filled by us for convenience
-	input string
-}
-
-// WithConfidence checks if the result passes the confidence threshold.
-// If not, it sets the result as not flagged.
-// Categories with low confidence are removed from the result.
-func (r *Result) WithConfidence(minPercent int) {
-	flaggedWithConfidence := false
-	for category := range r.CategoryScores {
-		if int(r.CategoryScores[category]*100) >= minPercent {
-			flaggedWithConfidence = true
-		} else {
-			delete(r.CategoryScores, category)
-			delete(r.Categories, category)
-			delete(r.CategoryAppliedInputTypes, category)
-		}
-	}
-	if !flaggedWithConfidence {
-		r.Flagged = false
-	}
+	ID      string               `json:"id"`
+	Model   string               `json:"model"`
+	Results []*moderation.Result `json:"results"`
 }
 
 // Image is an image URL or a base64-encoded image to be moderated.
@@ -163,7 +139,7 @@ type Builder struct {
 }
 
 // NewModerationBuilder returns a new Builder with client settings applied.
-func (c *ModerationClient) NewModerationBuilder() *Builder {
+func (c *ModerationClient) NewModerationBuilder() moderation.Builder {
 	return &Builder{
 		client:               c,
 		texts:                []Text{},
@@ -173,7 +149,7 @@ func (c *ModerationClient) NewModerationBuilder() *Builder {
 }
 
 // AddText adds a text input to the builder.
-func (b *Builder) AddText(text string) *Builder {
+func (b *Builder) AddText(text string) moderation.Builder {
 	if text == "" {
 		return b
 	}
@@ -186,7 +162,7 @@ func (b *Builder) AddText(text string) *Builder {
 // Can be a URL or a base64-encoded image data-uri, like:
 //
 //	AddImage("data:image/jpeg;base64,abcdefg...")
-func (b *Builder) AddImage(url string) *Builder {
+func (b *Builder) AddImage(url string) moderation.Builder {
 	if url == "" {
 		return b
 	}
@@ -212,13 +188,13 @@ func (b *Builder) AddImage(url string) *Builder {
 }
 
 // SetMinConfidence sets the minimum confidence percentage for a flag to be reported.
-func (b *Builder) SetMinConfidence(minPercent int) *Builder {
+func (b *Builder) SetMinConfidence(minPercent int) moderation.Builder {
 	b.MinConfidencePercent = minPercent
 	return b
 }
 
 // Clear removes all inputs and settings from the builder.
-func (b *Builder) Clear() *Builder {
+func (b *Builder) Clear() moderation.Builder {
 	b.texts = nil
 	b.images = nil
 	b.MinConfidencePercent = b.client.MinConfidencePercent
@@ -229,7 +205,7 @@ func (b *Builder) Clear() *Builder {
 // a common result for all text inputs combined with each image.
 // If only some of requests failed, can return partial results.
 // The inputs are not reset automatically, Clear() must be called for that.
-func (bld *Builder) Execute() ([]*Result, error) {
+func (bld *Builder) Execute() ([]*moderation.Result, error) {
 	var inputSets [][]any
 	switch {
 	case len(bld.texts) == 0 && len(bld.images) == 0:
@@ -257,7 +233,7 @@ func (bld *Builder) Execute() ([]*Result, error) {
 		}
 	}
 
-	var results []*Result
+	var results []*moderation.Result
 	var errs []error
 	for _, input := range inputSets {
 		req := &request{
@@ -285,11 +261,11 @@ func (bld *Builder) Execute() ([]*Result, error) {
 
 		result := res.Results[0]
 		result.WithConfidence(bld.MinConfidencePercent)
-		result.input = fmt.Sprint(input)
+		result.Input = fmt.Sprint(input)
 		if result.Flagged {
 			bld.client.Log.Info(fmt.Sprintf(
 				"OpenAI moderation flagged input: %s",
-				result.input,
+				result.Input,
 			))
 		}
 

@@ -23,8 +23,8 @@ type CreateParams struct {
 	Tools           []ToolSpec `json:"tools,omitempty"`
 }
 
-// AssistantsService defines methods to operate on assistants.
-type AssistantsService interface {
+// Service defines methods to operate on assistants.
+type Service interface {
 	// CreateAssistant creates a new assistant.
 	CreateAssistant(params CreateParams) (Assistant, error)
 

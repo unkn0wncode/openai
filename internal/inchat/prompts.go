@@ -1,5 +1,5 @@
-// Package chat / prompts.go provides exported functions for sending requests to the Chat API with different level of control.
-package chat
+// Package inchat / prompts.go provides exported functions for sending requests to the Chat API with different level of control.
+package inchat
 
 import (
 	"encoding/json"

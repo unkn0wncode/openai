@@ -1,6 +1,11 @@
 // Package completion provides a wrapper for the OpenAI Completion API.
 package completion
 
+// Service defines methods to operate on completion API.
+type Service interface {
+	Completion(req Request) (string, error)
+}
+
 // Request is the request body for the Completions API
 type Request struct {
 	// required

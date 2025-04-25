@@ -1,5 +1,5 @@
-// Package completion provides a wrapper for the OpenAI Completion API.
-package completion
+// Package incompletion provides a wrapper for the OpenAI Completion API.
+package incompletion
 
 import (
 	"bytes"
@@ -18,6 +18,9 @@ const maxTokens = 2048
 type CompletionClient struct {
 	*openai.Config
 }
+
+// interface conformity checks
+var _ completion.Service = (*CompletionClient)(nil)
 
 // response is the request body for the Completion API.
 type response struct {

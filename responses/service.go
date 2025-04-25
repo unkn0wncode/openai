@@ -15,8 +15,8 @@ const (
 	TextFormatTypeJSONSchema = "json_schema"
 )
 
-// ResponsesService is the service layer for OpenAI responses API.
-type ResponsesService interface {
+// Service is the service layer for OpenAI responses API.
+type Service interface {
 	Send(req *Request) (response *Response, err error)
 }
 

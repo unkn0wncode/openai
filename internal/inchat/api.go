@@ -1,5 +1,5 @@
-// Package chat provides a wrapper for the OpenAI Chat API.
-package chat
+// Package inchat provides a wrapper for the OpenAI Chat API.
+package inchat
 
 import (
 	"bytes"
@@ -23,6 +23,9 @@ type ChatClient struct {
 	Config         *openai.Config
 	AutoLogTripper bool // if true, LogTripper is enabled on errors and disabled on successes
 }
+
+// interface conformity checks
+var _ chat.Service = (*ChatClient)(nil)
 
 // ResponseFormatStr represents a format that the model must output.
 // Should be one of:
@@ -289,6 +292,16 @@ func (c *ChatClient) handleBadRequest(resp *http.Response, model string, duratio
 	)
 	c.enableLogTripper()
 	return errMsg
+}
+
+// EnableAutoLogTripper enables automatic toggling of log tripper on errors/successes.
+func (c *ChatClient) EnableAutoLogTripper() {
+	c.AutoLogTripper = true
+}
+
+// DisableAutoLogTripper disables automatic toggling of log tripper on errors/successes.
+func (c *ChatClient) DisableAutoLogTripper() {
+	c.AutoLogTripper = false
 }
 
 // enableLogTripper enables LogTripper for the API requests and logs that it's enabled.

@@ -1,4 +1,4 @@
-package responses
+package inresponses
 
 import (
 	"bytes"
@@ -26,7 +26,7 @@ func NewResponsesClient(config *openai.Config) *ResponsesClient {
 }
 
 // interface compliance checks
-var _ responses.ResponsesService = (*ResponsesClient)(nil)
+var _ responses.Service = (*ResponsesClient)(nil)
 
 // marshalRequest marshals the request into a JSON object, including tools by name.
 func (c *ResponsesClient) marshalRequest(data *responses.Request) ([]byte, error) {
