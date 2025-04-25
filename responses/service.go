@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/unkn0wncode/openai/content/input"
 	"github.com/unkn0wncode/openai/content/output"
 )
 
@@ -17,7 +18,14 @@ const (
 
 // Service is the service layer for OpenAI responses API.
 type Service interface {
+	// Send sends a request to the Responses API.
 	Send(req *Request) (response *Response, err error)
+
+	// NewInputMessage creates a new empty input message.
+	NewInputMessage() *input.Message
+
+	// NewRequest creates a new empty request.
+	NewRequest() *Request
 }
 
 // Request is the request body for the Responses API.

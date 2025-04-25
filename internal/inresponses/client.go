@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/unkn0wncode/openai/content/input"
 	"github.com/unkn0wncode/openai/content/output"
 	openai "github.com/unkn0wncode/openai/internal"
 	"github.com/unkn0wncode/openai/models"
@@ -361,4 +362,14 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 
 	// this place should be unreachable
 	return nil, fmt.Errorf("logic error: unreachable code")
+}
+
+// NewInputMessage creates a new empty input message.
+func (c *Client) NewInputMessage() *input.Message {
+	return &input.Message{}
+}
+
+// NewRequest creates a new empty request.
+func (c *Client) NewRequest() *responses.Request {
+	return &responses.Request{}
 }
