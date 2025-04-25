@@ -419,3 +419,8 @@ func (c *Client) marshalRequest(data chat.Request) ([]byte, error) {
 		Alias: (*Alias)(&data),
 	})
 }
+
+// NewMessage creates a new empty message.
+func (c *Client) NewMessage() *chat.Message {
+	return &chat.Message{}
+}

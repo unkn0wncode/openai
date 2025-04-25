@@ -3,9 +3,10 @@ package roles
 
 const (
 	System    = "system"
-	Developer = "developer"
+	Developer = "developer" // used in place of "system" for newer models
 	User      = "user"
-	AI        = "assistant"
+	Assistant = "assistant"
+	AI        = Assistant // alias for Assistant
 	Function  = "function"
 	Tool      = "tool"
 )
