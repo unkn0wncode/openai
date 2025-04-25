@@ -17,7 +17,7 @@ const (
 
 // ResponsesService is the service layer for OpenAI responses API.
 type ResponsesService interface {
-	Response(req *Request) (response *Response, err error)
+	Send(req *Request) (response *Response, err error)
 }
 
 // Request is the request body for the Responses API.

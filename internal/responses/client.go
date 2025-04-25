@@ -228,9 +228,9 @@ func (data *response) checkResponseData() (*responses.Response, error) {
 	return resp, nil
 }
 
-// Response sends a request to the Responses API with custom data.
+// Send sends a request to the Responses API with custom data.
 // Returns the AI reply, request ID, and any error.
-func (c *ResponsesClient) Response(req *responses.Request) (*responses.Response, error) {
+func (c *ResponsesClient) Send(req *responses.Request) (*responses.Response, error) {
 	respData, err := c.executeRequest(req)
 	if err != nil {
 		return nil, err
@@ -343,7 +343,7 @@ func (c *ResponsesClient) Response(req *responses.Request) (*responses.Response,
 		followUpReq.PreviousResponseID = resp.ID
 
 		// Make another request with the function results
-		followupResp, err := c.Response(followUpReq)
+		followupResp, err := c.Send(followUpReq)
 		if err != nil {
 			return nil, err
 		}

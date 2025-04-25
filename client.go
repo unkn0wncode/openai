@@ -15,11 +15,11 @@ import (
 
 // Client provides access to OpenAI APIs.
 type Client struct {
-	*chat.ChatClient
-	*moderation.ModerationClient
-	*completion.CompletionClient
-	assistants.AssistantsService
-	responses.ResponsesService
+	Chat       *chat.ChatClient
+	Moderation *moderation.ModerationClient
+	Completion *completion.CompletionClient
+	Assistants assistants.AssistantsService
+	Responses  responses.ResponsesService
 
 	config *openai.Config
 }
@@ -28,18 +28,20 @@ type Client struct {
 // Settings can be changed by accessing exported fields.
 func NewClient(token string) *Client {
 	c := &Client{config: openai.NewConfig(token)}
-	c.ChatClient = &chat.ChatClient{Config: c.config}
-	c.ModerationClient = &moderation.ModerationClient{Config: c.config}
-	c.CompletionClient = &completion.CompletionClient{Config: c.config}
-	c.AssistantsService = &assistantsInternal.AssistantsClient{Config: c.config}
-	c.ResponsesService = &responsesInternal.ResponsesClient{Config: c.config}
+	c.Chat = &chat.ChatClient{Config: c.config}
+	c.Moderation = &moderation.ModerationClient{Config: c.config}
+	c.Completion = &completion.CompletionClient{Config: c.config}
+	c.Assistants = &assistantsInternal.AssistantsClient{Config: c.config}
+	c.Responses = &responsesInternal.ResponsesClient{Config: c.config}
 	return c
 }
 
+// Config provides access to the client's configuration.
 func (c *Client) Config() *openai.Config {
 	return c.config
 }
 
+// Tools provides access to the client's tools registry.
 func (c *Client) Tools() *tools.Registry {
 	return c.config.Tools
 }

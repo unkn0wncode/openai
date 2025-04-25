@@ -10,7 +10,6 @@ import (
 	"github.com/unkn0wncode/openai/assistants"
 	"github.com/unkn0wncode/openai/chat"
 	"github.com/unkn0wncode/openai/completion"
-	responsesInternal "github.com/unkn0wncode/openai/internal/responses"
 	"github.com/unkn0wncode/openai/models"
 	"github.com/unkn0wncode/openai/responses"
 	"github.com/unkn0wncode/openai/roles"
@@ -49,7 +48,7 @@ func TestClient_Chat_hi(t *testing.T) {
 		},
 	}
 
-	resp, err := c.Chat(req)
+	resp, err := c.Chat.Send(req)
 	require.NoError(t, err)
 	require.NotEmpty(t, resp)
 
@@ -71,7 +70,7 @@ func TestClient_Chat_Function(t *testing.T) {
 			return `{"result":true}`, nil
 		},
 	}
-	require.NoError(t, c.ChatClient.Config.Tools.CreateFunction(testFunc))
+	require.NoError(t, c.Chat.Config.Tools.CreateFunction(testFunc))
 
 	// Prepare request with forced function call
 	req := chat.Request{
@@ -81,7 +80,7 @@ func TestClient_Chat_Function(t *testing.T) {
 		ToolChoice: tools.ToolChoiceOption("test_function"),
 	}
 
-	resp, err := c.Chat(req)
+	resp, err := c.Chat.Send(req)
 	require.NoError(t, err)
 	require.True(t, called, "expected function to be called")
 	require.NotEmpty(t, resp)
@@ -92,7 +91,7 @@ func TestClient_Chat_Function(t *testing.T) {
 // TestClient_Moderation checks the moderation functionality in moderation API.
 func TestClient_Moderation(t *testing.T) {
 	c := NewClient(testToken)
-	bld := c.NewModerationBuilder()
+	bld := c.Moderation.NewModerationBuilder()
 	bld.SetMinConfidence(50)
 
 	t.Run("safe", func(t *testing.T) {
@@ -124,7 +123,7 @@ func TestClient_Completion(t *testing.T) {
 		MaxTokens: 1024,
 	}
 
-	resp, err := c.Completion(req)
+	resp, err := c.Completion.Completion(req)
 	require.NoError(t, err)
 	require.NotEmpty(t, resp)
 
@@ -136,7 +135,7 @@ func TestClient_Assistants(t *testing.T) {
 	c := NewClient(testToken)
 
 	// Create a new assistant
-	assistant, err := c.CreateAssistant(assistants.CreateParams{
+	assistant, err := c.Assistants.CreateAssistant(assistants.CreateParams{
 		Name:  "Test Assistant",
 		Model: models.DefaultNano,
 	})
@@ -144,7 +143,7 @@ func TestClient_Assistants(t *testing.T) {
 	require.NotNil(t, assistant)
 
 	// List assistantsList
-	assistantsList, err := c.ListAssistant()
+	assistantsList, err := c.Assistants.ListAssistant()
 	require.NoError(t, err)
 	require.NotEmpty(t, assistantsList)
 
@@ -168,7 +167,7 @@ func TestClient_Assistants(t *testing.T) {
 	require.NotNil(t, msg)
 
 	// Delete the assistant
-	err = c.DeleteAssistant(assistant.ID())
+	err = c.Assistants.DeleteAssistant(assistant.ID())
 	require.NoError(t, err)
 
 	t.Logf("response: %s", msg.Content)
@@ -183,7 +182,7 @@ func TestClient_Responses_hi(t *testing.T) {
 		Input: "hi",
 	}
 
-	resp, err := c.Response(req)
+	resp, err := c.Responses.Send(req)
 	require.NoError(t, err)
 	require.NotEmpty(t, resp)
 	require.NotEmpty(t, resp.ID)
@@ -220,7 +219,7 @@ func TestClient_Responses_Function(t *testing.T) {
 
 	// Register the function
 	c.Config().Tools.CreateFunction(testFunction)
-	toolReg := c.ResponsesService.(*responsesInternal.ResponsesClient).Config.Tools
+	toolReg := c.Tools()
 	require.NotNil(t, toolReg)
 	require.Len(t, toolReg.FunctionCalls, 1)
 	gotFunc, ok := toolReg.GetFunction("get_current_weather")
@@ -237,7 +236,7 @@ func TestClient_Responses_Function(t *testing.T) {
 		User:  "test-user",
 	}
 
-	response, err := c.Response(&req)
+	response, err := c.Responses.Send(&req)
 	require.NoError(t, err)
 	require.True(t, testFunctionCalled)
 	require.NotEmpty(t, response.ID)

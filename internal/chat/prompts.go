@@ -53,8 +53,8 @@ import (
 // 	return c.Chat(req)
 // }
 
-// Chat sends a request to the Chat API with custom data.
-func (c *ChatClient) Chat(req chat.Request) (string, error) {
+// Send sends a request to the Send API with custom data.
+func (c *ChatClient) Send(req chat.Request) (string, error) {
 	respData, err := c.execute(req)
 	if err != nil {
 		return "", err
@@ -185,7 +185,7 @@ func (c *ChatClient) Chat(req chat.Request) (string, error) {
 		//	req.Model = ModelChatGPT16k
 		//}
 
-		return c.Chat(req)
+		return c.Send(req)
 	}
 
 	return c.checkFirst(respData)
