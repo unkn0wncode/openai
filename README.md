@@ -10,6 +10,7 @@ All APIs are accessed via the `Client` struct:
 package main
 
 import (
+	"os"
 	"github.com/unkn0wncode/openai"
 )
 
@@ -35,7 +36,6 @@ config.Log = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 ```
 
 The following settings are available in `Client.Config()`:
-
 - `BaseAPI`: The base URL for the OpenAI API.
 - `Token`: The API key.
 - `HTTPClient`: The HTTP client used to make API requests. It is a wrapper around `http.Client`.
@@ -65,7 +65,7 @@ Functions/tools that you add to the client need to be added to the request by na
 
 ```go
 req := client.Responses.NewRequest()
-req.FunctTools = []string{"function_name"}
+req.Tools = []string{"function_name"}
 ```
 
 Mind that the same tool/function can be used across multiple APIs, as long as you use the same `Client` instance.
@@ -193,7 +193,7 @@ According to the docs, the following types are allowed in `responses.Request.Inp
   - `output.Reasoning`
   - `input.ItemReference`
 
-This is horrybly much, but you can keep it simple by sending only strings and messages in most cases.
+This may be overwhelming, but you can keep it simple by sending only strings and messages in most cases.
 
 ### Outputs
 
@@ -212,21 +212,21 @@ You can simply iterate over the outputs and type-assert each, but also there are
 - `Response.FunctionCalls() []output.FunctionCall` returns all function calls from the response's top level
 - `Response.Refusals() []string` returns all refusals texts from output messages
 
-### Chaining requests with LastResponseID
+### Chaining requests with PreviousResponseID
 
 Unlike in the Chat API, where requests are stateless and must contain whole context, the Responses API saves the state of the conversation (unless you set `responses.Request.Store` to `false`) and returns a `responses.Response.ID` that you can use to send only new inputs in the next request. Trimming of older context is done automatically and IDs that you get are usable for 30 days.
 
-It's still possible use the API in a stateless way, by sending all inputs every time and not using the `LastResponseID` field.
+It's still possible to use the API in a stateless way by sending all inputs every time and not using the `PreviousResponseID` field.
 
 IDs also allow you to continue a conversation from any previous response:
 
 ```
 User: is it normal for my pet to meow?
 Assistant: Is your pet a cat? (ID_1)
-LastResponseID=ID_1 User: yes it's a cat
+PreviousResponseID=ID_1 User: yes it's a cat
 Assistant: It's normal for cats to meow. (ID_2)
 
-LastResponseID=ID_1 User: my pet is a dog
+PreviousResponseID=ID_1 User: my pet is a dog
 Assistant: It's not normal for dogs to meow. (ID_3)
 ```
 
@@ -243,7 +243,7 @@ The Chat API service accessible through `Client.Chat` exposes the following meth
 - `EnableAutoLogTripper` enables automatic toggling of log tripper on errors/successes.
 - `DisableAutoLogTripper` disables automatic toggling of log tripper on errors/successes.
 
-Because the Chat API does not have such a multitude of types, the `Send` methodis simplified down to returning just a string.
+Because the Chat API does not have such a multitude of types, the `Send` method is simplified down to returning just a string.
 
 Other exposed types/functions in the `chat` package:
 - `Request` is the request body. It has an additional field:
