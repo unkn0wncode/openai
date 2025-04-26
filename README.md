@@ -302,8 +302,8 @@ for _, res := range results {
 
 The Assistants API service accessible through `Client.Assistants` provides methods to manage assistants:
 - `CreateAssistant` creates a new assistant.
-- `LoadAssistant` retrieves an assistant by ID.
 - `ListAssistant` lists all assistants for the client.
+- `LoadAssistant` retrieves an assistant by ID.
 - `DeleteAssistant` removes an assistant.
 - `AssistantsRunRefreshInterval` gets the polling interval for run status checks.
 - `SetAssistantsRunRefreshInterval` configures the polling interval for run status checks.
@@ -335,4 +335,46 @@ thread.AddMessage(assistants.InputMessage{
 // Run the assistant and fetch the reply
 _, msg, _ := thread.RunAndFetch(context.Background(), nil)
 fmt.Println(msg.Content)
+```
+
+## Embeddings API
+
+The Embeddings API service accessible through `Client.Embedding` provides methods to generate vector representations:
+- `One` computes a vector for a single input.
+- `Array` computes vectors for multiple inputs.
+- `Dimensions` returns the number of dimensions used (default is 256).
+- `SetDimensions` configures the embedding dimensions.
+
+The `Vector` type offers methods:
+- `AngleDiff` computes cosine similarity between two vectors.
+- `Distance` computes Euclidean distance between two vectors.
+
+Example:
+
+```go
+vec, _ := client.Embedding.One("Hello, world!")
+fmt.Printf("Vector length: %d\n", len(vec))
+```
+
+## Completions API (Legacy)
+
+The Completions API service accessible through `Client.Completion` provides a legacy completion endpoint:
+- `Send` executes the request and returns a completion string.
+- `NewRequest` creates a new empty request. It is only a shorthand to make the type `completion.Request` more easily discoverable. You can use the request type directly.
+
+Mind that the Completions API is legacy and it's recommended to use newer APIs.
+
+Other exposed types in the `completion` package:
+- `Request` is the request body for the Completions API.
+
+Example:
+
+```go
+req := completion.Request{
+    Model:     models.GPTInstruct,
+    Prompt:    "Once upon a time",
+    MaxTokens: 100,
+}
+text, _ := client.Completion.Completion(req)
+fmt.Println(text)
 ```

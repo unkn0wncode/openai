@@ -3,8 +3,8 @@ package incompletion
 
 import "github.com/unkn0wncode/openai/completion"
 
-// Completion sends a request to the Completion API with custom data.
-func (c *Client) Completion(req completion.Request) (string, error) {
+// Send sends a request to the Send API with custom data.
+func (c *Client) Send(req completion.Request) (string, error) {
 	respData, err := c.execute(req)
 	if err != nil {
 		return "", err

@@ -3,7 +3,10 @@ package completion
 
 // Service defines methods to operate on completion API.
 type Service interface {
-	Completion(req Request) (string, error)
+	Send(req Request) (string, error)
+
+	// NewRequest creates a new empty request.
+	NewRequest() *Request
 }
 
 // Request is the request body for the Completions API

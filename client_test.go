@@ -124,7 +124,7 @@ func TestClient_Completion(t *testing.T) {
 		MaxTokens: 1024,
 	}
 
-	resp, err := c.Completion.Completion(req)
+	resp, err := c.Completion.Send(req)
 	require.NoError(t, err)
 	require.NotEmpty(t, resp)
 

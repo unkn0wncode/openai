@@ -132,3 +132,8 @@ func (c *Client) checkFirst(resp *response) (string, error) {
 
 	return content, nil
 }
+
+// NewRequest creates a new empty request.
+func (c *Client) NewRequest() *completion.Request {
+	return &completion.Request{}
+}
