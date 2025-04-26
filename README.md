@@ -170,7 +170,7 @@ You can also send mixed type input elements as an `[]any` slice:
 }
 ```
 
-Technically you are not allowed to use `input.Message` with the "assistant" role, but it works and it's simpler to write so use at your own risk. Mind that `output.Message.Content` cannot contain just a string, it must be a slice of some structs.
+Mind that `output.Message.Content` cannot contain just a string, it must be a slice of some structs, but you can reuse it directly from response outputs.
 
 According to the docs, the following types are allowed in `responses.Request.Input`:
 - `string`
