@@ -262,6 +262,42 @@ resp, _ := client.Chat.Send(&chat.Request{
 fmt.Println(resp)
 ```
 
+## Moderation API
+
+The Moderation API service accessible through `Client.Moderation` provides a method to create a builder for content checks:
+- `NewModerationBuilder` creates a new moderation request builder.
+
+The `Builder` provides methods to queue inputs, configure detection thresholds, and execute the request:
+- `AddText` adds text for moderation.
+- `AddImage` adds an image URL for moderation.
+- `SetMinConfidence` sets a confidence threshold in percent.
+- `Clear` clears all queued inputs.
+- `Execute` sends the request and returns results. New inputs can be added after that to reuse the builder.
+
+The result `Result` type includes parsed fields:
+- `Input` contains the original input content.
+- `Flagged` indicates whether the content was flagged.
+- `Categories` contains categories that were triggered.
+- `CategoryScores` contains confidence scores per category.
+- `CategoryAppliedInputTypes` contains input types that triggered each category.
+- `WithConfidence(minPercent)` filters out low-confidence categories and adjusts `Flagged` accordingly.
+
+Example:
+
+```go
+builder := client.Moderation.NewModerationBuilder()
+builder.SetMinConfidence(50).
+       AddText("Hello, world").
+       AddImage("https://example.com/image.png")
+
+results, _ := builder.Execute()
+
+for _, res := range results {
+    fmt.Printf("Input: %q | Flagged: %v | Scores: %v\n",
+        res.Input, res.Flagged, res.CategoryScores)
+}
+```
+
 ## Assistants API (Beta v2)
 
 The Assistants API service accessible through `Client.Assistants` provides methods to manage assistants:
