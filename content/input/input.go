@@ -202,8 +202,8 @@ func (i ImageFile) String() string {
 
 // Message is a message object, indicating who sent the and its contents.
 type Message struct {
-	Type    string `json:"type"` // "message"
-	Role    string `json:"role"`
+	Type    string `json:"type"`    // "message"
+	Role    string `json:"role"`    // "user", "system", or "developer". Docs prohibit "assistant" but it works
 	Content any    `json:"content"` // string or []Any
 }
 

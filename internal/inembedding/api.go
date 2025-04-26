@@ -94,7 +94,7 @@ func (c *Client) executeRequest(data Request) ([]embedding.Vector, error) {
 	}
 	c.AddHeaders(req)
 
-	resp, err := openai.Cli.Do(req)
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}

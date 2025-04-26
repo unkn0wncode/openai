@@ -104,15 +104,6 @@ func (r *Response) Parse() error {
 			return err
 		}
 
-		if m, ok := parsed.(output.Message); ok {
-			err := m.Parse()
-			if err != nil {
-				return err
-			}
-			r.ParsedOutputs = append(r.ParsedOutputs, m)
-			continue
-		}
-
 		r.ParsedOutputs = append(r.ParsedOutputs, parsed)
 	}
 	return nil
@@ -129,7 +120,7 @@ func (r *Response) Texts() []string {
 	var texts []string
 	for _, o := range r.ParsedOutputs {
 		if msg, ok := o.(output.Message); ok {
-			for _, content := range msg.ParsedContent {
+			for _, content := range msg.Content {
 				if text, ok := content.(output.OutputText); ok {
 					texts = append(texts, text.String())
 				}
@@ -164,7 +155,7 @@ func (r *Response) Refusals() []string {
 	var refusals []string
 	for _, o := range r.ParsedOutputs {
 		if ms, ok := o.(output.Message); ok {
-			for _, content := range ms.ParsedContent {
+			for _, content := range ms.Content {
 				if refusal, ok := content.(output.Refusal); ok {
 					refusals = append(refusals, refusal.String())
 				}

@@ -19,9 +19,6 @@ import (
 // DefaultBaseAPI is the default base URL for OpenAI API endpoints.
 const DefaultBaseAPI = "https://api.openai.com/"
 
-// Cli is the default HTTP client used by package-level functions.
-var Cli = &HTTPClient{Client: &http.Client{}}
-
 // SupportedImageTypes is a list of supported image file extensions.
 var SupportedImageTypes = []string{"png", "jpeg", "jpg", "gif", "webp"}
 

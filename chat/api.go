@@ -14,12 +14,12 @@ import (
 type Service interface {
 	// Send sends a request to the Chat API.
 	Send(req Request) (string, error)
+	
+	// NewRequest creates a new empty request.
+	NewRequest() *Request
 
 	// NewMessage creates a new empty message.
 	NewMessage() *Message
-
-	// NewRequest creates a new empty request.
-	NewRequest() *Request
 
 	// EnableAutoLogTripper enables automatic toggling of log tripper on errors/successes.
 	EnableAutoLogTripper()

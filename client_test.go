@@ -10,6 +10,8 @@ import (
 	"github.com/unkn0wncode/openai/assistants"
 	"github.com/unkn0wncode/openai/chat"
 	"github.com/unkn0wncode/openai/completion"
+	"github.com/unkn0wncode/openai/content/input"
+	"github.com/unkn0wncode/openai/content/output"
 	"github.com/unkn0wncode/openai/models"
 	"github.com/unkn0wncode/openai/responses"
 	"github.com/unkn0wncode/openai/roles"
@@ -42,7 +44,6 @@ func TestClient_Chat_hi(t *testing.T) {
 	c := NewClient(testToken)
 
 	req := chat.Request{
-		Model: models.Default,
 		Messages: []chat.Message{
 			{Role: roles.User, Content: "hi"},
 		},
@@ -199,6 +200,28 @@ func TestClient_Responses_hi(t *testing.T) {
 	t.Logf("resp: %v", resp.Texts())
 }
 
+// TestClient_Responses_dialogue checks the responses functionality with mixed input types.
+func TestClient_Responses_dialogue(t *testing.T) {
+	c := NewClient(testToken)
+
+	req := &responses.Request{
+		Model: models.Default,
+		Input: []any{
+			input.Message{Role: roles.User, Content: "hi"},
+			// input.Message{Role: roles.AI, Content: "hello, how are you?"},
+			output.Message{Content: []any{output.OutputText{Text: "hello, how are you?"}}},
+			input.Message{Role: roles.User, Content: "i'm fine, and you?"},
+		},
+	}
+
+	resp, err := c.Responses.Send(req)
+	require.NoError(t, err)
+	require.NotEmpty(t, resp)
+	require.NotEmpty(t, resp.ID)
+
+	t.Logf("resp: %v", resp.Texts())
+}
+
 func TestClient_Responses_Function(t *testing.T) {
 	c := NewClient(testToken)
 
@@ -218,9 +241,8 @@ func TestClient_Responses_Function(t *testing.T) {
 	}
 
 	// Register the function
-	c.Config().Tools.CreateFunction(testFunction)
 	toolReg := c.Tools()
-	require.NotNil(t, toolReg)
+	require.NoError(t, toolReg.CreateFunction(testFunction))
 	require.Len(t, toolReg.FunctionCalls, 1)
 	gotFunc, ok := toolReg.GetFunction("get_current_weather")
 	require.True(t, ok)

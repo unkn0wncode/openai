@@ -304,32 +304,51 @@ func (r Refusal) String() string {
 
 // Message is a message object, indicating who sent the and its contents.
 type Message struct {
-	ID            string `json:"id"`
-	Type          string `json:"type"` // "message"
-	Role          string `json:"role"`
-	Status        string `json:"status,omitempty"` // "in_progress", "completed", "incomplete"
-	Content       []Any  `json:"content"`
-	ParsedContent []any  `json:"-"`
+	ID      string `json:"id,omitempty"`
+	Type    string `json:"type"`             // "message"
+	Role    string `json:"role"`             // "assistant"
+	Status  string `json:"status,omitempty"` // "in_progress", "completed", "incomplete"
+	Content []any  `json:"content"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
-// It fills in the "type" field with "message", discarding any prior value.
+// It fills in the "type" field with "message" and "role" with "assistant",
+// discarding any prior value.
 func (m Message) MarshalJSON() ([]byte, error) {
 	m.Type = "message"
+	m.Role = "assistant"
 	type alias Message
 	return openai.Marshal(alias(m))
 }
 
-// Parse parses the content of the message from []Any and places the parsed objects in ParsedContent.
-func (m *Message) Parse() error {
-	m.ParsedContent = nil
-	for _, c := range m.Content {
+// UnmarshalJSON implements the json.Unmarshaler interface.
+// It first uses an alias to unmarshal the content into []Any, then parses each element.
+func (m *Message) UnmarshalJSON(data []byte) error {
+	var tmp struct {
+		ID      string `json:"id"`
+		Type    string `json:"type"`
+		Role    string `json:"role"`
+		Status  string `json:"status,omitempty"`
+		Content []Any  `json:"content"`
+	}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+
+	m.ID = tmp.ID
+	m.Type = tmp.Type
+	m.Role = tmp.Role
+	m.Status = tmp.Status
+
+	m.Content = make([]any, len(tmp.Content))
+	for i, c := range tmp.Content {
 		parsed, err := c.Unmarshal()
 		if err != nil {
 			return err
 		}
-		m.ParsedContent = append(m.ParsedContent, parsed)
+		m.Content[i] = parsed
 	}
+
 	return nil
 }
 
