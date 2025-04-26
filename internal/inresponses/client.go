@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/unkn0wncode/openai/content/input"
 	"github.com/unkn0wncode/openai/content/output"
 	openai "github.com/unkn0wncode/openai/internal"
 	"github.com/unkn0wncode/openai/models"
@@ -210,8 +209,14 @@ func (data *response) checkResponseData() (*responses.Response, error) {
 	// check if outputs are valid
 	for _, o := range resp.ParsedOutputs {
 		if m, ok := o.(output.Message); ok {
-			if len(m.Content) == 0 {
-				return nil, fmt.Errorf("no content in output message")
+			if m.Content == nil {
+				return nil, fmt.Errorf("no content in output message (nil content)")
+			}
+
+			if anyContent, ok := m.Content.([]any); ok && len(anyContent) == 0 {
+				return nil, fmt.Errorf(
+					"no content in output message (zero length []any content)",
+				)
 			}
 
 			status := m.Status
@@ -364,9 +369,9 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 	return nil, fmt.Errorf("logic error: unreachable code")
 }
 
-// NewInputMessage creates a new empty input message.
-func (c *Client) NewInputMessage() *input.Message {
-	return &input.Message{}
+// NewMessage creates a new empty message.
+func (c *Client) NewMessage() *output.Message {
+	return &output.Message{}
 }
 
 // NewRequest creates a new empty request.

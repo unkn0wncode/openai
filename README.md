@@ -117,7 +117,7 @@ fmt.Println(resp.Texts())
 The `client.Responses` exposes the following methods:
 - `Send` sends a given request to the API and returns response data focusing on outputs. It may run a sequence of requests if the response contains tool calls that can be handled automatically (by using tools and sending tool outputs to API) and then will return all outputs at once, except for already handled tool calls.
 - `NewRequest` creates a new empty request. It is only a shorthand to make the type `responses.Request` more easily discoverable. You can use the request type directly.
-- `NewInputMessage` creates a new empty input message. It is only a shorthand to make the type `input.Message` more easily discoverable. You can use the input message type directly.
+- `NewMessage` creates a new empty message. It is only a shorthand to make the type `output.Message` more easily discoverable. You can use the message type directly.
 
 Other exposed types/functions in the `responses` package:
 - `Request` is the request body. It has a few additional fields:
@@ -148,11 +148,11 @@ The most basic input is just a string:
 &responses.Request{Input: "Hello, world!"}
 ```
 
-Otherwise, you need to provide a slice of some elements. It can be a slice of same-typed elements, like `[]input.Message`, which can in turn contain a string or a slice of elements in its `Content` field:
+Otherwise, you need to provide a slice of some elements. It can be a slice of same-typed elements, like `[]output.Message`, which can in turn contain a string or a slice of elements in its `Content` field:
 
 ```go
 &responses.Request{
-  Input: []input.Message{
+  Input: []output.Message{
     {Role: roles.User, Content: "hi"},
     {Role: roles.User, Content: []input.InputImage{{ImageURL: "https://example.com/hi.gif"}}},
   },
@@ -164,26 +164,25 @@ You can also send mixed type input elements as an `[]any` slice:
 ```go
 &responses.Request{
   Input: []any{
-    input.Message{Role: roles.User, Content: "hi"},
-    output.Message{Content: []any{output.OutputText{Text: "hello, how are you?"}}},
+    output.Message{Role: roles.User, Content: "hi"},
+    output.Message{Role: roles.AI, Content: []any{output.OutputText{Text: "hello, how are you?"}}},
   },
 }
 ```
 
-Mind that `output.Message.Content` cannot contain just a string, it must be a slice of some structs, but you can reuse it directly from response outputs.
+The `output.Message` is also what you receive from the API, so you can reuse it directly from response outputs.
 
 According to the docs, the following types are allowed in `responses.Request.Input`:
 - `string`
 - a slice of elements of the following types (mixed):
-  - `input.Message`, with its `Content` being one of the following:
+  - `output.Message`, with its `Content` being one of the following:
     - `string`
     - a slice of elements of the following types (mixed):
       - `input.InputText`
       - `input.InputImage`
       - `input.InputFile`
-  - `output.Message`, with its `Content` being a slice of the following types (mixed):
-    - `output.OutputText`
-    - `output.Refusal`
+      - `output.OutputText`
+      - `output.Refusal`
   - `output.FileSearchCall`
   - `output.ComputerCall`
   - `output.ComputerCallOutput`

@@ -10,7 +10,6 @@ import (
 	"github.com/unkn0wncode/openai/assistants"
 	"github.com/unkn0wncode/openai/chat"
 	"github.com/unkn0wncode/openai/completion"
-	"github.com/unkn0wncode/openai/content/input"
 	"github.com/unkn0wncode/openai/content/output"
 	"github.com/unkn0wncode/openai/models"
 	"github.com/unkn0wncode/openai/responses"
@@ -205,12 +204,10 @@ func TestClient_Responses_dialogue(t *testing.T) {
 	c := NewClient(testToken)
 
 	req := &responses.Request{
-		Model: models.Default,
 		Input: []any{
-			input.Message{Role: roles.User, Content: "hi"},
-			// input.Message{Role: roles.AI, Content: "hello, how are you?"},
-			output.Message{Content: []any{output.OutputText{Text: "hello, how are you?"}}},
-			input.Message{Role: roles.User, Content: "i'm fine, and you?"},
+			output.Message{Role: roles.User, Content: "hi"},
+			output.Message{Role: roles.AI, Content: "hello, how are you?"},
+			output.Message{Role: roles.User, Content: "i'm fine, and you?"},
 		},
 	}
 

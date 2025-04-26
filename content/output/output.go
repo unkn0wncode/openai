@@ -308,46 +308,68 @@ type Message struct {
 	Type    string `json:"type"`             // "message"
 	Role    string `json:"role"`             // "assistant"
 	Status  string `json:"status,omitempty"` // "in_progress", "completed", "incomplete"
-	Content []any  `json:"content"`
+	Content any    `json:"content"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
-// It fills in the "type" field with "message" and "role" with "assistant",
-// discarding any prior value.
+// It fills in the "type" field with "message", discarding any prior value.
 func (m Message) MarshalJSON() ([]byte, error) {
 	m.Type = "message"
-	m.Role = "assistant"
 	type alias Message
 	return openai.Marshal(alias(m))
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface.
-// It first uses an alias to unmarshal the content into []Any, then parses each element.
+// It tries to unmarshal the content according to possible types that it may have.
 func (m *Message) UnmarshalJSON(data []byte) error {
-	var tmp struct {
-		ID      string `json:"id"`
-		Type    string `json:"type"`
-		Role    string `json:"role"`
-		Status  string `json:"status,omitempty"`
-		Content []Any  `json:"content"`
+	// First try to unmarshal everything else
+	var tmpNoContent struct {
+		ID     string `json:"id"`
+		Type   string `json:"type"`
+		Role   string `json:"role"`
+		Status string `json:"status,omitempty"`
 	}
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
+	if err := json.Unmarshal(data, &tmpNoContent); err != nil {
+		return fmt.Errorf("failed to unmarshal non-content part of message: %w", err)
 	}
 
-	m.ID = tmp.ID
-	m.Type = tmp.Type
-	m.Role = tmp.Role
-	m.Status = tmp.Status
+	m.ID = tmpNoContent.ID
+	m.Type = tmpNoContent.Type
+	m.Role = tmpNoContent.Role
+	m.Status = tmpNoContent.Status
 
-	m.Content = make([]any, len(tmp.Content))
-	for i, c := range tmp.Content {
+	// then try to unmarshal content as a string
+	var tmpString struct {
+		Content string `json:"content"`
+	}
+	if err := json.Unmarshal(data, &tmpString); err == nil {
+		m.Content = tmpString.Content
+		return nil
+	}
+
+	// if it's not a string, try as []Any
+	var tmpAny struct {
+		Content []Any `json:"content"`
+	}
+	if err := json.Unmarshal(data, &tmpAny); err != nil {
+		// here we can return an error because it shouldn't be anything else
+		return fmt.Errorf("failed to unmarshal content as []Any: %w", err)
+	}
+
+	if len(tmpAny.Content) == 0 {
+		m.Content = []any(nil)
+		return nil
+	}
+
+	contentSlice := []any{}
+	for _, c := range tmpAny.Content {
 		parsed, err := c.Unmarshal()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to unmarshal content element: %w", err)
 		}
-		m.Content[i] = parsed
+		contentSlice = append(contentSlice, parsed)
 	}
+	m.Content = contentSlice
 
 	return nil
 }

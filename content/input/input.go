@@ -52,8 +52,6 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[InputImage](a)
 	case "input_file":
 		return unmarshalToType[InputFile](a)
-	case "message":
-		return unmarshalToType[Message](a)
 	case "item_reference":
 		return unmarshalToType[ItemReference](a)
 	default:
@@ -198,59 +196,6 @@ func (i ImageFile) MarshalJSON() ([]byte, error) {
 // Returns the image file content.
 func (i ImageFile) String() string {
 	return i.File.FileID
-}
-
-// Message is a message object, indicating who sent the and its contents.
-type Message struct {
-	Type    string `json:"type"`    // "message"
-	Role    string `json:"role"`    // "user", "assistant", "system", or "developer"
-	Content any    `json:"content"` // string or []Any
-}
-
-// MarshalJSON implements the json.Marshaler interface.
-// It fills in the "type" field with "message", discarding any prior value.
-func (m Message) MarshalJSON() ([]byte, error) {
-	m.Type = "message"
-	type alias Message
-	return openai.Marshal(alias(m))
-}
-
-// UnmarshalJSON implements the json.Unmarshaler interface.
-// It tries to unmarshal the content as a string first, then as a []Any, then as any.
-func (m *Message) UnmarshalJSON(data []byte) error {
-	m.Type = "message"
-
-	var tmp struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
-	}
-	if err := json.Unmarshal(data, &tmp); err == nil {
-		m.Role = tmp.Role
-		m.Content = tmp.Content
-		return nil
-	}
-
-	var tmp2 struct {
-		Role    string `json:"role"`
-		Content []Any  `json:"content"`
-	}
-	if err := json.Unmarshal(data, &tmp2); err == nil {
-		m.Role = tmp2.Role
-		m.Content = tmp2.Content
-		return nil
-	}
-
-	var tmp3 struct {
-		Role    string `json:"role"`
-		Content any    `json:"content"`
-	}
-	if err := json.Unmarshal(data, &tmp3); err == nil {
-		m.Role = tmp3.Role
-		m.Content = tmp3.Content
-		return nil
-	} else {
-		return err
-	}
 }
 
 // ItemReference describes a reference to an item by ID.

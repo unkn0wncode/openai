@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/unkn0wncode/openai/content/input"
 	"github.com/unkn0wncode/openai/content/output"
 )
 
@@ -21,8 +20,8 @@ type Service interface {
 	// Send sends a request to the Responses API.
 	Send(req *Request) (response *Response, err error)
 
-	// NewInputMessage creates a new empty input message.
-	NewInputMessage() *input.Message
+	// NewMessage creates a new empty message.
+	NewMessage() *output.Message
 
 	// NewRequest creates a new empty request.
 	NewRequest() *Request
@@ -120,7 +119,16 @@ func (r *Response) Texts() []string {
 	var texts []string
 	for _, o := range r.ParsedOutputs {
 		if msg, ok := o.(output.Message); ok {
-			for _, content := range msg.Content {
+			if msg.Content == nil {
+				continue
+			}
+
+			if text, ok := msg.Content.(string); ok {
+				texts = append(texts, text)
+				continue
+			}
+
+			for _, content := range msg.Content.([]any) { // this type assertion is safe because all other cases are checked, mostly during unmarshalling
 				if text, ok := content.(output.OutputText); ok {
 					texts = append(texts, text.String())
 				}
@@ -155,7 +163,11 @@ func (r *Response) Refusals() []string {
 	var refusals []string
 	for _, o := range r.ParsedOutputs {
 		if ms, ok := o.(output.Message); ok {
-			for _, content := range ms.Content {
+			if _, ok := ms.Content.([]any); !ok {
+				continue
+			}
+
+			for _, content := range ms.Content.([]any) {
 				if refusal, ok := content.(output.Refusal); ok {
 					refusals = append(refusals, refusal.String())
 				}
