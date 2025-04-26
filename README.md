@@ -375,6 +375,6 @@ req := completion.Request{
     Prompt:    "Once upon a time",
     MaxTokens: 100,
 }
-text, _ := client.Completion.Completion(req)
+text, _ := client.Completion.Send(req)
 fmt.Println(text)
 ```
