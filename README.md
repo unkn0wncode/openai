@@ -36,10 +36,10 @@ config.Log = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 ```
 
 The following settings are available in `Client.Config()`:
-- `BaseAPI`: The base URL for the OpenAI API.
-- `Token`: The API key.
-- `HTTPClient`: The HTTP client used to make API requests. It is a wrapper around `http.Client`.
-- `Log`: The logger (based on `log/slog` package).
+- `BaseAPI` is the base URL for the OpenAI API.
+- `Token` is the API key to make requests with.
+- `HTTPClient` is the HTTP client used to make API requests. It is a wrapper around `http.Client`.
+- `Log` is the logger (based on `log/slog` package).
 
 The `Client.Config().HTTPClient` contains a `LogTripper` that you can enable for debugging:
 
@@ -208,9 +208,9 @@ Possible output types in the `responses.Response.ParsedOutputs` slice are:
 - `output.Reasoning`
 
 You can simply iterate over the outputs and type-assert each, but also there are helper methods to extract outputs of specific types:
-- `Response.Texts() []string` returns output texts from output messages
-- `Response.FunctionCalls() []output.FunctionCall` returns all function calls from the response's top level
-- `Response.Refusals() []string` returns all refusals texts from output messages
+- `Response.Texts() []string` returns output texts from output messages.
+- `Response.FunctionCalls() []output.FunctionCall` returns all function calls from the response's top level.
+- `Response.Refusals() []string` returns all refusals texts from output messages.
 
 ### Chaining requests with PreviousResponseID
 
@@ -274,7 +274,7 @@ The `Builder` provides methods to queue inputs, configure detection thresholds, 
 - `Clear` clears all queued inputs.
 - `Execute` sends the request and returns results. New inputs can be added after that to reuse the builder.
 
-The result `Result` type includes parsed fields:
+The `Result` type includes the following fields and methods:
 - `Input` contains the original input content.
 - `Flagged` indicates whether the content was flagged.
 - `Categories` contains categories that were triggered.
