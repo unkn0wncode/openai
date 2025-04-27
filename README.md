@@ -56,9 +56,9 @@ When enabled, the `LogTripper` will log HTTP request and response dumps with the
 Tools, such as functions, can be managed per-client via `Client.Tools()`:
 
 ```go
-tools := client.Tools()
-tools.CreateFunction(tools.FunctionCall{...})
-tools.RegisterTool(tools.Tool{...})
+toolRegistry := client.Tools()
+toolRegistry.CreateFunction(tools.FunctionCall{...})
+toolRegistry.RegisterTool(tools.Tool{...})
 ```
 
 Functions/tools that you add to the client need to be added to the request by name via the `Functions`/`Tools` field when you want to supply them to the AI:
