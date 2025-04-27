@@ -136,7 +136,7 @@ Other exposed types/functions in the `responses` package:
 There are a few concepts in the Responses API that may need further explanation:
 - Input/output types, such as in `responses.Request.Input` and `output.Message.Content` fields.
 - `responses.Request.PreviousResponseID` field that can be filled with `responses.Response.ID` for chaining requests with automatically managed context.
-- `responses.Request.Instructions` field that replaces system messages previously used the in Chat API.
+- `responses.Request.Instructions` field that replaces system messages previously used in the Chat API.
 - Our additional fields in the `responses.Request` type, such as `responses.Request.IntermediateMessageHandler`.
 
 ### Inputs
