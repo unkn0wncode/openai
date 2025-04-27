@@ -232,7 +232,7 @@ Assistant: It's not normal for dogs to meow. (ID_3)
 
 ### Instructions
 
-Because the conversation context is managed automatically, it is possible for "system" messages to be trimmed out. This is why prompting in Responses API is done via a separate field: `responses.Request.Instructions`. This field is supposed to be supplied with every request and can be easily changed between requests within the same conversation if you want the model to change its behavior.
+Because the conversation context is managed automatically, it is possible for "system" messages to be trimmed out. This is why prompting in Responses API is done via a separate field: `responses.Request.Instructions`. This field is supposed to be supplied with each request and can be easily changed between requests within the same conversation if you want the model to change its behavior.
 
 ## Chat API (Legacy)
 
