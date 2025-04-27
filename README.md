@@ -134,7 +134,7 @@ Other exposed types/functions in the `responses` package:
 - `ForceFunction` is a further simplified function for enforcing the use of a specific function tool.
 
 There are a few concepts in the Responses API that may need further explanation:
-- Input/output types, such as in `responses.Request.Input` and `input/output.Message.Content` fields.
+- Input/output types, such as in `responses.Request.Input` and `output.Message.Content` fields.
 - `responses.Request.PreviousResponseID` field that can be filled with `responses.Response.ID` for chaining requests with automatically managed context.
 - `responses.Request.Instructions` field that replaces system messages previously used the in Chat API.
 - Our additional fields in the `responses.Request` type, such as `responses.Request.IntermediateMessageHandler`.
