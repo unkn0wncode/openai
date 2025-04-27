@@ -20,11 +20,6 @@ type Service interface {
 
 	// NewMessage creates a new empty message.
 	NewMessage() *Message
-
-	// EnableAutoLogTripper enables automatic toggling of log tripper on errors/successes.
-	EnableAutoLogTripper()
-	// DisableAutoLogTripper disables automatic toggling of log tripper on errors/successes.
-	DisableAutoLogTripper()
 }
 
 // Request is the request body for the Chat API.

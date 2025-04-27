@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/unkn0wncode/openai/util"
 
@@ -31,6 +32,27 @@ type LoggingTransport struct {
 // HTTPClient is a wrapper for http.Client with OpenAI-specific behaviors.
 type HTTPClient struct {
 	*http.Client
+
+	// Number of attempts to make the request. 2 means one attempt and one retry.
+	RequestAttempts int
+
+	// Interval to wait before each retry.
+	RetryInterval time.Duration
+
+	// If true, LogTripper is enabled on errors and disabled on successes.
+	AutoLogTripper bool
+}
+
+// NewHTTPClient creates a new HTTPClient with default settings.
+func NewHTTPClient() *HTTPClient {
+	return &HTTPClient{
+		Client: &http.Client{
+			Timeout:   30 * time.Second,
+			Transport: &LoggingTransport{},
+		},
+		RequestAttempts: 3,
+		RetryInterval:   3 * time.Second,
+	}
 }
 
 // RoundTrip logs the request and response while performing round trip, if logger is set.
@@ -75,6 +97,60 @@ func (c *HTTPClient) Do(req *http.Request) (*http.Response, error) {
 	resp, err := c.Client.Do(req)
 
 	req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	return resp, err
+}
+
+// WithRetry performs the HTTP request and retries it if it fails (err or not 200),
+// according to the settings.
+func (c *HTTPClient) WithRetry(req *http.Request) (*http.Response, error) {
+	restoreBody := func() {}
+	if req.Body != nil {
+		bodyBytes, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read request body: %w", err)
+		}
+		restoreBody = func() {
+			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
+	}
+	defer restoreBody()
+
+	var resp *http.Response
+	var err error
+	err = util.Retry(func() error {
+		defer restoreBody()
+
+		before := time.Now()
+		resp, err = c.Do(req)
+		duration := time.Since(before)
+		if err != nil {
+
+			if c.AutoLogTripper {
+				if lt, ok := c.Transport.(*LoggingTransport); ok && lt != nil {
+					lt.EnableLog = true
+				}
+			}
+
+			return fmt.Errorf("request failed in %v: %w", duration, err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			respBytes, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf(
+				"request failed in %v with status: %d, response body: %s",
+				duration, resp.StatusCode, string(respBytes),
+			)
+		}
+
+		if c.AutoLogTripper {
+			if lt, ok := c.Transport.(*LoggingTransport); ok && lt != nil {
+				lt.EnableLog = false
+			}
+		}
+
+		return nil
+	}, c.RequestAttempts, c.RetryInterval)
 
 	return resp, err
 }

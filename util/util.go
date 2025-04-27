@@ -44,8 +44,12 @@ func findSplitIndex(text string) int {
 }
 
 // Retry executes a function up to a specified number of attempts with a delay between attempts.
-// Returns the first successful result or the last error encountered.
+// Returns on the first success, or returns the last error encountered.
 func Retry(f func() error, attempts int, interval time.Duration) (err error) {
+	if attempts <= 1 {
+		return f()
+	}
+
 	for i := range attempts {
 		if err = f(); err == nil {
 			return nil
@@ -54,5 +58,6 @@ func Retry(f func() error, attempts int, interval time.Duration) (err error) {
 			time.Sleep(interval)
 		}
 	}
+
 	return err
-} 
+}

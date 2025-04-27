@@ -16,12 +16,10 @@ import (
 	"github.com/unkn0wncode/openai/models"
 	"github.com/unkn0wncode/openai/roles"
 	"github.com/unkn0wncode/openai/tools"
-	"github.com/unkn0wncode/openai/util"
 )
 
 type Client struct {
-	Config         *openai.Config
-	AutoLogTripper bool // if true, LogTripper is enabled on errors and disabled on successes
+	Config *openai.Config
 }
 
 // NewClient creates a new Chat client.
@@ -231,38 +229,12 @@ func (c *Client) execute(data chat.Request) (*response, error) {
 	var resp *http.Response
 	var duration time.Duration
 
-	err = util.Retry(func() error {
-		startTime := time.Now()
-		resp, err = c.Config.HTTPClient.Do(req)
-		duration = time.Since(startTime)
-		if err != nil {
-			return err
-		}
-
-		if resp.StatusCode == http.StatusOK {
-			// Disable LogTripper if it's on auto mode and there was no error
-			if c.AutoLogTripper {
-				c.disableLogTripper()
-			}
-			return nil
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			return c.handleBadRequest(resp, data.Model, duration)
-		}
-
-		// Handle other non-OK statuses
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf(
-			"request (model %s) failed with status: %s, response body: %s",
-			data.Model, resp.Status, string(body),
-		)
-	}, 3, 3*time.Second)
+	resp, err = c.Config.HTTPClient.Do(req)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
-
 	if err != nil {
+		c.handleBadRequest(resp, data.Model, duration)
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
@@ -297,16 +269,6 @@ func (c *Client) handleBadRequest(resp *http.Response, model string, duration ti
 	)
 	c.enableLogTripper()
 	return errMsg
-}
-
-// EnableAutoLogTripper enables automatic toggling of log tripper on errors/successes.
-func (c *Client) EnableAutoLogTripper() {
-	c.AutoLogTripper = true
-}
-
-// DisableAutoLogTripper disables automatic toggling of log tripper on errors/successes.
-func (c *Client) DisableAutoLogTripper() {
-	c.AutoLogTripper = false
 }
 
 // enableLogTripper enables LogTripper for the API requests and logs that it's enabled.

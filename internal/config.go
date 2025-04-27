@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/unkn0wncode/openai/tools"
 )
@@ -27,15 +26,10 @@ type Config struct {
 // NewConfig creates a default configuration with the provided token.
 func NewConfig(token string) *Config {
 	c := &Config{
-		BaseAPI: DefaultBaseAPI,
-		Token:   token,
-		HTTPClient: &HTTPClient{
-			Client: &http.Client{
-				Timeout:   30 * time.Second,
-				Transport: &LoggingTransport{},
-			},
-		},
-		Log: slog.Default(),
+		BaseAPI:    DefaultBaseAPI,
+		Token:      token,
+		HTTPClient: NewHTTPClient(),
+		Log:        slog.Default(),
 		Tools: &tools.Registry{
 			FunctionCalls: make(map[string]tools.FunctionCall),
 		},

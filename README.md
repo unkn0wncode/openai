@@ -51,6 +51,13 @@ When enabled, the `LogTripper` will log HTTP request and response dumps with the
 
 `LogTripper` is a wrapper around a standard `http.RoundTripper` in `client.Config().HTTPClient.Client.Transport`. You can freely replace it with your own `http.RoundTripper` implementation losing this logging functionality, and then the `EnableLogTripper()` will return an error if you try to call it.
 
+`HTTPClient` has additional fields with settings:
+- `RequestAttempts` is the number of attempts to make the request, default is 3 (one initial attempt and two retries).
+- `RetryInterval` is the interval to wait before each retry, default is 3 seconds.
+- `AutoLogTripper` is a flag that can be set to true to enable automatic toggling of log tripper on errors/successes, default is false.
+
+If any request fails or returns a non-200 status, it will be retried according to the `HTTPClient` settings.
+
 ### Client Tools
 
 Tools, such as functions, can be managed per-client via `Client.Tools()`:
@@ -240,8 +247,6 @@ The Chat API service accessible through `Client.Chat` exposes the following meth
 - `Send` sends a given request to the API and returns response as a string. It can make a sequence of requests if the response contains tool calls that can be handled automatically (by using tools and sending tool outputs to API). Only the last response is returned.
 - `NewRequest` creates a new empty request. It is only a shorthand to make the type `chat.Request` more easily discoverable. You can use the request type directly.
 - `NewMessage` creates a new empty message. It is only a shorthand to make the type `chat.Message` more easily discoverable. You can use the message type directly.
-- `EnableAutoLogTripper` enables automatic toggling of log tripper on errors/successes.
-- `DisableAutoLogTripper` disables automatic toggling of log tripper on errors/successes.
 
 Because the Chat API does not have such a multitude of types, the `Send` method is simplified down to returning just a string.
 
