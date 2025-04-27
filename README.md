@@ -166,7 +166,7 @@ You can also send mixed type input elements as an `[]any` slice:
 &responses.Request{
   Input: []any{
     output.Message{Role: roles.User, Content: "hi"},
-    output.Message{Role: roles.AI, Content: []any{output.OutputText{Text: "hello, how are you?"}}},
+    input.ItemReference{ID: "abc_123"},
   },
 }
 ```
