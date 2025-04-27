@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/unkn0wncode/openai/content/input"
 	"github.com/unkn0wncode/openai/content/output"
 )
 
@@ -25,6 +26,26 @@ type Service interface {
 
 	// NewRequest creates a new empty request.
 	NewRequest() *Request
+}
+
+// Content is an interface listing all types that can be used as content in Responses API.
+// These types may appear in `Request.Input`, `Response.Outputs`,
+// and `output.Message.Content` fields.
+type Content interface {
+	string |
+	input.InputText |
+	input.InputImage |
+	input.InputFile |
+	output.OutputText |
+	output.Refusal |
+	output.FileSearchCall |
+	output.ComputerCall |
+	output.ComputerCallOutput |
+	output.WebSearchCall |
+	output.FunctionCall |
+	output.FunctionCallOutput |
+	output.Reasoning |
+	input.ItemReference
 }
 
 // Request is the request body for the Responses API.

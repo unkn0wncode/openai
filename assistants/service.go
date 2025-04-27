@@ -3,6 +3,9 @@ package assistants
 import (
 	"context"
 	"time"
+
+	"github.com/unkn0wncode/openai/content/input"
+	"github.com/unkn0wncode/openai/content/output"
 )
 
 // CreateParams holds the fields needed to create a new assistant.
@@ -42,6 +45,19 @@ type Service interface {
 
 	// SetAssistantsRunRefreshInterval sets the interval between status polls in Await.
 	SetAssistantsRunRefreshInterval(interval time.Duration)
+}
+
+// Content is an interface listing all types that can be used as content in the Assistants API.
+// These types may appear in `Message.Content` and `InputMessage.Content` fields.
+type Content interface {
+	string |
+	input.Text |
+	input.ImageFile |
+	input.ImageURL |
+	output.Text |
+	output.ImageFile |
+	output.ImageURL |
+	output.Refusal
 }
 
 // Assistant is a live handle on a server-side assistant.

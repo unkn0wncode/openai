@@ -83,7 +83,7 @@ The APIs are stored in the `Client` under interfaces defined as `<api_name>.Serv
 
 Because they are interfaces, you can create wrappers around them, replace them with mocks, or even make your own implementations.
 
-The `<api_name>` packages also contain API-specific types exposed for your use, most importantly the `Request` types.
+The `<api_name>` packages also contain API-specific types exposed for your use, most importantly the `Request` types. Where applicable, an `<api_name>.Content` interface is defined listing all types that can be used as content in the API.
 
 Currently implemented APIs:
 - Responses
@@ -120,6 +120,7 @@ The `client.Responses` exposes the following methods:
 - `NewMessage` creates a new empty message. It is only a shorthand to make the type `output.Message` more easily discoverable. You can use the message type directly.
 
 Other exposed types/functions in the `responses` package:
+- `Content` is an interface listing all types that can be used as content in the Responses API.
 - `Request` is the request body. It has a few additional fields:
   - `IntermediateMessageHandler` is a function that can be set to handle `output.Message`s received alongside other outputs, like tool calls, that otherwise are returned in the response but can be handled sooner with this handler.
   - `ReturnToolCalls` is a flag that can be set to not execute tool calls automatically but return them as outputs instead.
@@ -308,6 +309,7 @@ The Assistants API service accessible through `Client.Assistants` provides metho
 - `SetAssistantsRunRefreshInterval` configures the polling interval for run status checks.
 
 Other exposed types in the `assistants` package:
+- `Content` is an interface listing all types that can be used as content in the Assistants API.
 - `Assistant` provides methods `ID`, `Model`, `NewThread`, and `LoadThread` to manage assistant metadata and start conversation threads.
 - `Thread` provides methods `AddMessage`, `Messages`, `Run`, and `RunAndFetch` to add messages and obtain assistant responses.
 - `Run` provides methods `Await`, `SubmitToolOutputs`, `IsPending`, and `IsExpectingToolOutputs` to handle execution lifecycle.
