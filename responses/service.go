@@ -4,6 +4,7 @@ package responses
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/unkn0wncode/openai/content/input"
 	"github.com/unkn0wncode/openai/content/output"
@@ -158,6 +159,12 @@ func (r *Response) Texts() []string {
 	}
 
 	return texts
+}
+
+// JoinedTexts returns a single string joined from all text outputs in the response with newlines.
+// Normally there's only one text output.
+func (r *Response) JoinedTexts() string {
+	return strings.Join(r.Texts(), "\n")
 }
 
 // FunctionCalls returns a slice of FunctionCall objects from the response.

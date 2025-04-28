@@ -267,6 +267,44 @@ func TestClient_Responses_Function(t *testing.T) {
 	t.Logf("Function calling response: %v", response.Texts())
 }
 
+func TestClient_Responses_jsonSchema(t *testing.T) {
+	c := NewClient(testToken)
+
+	req := responses.Request{
+		Model: models.Default,
+		Text: &responses.TextFormat{
+			Format: responses.TextFormatType{
+				Type: responses.TextFormatTypeJSONSchema,
+				Schema: json.RawMessage(`{
+					"type": "object",
+					"properties": {
+						"test_ok": {"type": "boolean"}
+					},
+					"required": ["test_ok"],
+					"additionalProperties": false
+				}`),
+				Strict:      true,
+				Name:        "test",
+				Description: "send true if you see this correctly",
+			},
+		},
+		Input: "send true",
+	}
+
+	resp, err := c.Responses.Send(&req)
+	require.NoError(t, err)
+	require.NotEmpty(t, resp)
+	require.NotEmpty(t, resp.ID)
+	outputs := resp.Texts()
+	require.Len(t, outputs, 1)
+
+	var respData struct {
+		TestOk bool `json:"test_ok"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(outputs[0]), &respData))
+	require.True(t, respData.TestOk)
+}
+
 func TestClient_Embedding(t *testing.T) {
 	c := NewClient(testToken)
 
