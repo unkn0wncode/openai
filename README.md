@@ -118,7 +118,7 @@ Here's a minimal example of using the `Responses` API:
 
 ```go
 resp, _ := client.Responses.Send(&responses.Request{Input: "Hello, world!"})
-fmt.Println(resp.Texts())
+fmt.Println(resp.JoinedTexts())
 ```
 
 The `client.Responses` exposes the following methods:
@@ -216,6 +216,7 @@ Possible output types in the `responses.Response.ParsedOutputs` slice are:
 
 You can simply iterate over the outputs and type-assert each, but also there are helper methods to extract outputs of specific types:
 - `Response.Texts() []string` returns output texts from output messages.
+- `Response.JoinedTexts() string` returns a single string joined from all text outputs with newlines. Since you usually get only one text output, this removes the extra work on a slice of strings you'd have to do with `Texts()`.
 - `Response.FunctionCalls() []output.FunctionCall` returns all function calls from the response's top level.
 - `Response.Refusals() []string` returns all refusals texts from output messages.
 
