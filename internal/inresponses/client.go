@@ -253,6 +253,11 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 		return nil, err
 	}
 
+	// log refusals as warnings
+	for _, refusal := range resp.Refusals() {
+		c.Config.Log.Warn(fmt.Sprintf("got refusal: %s", refusal))
+	}
+
 	// we'll gather outputs to return here
 	var aggregatedOutputs []output.Any
 	var aggregatedParsedOutputs []any
