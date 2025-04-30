@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime/debug"
 
 	"github.com/unkn0wncode/openai/content/output"
 	openai "github.com/unkn0wncode/openai/internal"
@@ -371,7 +372,7 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 	}
 
 	// this place should be unreachable
-	return nil, fmt.Errorf("logic error: unreachable code")
+	return nil, fmt.Errorf("logic error: unreachable code, stack: %s", string(debug.Stack()))
 }
 
 // NewMessage creates a new empty message.
