@@ -252,7 +252,11 @@ func (c *Client) cost(resp *response) float64 {
 		c.Config.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", resp.Model))
 		return 0
 	}
-	return float64(resp.Usage.InputTokens)*pricing.PriceIn + float64(resp.Usage.OutputTokens)*pricing.PriceOut
+	total := 0.0
+	total += float64(resp.Usage.InputTokens - resp.Usage.InputTokensDetails.CachedTokens) * pricing.PriceIn
+	total += float64(resp.Usage.InputTokensDetails.CachedTokens) * pricing.PriceCachedIn
+	total += float64(resp.Usage.OutputTokens) * pricing.PriceOut
+	return total
 }
 
 // executableFunctionCall is an intermediate representation of a function call that can be executed.
