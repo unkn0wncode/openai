@@ -499,6 +499,11 @@ func (f FunctionCall) MarshalJSON() ([]byte, error) {
 	return openai.Marshal(alias(f))
 }
 
+// UnmarshalArguments decodes JSON-encoded arguments into target.
+func (f FunctionCall) UnmarshalArguments(target any) error {
+	return json.Unmarshal([]byte(f.Arguments), target)
+}
+
 // FunctionCallOutput describes the output of a function call.
 type FunctionCallOutput struct {
 	// required
