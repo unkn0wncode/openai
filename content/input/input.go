@@ -156,8 +156,8 @@ type ImageFile struct {
 type InputImage struct {
 	Type     string `json:"type"`             // "input_image"
 	Detail   string `json:"detail,omitempty"` // "auto", "high", "low"
-	ImageURL string `json:"image_url"`
-	FileID   string `json:"file_id"`
+	ImageURL string `json:"image_url,omitempty"`
+	FileID   string `json:"file_id,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -171,9 +171,9 @@ func (i InputImage) MarshalJSON() ([]byte, error) {
 // InputFile is a file given to the model.
 type InputFile struct {
 	Type     string `json:"type"` // "input_file"
-	FileData string `json:"file_data"`
-	FileName string `json:"filename"`
-	FileID   string `json:"file_id"`
+	FileData string `json:"file_data,omitempty"`
+	FileName string `json:"filename,omitempty"`
+	FileID   string `json:"file_id,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
