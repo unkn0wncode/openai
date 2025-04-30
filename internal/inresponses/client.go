@@ -235,6 +235,14 @@ func (data *response) checkResponseData() (*responses.Response, error) {
 	return resp, nil
 }
 
+// executableFunctionCall is an intermediate representation of a function call that can be executed.
+type executableFunctionCall struct {
+	Name      string
+	CallID    string
+	Arguments json.RawMessage
+	F         func(params json.RawMessage) (string, error)
+}
+
 // Send sends a request to the Responses API with custom data.
 // Returns the AI reply, request ID, and any error.
 func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
@@ -259,55 +267,77 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 		c.Config.Log.Warn(fmt.Sprintf("got refusal: %s", refusal))
 	}
 
-	// we'll gather outputs to return here
-	var aggregatedOutputs []output.Any
-	var aggregatedParsedOutputs []any
+	// First pass: analyze outputs and categorize them
+	var messages []output.Message
+	var executableCalls []executableFunctionCall
+	var returnableCalls []output.FunctionCall
+	var otherOutputs []output.Any
+	var otherParsedOutputs []any
 
-	// keep track of whether we have function calls to return
-	var haveReturnableFunctionCalls bool
-
-	var toolOutputs []output.FunctionCallOutput
 	for i, anyOutput := range resp.ParsedOutputs {
 		switch o := anyOutput.(type) {
 		case output.Message:
-			// if we got only one output and it's a message, just return it
-			if len(respData.Output) == 1 {
-				return respData.checkResponseData()
-			}
-
-			// for a messages given alongside other outputs, we may have a handler
-			if req.IntermediateMessageHandler != nil {
-				req.IntermediateMessageHandler(o)
-				continue
-			}
-
-			// otherwise, add to the aggregated outputs
-			aggregatedOutputs = append(aggregatedOutputs, resp.Outputs[i])
-			aggregatedParsedOutputs = append(aggregatedParsedOutputs, o)
+			messages = append(messages, o)
 		case output.FunctionCall:
 			if req.ReturnToolCalls {
-				// if calls should be returned, add to the aggregated outputs
-				aggregatedOutputs = append(aggregatedOutputs, resp.Outputs[i])
-				aggregatedParsedOutputs = append(aggregatedParsedOutputs, o)
-				haveReturnableFunctionCalls = true
+				returnableCalls = append(returnableCalls, o)
 				continue
 			}
 
 			// Get the tool or function from the registered function calls
 			var F func(params json.RawMessage) (string, error)
-			if t, ok := c.Tools.GetTool(o.Name); ok && t.Function.F != nil {
-				F = t.Function.F
-			} else if f, ok := c.Tools.GetFunction(o.Name); ok && f.F != nil {
-				F = f.F
+			if t, ok := c.Tools.GetTool(o.Name); ok {
+				if t.Function.F != nil {
+					F = t.Function.F
+				} else {
+					returnableCalls = append(returnableCalls, o)
+					continue
+				}
+			} else if f, ok := c.Tools.GetFunction(o.Name); ok {
+				if f.F != nil {
+					F = f.F
+				} else {
+					returnableCalls = append(returnableCalls, o)
+					continue
+				}
 			} else {
-				return nil, fmt.Errorf(
-					"tool/function '%s' is not registered or has no implementation",
-					o.Name,
-				)
+				return nil, fmt.Errorf("tool/function '%s' is not registered", o.Name)
 			}
 
-			// Execute the function
-			fResult, err := F([]byte(o.Arguments))
+			executableCalls = append(executableCalls, executableFunctionCall{
+				Name:      o.Name,
+				CallID:    o.CallID,
+				Arguments: []byte(o.Arguments),
+				F:         F,
+			})
+		default:
+			otherOutputs = append(otherOutputs, resp.Outputs[i])
+			otherParsedOutputs = append(otherParsedOutputs, o)
+		}
+	}
+
+	switch {
+	// Case 1: All outputs are messages/other outputs
+	case len(executableCalls) == 0 && len(returnableCalls) == 0:
+		return resp, nil
+
+	// Case 2: Any returnable function calls present
+	case len(returnableCalls) > 0:
+		return resp, nil
+
+	// Case 3: Mix of messages and executable function calls
+	case len(executableCalls) > 0:
+		// Handle messages with intermediate handler if set
+		if req.IntermediateMessageHandler != nil {
+			for _, msg := range messages {
+				req.IntermediateMessageHandler(msg)
+			}
+		}
+
+		// Execute function calls and collect outputs
+		var toolOutputs []output.FunctionCallOutput
+		for _, call := range executableCalls {
+			fResult, err := call.F(call.Arguments)
 			switch {
 			case err == nil:
 			case errors.Is(err, tools.ErrDoNotRespond):
@@ -317,61 +347,70 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 			default:
 				return nil, fmt.Errorf(
 					"failed to execute function '%s': %w",
-					o.Name, err,
+					call.Name, err,
 				)
 			}
 
 			// Add the tool output that will be sent in a follow-up request
 			toolOutputs = append(toolOutputs, output.FunctionCallOutput{
 				Type:   "function_call_output",
-				CallID: o.CallID,
+				CallID: call.CallID,
 				Output: fResult,
 			})
-
-			// we don't need to add it to the aggregated outputs,
-			// because it's supposed to be handled, not returned
-		default:
-			// other outputs are just returned as is
-			aggregatedOutputs = append(aggregatedOutputs, resp.Outputs[i])
-			aggregatedParsedOutputs = append(aggregatedParsedOutputs, o)
 		}
-	}
 
-	// if we have function calls to return, return everything right now
-	if haveReturnableFunctionCalls {
-		resp.Outputs = aggregatedOutputs
-		resp.ParsedOutputs = aggregatedParsedOutputs
-
-		return resp, nil
-	}
-
-	// If we have tool outputs, send them to the API in a follow-up request
-	if len(toolOutputs) > 0 {
-		// Create a follow-up request by cloning the original request
+		// we have tool outputs, send them in a follow-up request
 		followUpReq := req.Clone()
-
-		// Update only the fields that need to change
 		followUpReq.Input = toolOutputs
 		followUpReq.PreviousResponseID = resp.ID
 
-		// Make another request with the function results
 		followupResp, err := c.Send(followUpReq)
 		if err != nil {
 			return nil, err
 		}
 
-		// update our response with the data from the follow-up response
-		aggregatedOutputs = append(aggregatedOutputs, followupResp.Outputs...)
-		aggregatedParsedOutputs = append(aggregatedParsedOutputs, followupResp.ParsedOutputs...)
-		resp.Outputs = aggregatedOutputs
-		resp.ParsedOutputs = aggregatedParsedOutputs
+		// Combine unhandled messages (if any) with follow-up response
+		var combinedOutputs []output.Any
+		var combinedParsedOutputs []any
+
+		// Add unhandled messages first
+		if req.IntermediateMessageHandler == nil {
+			for _, msg := range messages {
+				// Marshal the message to JSON
+				b, err := json.Marshal(msg)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal message: %w", err)
+				}
+				// Create an Any instance from the raw JSON
+				var anyMsg output.Any
+				if err := json.Unmarshal(b, &anyMsg); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal message to Any: %w", err)
+				}
+				combinedOutputs = append(combinedOutputs, anyMsg)
+				combinedParsedOutputs = append(combinedParsedOutputs, msg)
+			}
+		}
+
+		// Add other outputs
+		combinedOutputs = append(combinedOutputs, otherOutputs...)
+		combinedParsedOutputs = append(combinedParsedOutputs, otherParsedOutputs...)
+
+		// Add follow-up response outputs
+		combinedOutputs = append(combinedOutputs, followupResp.Outputs...)
+		combinedParsedOutputs = append(combinedParsedOutputs, followupResp.ParsedOutputs...)
+
+		resp.Outputs = combinedOutputs
+		resp.ParsedOutputs = combinedParsedOutputs
 		resp.ID = followupResp.ID
 
-		// return the updated response
+		return resp, nil
+
+	// Case 4: Only other outputs
+	case len(otherOutputs) > 0:
 		return resp, nil
 	}
 
-	// this place should be unreachable
+	// This should be unreachable
 	return nil, fmt.Errorf("logic error: unreachable code, stack: %s", string(debug.Stack()))
 }
 
