@@ -75,7 +75,7 @@ func (lt *LoggingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, fmt.Errorf("failed to dump response: %w", dumpErr)
 	}
 
-	log.Debug("request:\n%s\nresponse:\n%s", string(reqBytes), string(respBytes))
+	log.Debug(fmt.Sprintf("request:\n%s\nresponse:\n%s", string(reqBytes), string(respBytes)))
 
 	return resp, err
 }
