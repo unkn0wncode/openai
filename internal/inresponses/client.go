@@ -130,11 +130,14 @@ func (c *Client) executeRequest(data *responses.Request) (*response, error) {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	c.Config.Log.Debug(fmt.Sprintf(
-		"Consumed OpenAI Responses tokens: %d + %d = %d ($%f) on model '%s' in %s",
-		res.Usage.InputTokens, res.Usage.OutputTokens,
-		res.Usage.TotalTokens, c.cost(&res), res.Model, duration,
-	))
+	c.Config.Log.
+		With("model", res.Model).
+		With("responseID", res.ID).
+		Debug(fmt.Sprintf(
+			"Consumed OpenAI Responses tokens: %d + %d = %d ($%f) in %s",
+			res.Usage.InputTokens, res.Usage.OutputTokens,
+			res.Usage.TotalTokens, c.cost(&res), duration,
+		))
 
 	return &res, nil
 }
@@ -253,7 +256,7 @@ func (c *Client) cost(resp *response) float64 {
 		return 0
 	}
 	total := 0.0
-	total += float64(resp.Usage.InputTokens - resp.Usage.InputTokensDetails.CachedTokens) * pricing.PriceIn
+	total += float64(resp.Usage.InputTokens-resp.Usage.InputTokensDetails.CachedTokens) * pricing.PriceIn
 	total += float64(resp.Usage.InputTokensDetails.CachedTokens) * pricing.PriceCachedIn
 	total += float64(resp.Usage.OutputTokens) * pricing.PriceOut
 	return total
