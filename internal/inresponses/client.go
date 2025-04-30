@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"runtime/debug"
+	"time"
 
 	"github.com/unkn0wncode/openai/content/output"
 	openai "github.com/unkn0wncode/openai/internal"
@@ -106,7 +107,9 @@ func (c *Client) executeRequest(data *responses.Request) (*response, error) {
 	c.AddHeaders(req)
 
 	var resp *http.Response
+	before := time.Now()
 	resp, err = c.HTTPClient.Do(req)
+	duration := time.Since(before)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
@@ -126,6 +129,12 @@ func (c *Client) executeRequest(data *responses.Request) (*response, error) {
 	if err := json.Unmarshal(body, &res); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
+
+	c.Config.Log.Debug(fmt.Sprintf(
+		"Consumed OpenAI Responses tokens: %d + %d = %d ($%f) on model '%s' in %s",
+		res.Usage.InputTokens, res.Usage.OutputTokens,
+		res.Usage.TotalTokens, c.cost(&res), res.Model, duration,
+	))
 
 	return &res, nil
 }
@@ -233,6 +242,17 @@ func (data *response) checkResponseData() (*responses.Response, error) {
 	}
 
 	return resp, nil
+}
+
+// cost returns the resulting cost of the completed request in USD.
+// Returns zero if pricing for the model is not known.
+func (c *Client) cost(resp *response) float64 {
+	pricing, ok := models.Data[resp.Model]
+	if !ok {
+		c.Config.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", resp.Model))
+		return 0
+	}
+	return float64(resp.Usage.InputTokens)*pricing.PriceIn + float64(resp.Usage.OutputTokens)*pricing.PriceOut
 }
 
 // executableFunctionCall is an intermediate representation of a function call that can be executed.
