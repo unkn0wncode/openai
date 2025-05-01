@@ -217,6 +217,8 @@ Possible output types in the `responses.Response.ParsedOutputs` slice are:
 You can simply iterate over the outputs and type-assert each, but also there are helper methods to extract outputs of specific types:
 - `Response.Texts() []string` returns output texts from output messages.
 - `Response.JoinedTexts() string` returns a single string joined from all text outputs with newlines. Since you usually get only one text output, this removes the extra work on a slice of strings you'd have to do with `Texts()`.
+- `Response.FirstText() string` returns the first text output in the response, or an empty string if there are no text outputs.
+- `Response.LastText() string` returns the last text output in the response, or an empty string if there are no text outputs.
 - `Response.FunctionCalls() []output.FunctionCall` returns all function calls from the response's top level.
 - `Response.Refusals() []string` returns all refusals texts from output messages.
 

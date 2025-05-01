@@ -167,6 +167,24 @@ func (r *Response) JoinedTexts() string {
 	return strings.Join(r.Texts(), "\n")
 }
 
+// FirstText returns the first text output in the response, or an empty string.
+func (r *Response) FirstText() string {
+	texts := r.Texts()
+	if len(texts) == 0 {
+		return ""
+	}
+	return texts[0]
+}
+
+// LastText returns the last text output in the response, or an empty string.
+func (r *Response) LastText() string {
+	texts := r.Texts()
+	if len(texts) == 0 {
+		return ""
+	}
+	return texts[len(texts)-1]
+}
+
 // FunctionCalls returns a slice of FunctionCall objects from the response.
 func (r *Response) FunctionCalls() []output.FunctionCall {
 	if r.ParsedOutputs == nil {
