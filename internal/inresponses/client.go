@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"runtime/debug"
 	"time"
@@ -130,12 +131,16 @@ func (c *Client) executeRequest(data *responses.Request) (*response, error) {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	c.Config.Log.Debug(fmt.Sprintf(
-		"model=%s responseID=%s Consumed OpenAI Responses tokens: %d + %d = %d ($%f) in %s",
-		res.Model, res.ID,
-		res.Usage.InputTokens, res.Usage.OutputTokens,
-		res.Usage.TotalTokens, c.cost(&res), duration,
-	))
+	c.Config.Log.Debug(
+		fmt.Sprintf(
+			"Consumed OpenAI Responses tokens: %d + %d = %d ($%f)",
+			res.Usage.InputTokens, res.Usage.OutputTokens,
+			res.Usage.TotalTokens, c.cost(&res),
+		),
+		slog.Any("responseID", res.ID),
+		slog.Any("model", res.Model),
+		slog.Any("duration", duration),
+	)
 
 	return &res, nil
 }
