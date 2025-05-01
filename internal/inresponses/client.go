@@ -140,6 +140,7 @@ func (c *Client) executeRequest(data *responses.Request) (*response, error) {
 		slog.Any("responseID", res.ID),
 		slog.Any("model", res.Model),
 		slog.Any("duration", duration),
+		slog.Any("metadata", res.Metadata),
 	)
 
 	return &res, nil
