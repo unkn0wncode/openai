@@ -1,4 +1,4 @@
-// Package models contains list and properties of OpenAI models.
+// Package models / text.go contains list and properties of OpenAI text generation models.
 package models
 
 const (
@@ -38,12 +38,6 @@ const (
 	GPT4564k = "gpt-4.5-64k"
 	GPT4     = "gpt-4"
 	GPT432k  = "gpt-4-32k"
-
-	// Embedding models
-	DefaultEmbedding = ThreeSmall
-	Ada2             = "text-embedding-ada-002"
-	ThreeLarge       = "text-embedding-3-large"
-	ThreeSmall       = "text-embedding-3-small"
 
 	// Completion models
 	Curie           = "text-curie-001"
