@@ -116,7 +116,11 @@ func (c *Client) executeRequest(data *responses.Request) (*response, error) {
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	// if testing.Testing() {
 	// 	fmt.Printf("Response status: %s\n", resp.Status)
 	// 	fmt.Printf("Response body: %s\n", string(body))
