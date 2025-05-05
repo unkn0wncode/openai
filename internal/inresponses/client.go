@@ -180,10 +180,10 @@ type response struct {
 			Type string `json:"type"`
 		} `json:"format"`
 	} `json:"text"`
-	ToolChoice string       `json:"tool_choice"`
-	Tools      []tools.Tool `json:"tools"`
-	TopP       float64      `json:"top_p"`
-	Truncation string       `json:"truncation"`
+	ToolChoice json.RawMessage `json:"tool_choice"`
+	Tools      []tools.Tool    `json:"tools"`
+	TopP       float64         `json:"top_p"`
+	Truncation string          `json:"truncation"`
 
 	// Usage Information
 	Usage struct {
