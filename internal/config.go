@@ -32,6 +32,7 @@ func NewConfig(token string) *Config {
 		Log:        slog.Default(),
 		Tools: &tools.Registry{
 			FunctionCalls: make(map[string]tools.FunctionCall),
+			Tools:         make(map[string]tools.Tool),
 		},
 	}
 

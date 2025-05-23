@@ -123,6 +123,7 @@ fmt.Println(resp.JoinedTexts())
 
 The `client.Responses` exposes the following methods:
 - `Send` sends a given request to the API and returns response data focusing on outputs. It may run a sequence of requests if the response contains tool calls that can be handled automatically (by using tools and sending tool outputs to API) and then will return all outputs at once, except for already handled tool calls.
+- `Poll` polls a background response by ID until completion, failure, or context cancellation.
 - `NewRequest` creates a new empty request. It is only a shorthand to make the type `responses.Request` more easily discoverable. You can use the request type directly.
 - `NewMessage` creates a new empty message. It is only a shorthand to make the type `output.Message` more easily discoverable. You can use the message type directly.
 

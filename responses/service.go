@@ -2,9 +2,12 @@
 package responses
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
+	"time"
 
 	"github.com/unkn0wncode/openai/content/input"
 	"github.com/unkn0wncode/openai/content/output"
@@ -27,6 +30,10 @@ type Service interface {
 
 	// NewRequest creates a new empty request.
 	NewRequest() *Request
+
+	// Poll continuously fetches a background response until completion or failure.
+	// ctx controls cancellation; interval is time to wait between subsequent polls.
+	Poll(ctx context.Context, responseID string, interval time.Duration) (*Response, error)
 }
 
 // Content is an interface listing all types that can be used as content in Responses API.
@@ -34,19 +41,19 @@ type Service interface {
 // and `output.Message.Content` fields.
 type Content interface {
 	string |
-	input.InputText |
-	input.InputImage |
-	input.InputFile |
-	output.OutputText |
-	output.Refusal |
-	output.FileSearchCall |
-	output.ComputerCall |
-	output.ComputerCallOutput |
-	output.WebSearchCall |
-	output.FunctionCall |
-	output.FunctionCallOutput |
-	output.Reasoning |
-	input.ItemReference
+		input.InputText |
+		input.InputImage |
+		input.InputFile |
+		output.OutputText |
+		output.Refusal |
+		output.FileSearchCall |
+		output.ComputerCall |
+		output.ComputerCallOutput |
+		output.WebSearchCall |
+		output.FunctionCall |
+		output.FunctionCallOutput |
+		output.Reasoning |
+		input.ItemReference
 }
 
 // Request is the request body for the Responses API.
@@ -71,14 +78,16 @@ type Request struct {
 	TopP               float64           `json:"top_p,omitempty"`                // default 1
 	Truncation         string            `json:"truncation,omitempty"`           // "auto" or "disabled"
 	User               string            `json:"user,omitempty"`                 // default ""
+	Background         bool              `json:"background,omitempty"`           // if true, the API returns immediately with only a response ID
 
 	// names of tools/functions to include, will be marshaled as their full structs from tools registry
 	Tools []string `json:"-"`
 
 	// Custom (not part of the API)
+	// If set, tool calls will be returned instead of executed.
 	ReturnToolCalls bool `json:"-"` // default false
-	// if set, will be called on messages received alongside other outputs, like tool calls,
-	// that otherwise are returned in the response but can be handled sooner with this handler
+	// If set, will be called on messages received alongside other outputs (e.g., tool calls)
+	// that would otherwise be returned in the response but can be handled sooner with this handler.
 	IntermediateMessageHandler func(output.Message) `json:"-"`
 }
 
@@ -94,9 +103,7 @@ func (data *Request) Clone() *Request {
 
 	if data.Metadata != nil {
 		clone.Metadata = make(map[string]string, len(data.Metadata))
-		for k, v := range data.Metadata {
-			clone.Metadata[k] = v
-		}
+		maps.Copy(clone.Metadata, data.Metadata)
 	}
 
 	if data.Tools != nil {
@@ -221,6 +228,36 @@ func (r *Response) Refusals() []string {
 		}
 	}
 	return refusals
+}
+
+// Reasonings returns a slice of Reasoning objects from the response.
+func (r *Response) Reasonings() []output.Reasoning {
+	if r.ParsedOutputs == nil {
+		r.Parse()
+	}
+	var reasonings []output.Reasoning
+	for _, o := range r.ParsedOutputs {
+		if rr, ok := o.(output.Reasoning); ok {
+			reasonings = append(reasonings, rr)
+		}
+	}
+	return reasonings
+}
+
+// ReasoningSummaries returns a slice of summary texts from reasoning outputs.
+func (r *Response) ReasoningSummaries() []string {
+	var summaries []string
+	for _, rr := range r.Reasonings() {
+		for _, s := range rr.Summary {
+			summaries = append(summaries, s.Text)
+		}
+	}
+	return summaries
+}
+
+// JoinedReasoningSummaries returns all reasoning summaries joined by newlines.
+func (r *Response) JoinedReasoningSummaries() string {
+	return strings.Join(r.ReasoningSummaries(), "\n")
 }
 
 // ReasoningConfig represents configuration options for reasoning models.

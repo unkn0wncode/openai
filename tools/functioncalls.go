@@ -133,16 +133,27 @@ func (tco ToolChoiceOption) MarshalJSON() ([]byte, error) {
 
 // Tool represents a tool that can be used by the model.
 type Tool struct {
-	Type           string          `json:"type"`                       // "function", "file_search", "web_search_preview", "computer_use_preview"
-	Name           string          `json:"name,omitempty"`             // Name of the tool (required for function type)
-	Description    string          `json:"description,omitempty"`      // Description of the tool (required for function type)
-	Parameters     json.RawMessage `json:"parameters,omitempty"`       // Parameters schema (required for function type)
-	VectorStoreIDs []string        `json:"vector_store_ids,omitempty"` // For file_search type
-	DisplayWidth   int             `json:"display_width,omitempty"`    // For computer_use_preview type
-	DisplayHeight  int             `json:"display_height,omitempty"`   // For computer_use_preview type
-	Environment    string          `json:"environment,omitempty"`      // For computer_use_preview type
-	Strict         bool            `json:"strict,omitempty"`           // Whether to enforce strict schema validation
-	Function       FunctionCall    `json:"-"`                          // Reusing FunctionCall from chatapi.go (not sent to API)
+	// Type of tool: "function", "file_search", "web_search_preview", "computer_use_preview"
+	Type string `json:"type"`
+	// Name of the tool (required for function type)
+	Name string `json:"name,omitempty"`
+	// Description of the tool (required for function type)
+	Description string `json:"description,omitempty"`
+	// Parameters schema (required for function type)
+	Parameters json.RawMessage `json:"parameters,omitempty"`
+	// Vector store IDs for file_search type
+	VectorStoreIDs []string `json:"vector_store_ids,omitempty"`
+	// Max number of results for file_search type
+	MaxNumResults int `json:"max_num_results,omitempty"`
+	// Display dimensions for computer_use_preview type
+	DisplayWidth  int `json:"display_width,omitempty"`
+	DisplayHeight int `json:"display_height,omitempty"`
+	// Environment for computer_use_preview type
+	Environment string `json:"environment,omitempty"`
+	// Whether to enforce strict schema validation (for function type)
+	Strict bool `json:"strict,omitempty"`
+	// Underlying FunctionCall (not sent to API)
+	Function FunctionCall `json:"-"`
 }
 
 // RegisterTool registers a tool that can be used by the model.

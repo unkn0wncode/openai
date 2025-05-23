@@ -2,6 +2,7 @@ package inresponses
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -126,6 +127,14 @@ func (c *Client) executeRequest(data *responses.Request) (*response, error) {
 	// 	fmt.Printf("Response body: %s\n", string(body))
 	// }
 
+	// Handle background mode (Accepted) when requested
+	if resp.StatusCode == http.StatusAccepted && data.Background {
+		var res response
+		if err := json.Unmarshal(body, &res); err != nil {
+			return nil, fmt.Errorf("failed to decode background response: %w", err)
+		}
+		return &res, nil
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("request failed with status: %s, body: %s", resp.Status, string(body))
 	}
@@ -284,6 +293,12 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 	respData, err := c.executeRequest(req)
 	if err != nil {
 		return nil, err
+	}
+
+	// Background returns only the response ID immediately
+	// so we don't need to handle outputs
+	if req.Background {
+		return &responses.Response{ID: respData.ID}, nil
 	}
 
 	// Check if we have output
@@ -457,4 +472,54 @@ func (c *Client) NewMessage() *output.Message {
 // NewRequest creates a new empty request.
 func (c *Client) NewRequest() *responses.Request {
 	return &responses.Request{}
+}
+
+// Poll continuously fetches a previously created background response until
+// completion or failure. ctx controls cancellation, interval specifies wait between polls.
+func (c *Client) Poll(ctx context.Context, id string, interval time.Duration) (*responses.Response, error) {
+	url := fmt.Sprintf("%sv1/responses/%s", c.BaseAPI, id)
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	for {
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create poll request: %w", err)
+		}
+		c.AddHeaders(req)
+		resp, err := c.HTTPClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("failed to send poll request: %w", err)
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read poll response: %w", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("poll request failed with status: %s, body: %s", resp.Status, string(body))
+		}
+
+		var raw response
+		if err := json.Unmarshal(body, &raw); err != nil {
+			return nil, fmt.Errorf("failed to decode poll response: %w", err)
+		}
+		switch raw.Status {
+		case "completed":
+			return raw.checkResponseData()
+		case "failed":
+			return nil, fmt.Errorf("response %s failed", raw.ID)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(interval):
+		}
+	}
 }

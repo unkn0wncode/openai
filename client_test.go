@@ -1,11 +1,13 @@
 package openai
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/unkn0wncode/openai/assistants"
 	"github.com/unkn0wncode/openai/chat"
@@ -311,4 +313,27 @@ func TestClient_Embedding(t *testing.T) {
 	vec, err := c.Embedding.One("Hello, world!")
 	require.NoError(t, err)
 	require.NotEmpty(t, vec)
+}
+
+// TestClient_Responses_BackgroundPolling verifies background mode and Polling.
+func TestClient_Responses_BackgroundPolling(t *testing.T) {
+	c := NewClient(testToken)
+
+	// Send with background mode
+	resp, err := c.Responses.Send(&responses.Request{
+		Model:      models.Default,
+		Input:      "Tell me a short joke.",
+		Background: true,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.ID)
+	require.Empty(t, resp.Outputs)
+
+	// Poll until completed
+	ctx, cancel := context.WithTimeout(t.Context(), 6*time.Second)
+	defer cancel()
+	final, err := c.Responses.Poll(ctx, resp.ID, 2*time.Second)
+	require.NoError(t, err)
+	require.NotEmpty(t, final.Texts())
+	t.Logf("Background poll texts: %v", final.JoinedTexts())
 }
