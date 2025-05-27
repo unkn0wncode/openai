@@ -74,7 +74,7 @@ type Request struct {
 	Stream             bool              `json:"stream,omitempty"`               // Stream the response, default false
 	Temperature        float64           `json:"temperature,omitempty"`          // default 1
 	Text               *TextFormat       `json:"text,omitempty"`                 // Text format configuration
-	ToolChoice         json.RawMessage   `json:"tool_choice,omitempty"`          // default "auto"
+	ToolChoice         json.RawMessage   `json:"tool_choice,omitempty"`          // default "auto", can be "none", "required", or an object
 	TopP               float64           `json:"top_p,omitempty"`                // default 1
 	Truncation         string            `json:"truncation,omitempty"`           // "auto" or "disabled"
 	User               string            `json:"user,omitempty"`                 // default ""
@@ -212,7 +212,6 @@ func (r *Response) Refusals() []string {
 	if r.ParsedOutputs == nil {
 		r.Parse() // ignored error check here
 	}
-
 	var refusals []string
 	for _, o := range r.ParsedOutputs {
 		if ms, ok := o.(output.Message); ok {
@@ -260,6 +259,20 @@ func (r *Response) JoinedReasoningSummaries() string {
 	return strings.Join(r.ReasoningSummaries(), "\n")
 }
 
+// MCPApprovalRequests returns a slice of MCPApprovalRequest objects from the response.
+func (r *Response) MCPApprovalRequests() []output.MCPApprovalRequest {
+	if r.ParsedOutputs == nil {
+		r.Parse() // ignored error check here
+	}
+	var approvalRequests []output.MCPApprovalRequest
+	for _, o := range r.ParsedOutputs {
+		if approvalRequest, ok := o.(output.MCPApprovalRequest); ok {
+			approvalRequests = append(approvalRequests, approvalRequest)
+		}
+	}
+	return approvalRequests
+}
+
 // ReasoningConfig represents configuration options for reasoning models.
 type ReasoningConfig struct {
 	Effort          string `json:"effort,omitempty"`           // "low", "medium", or "high"
@@ -291,6 +304,8 @@ func ForceToolChoice(toolType string, name string) json.RawMessage {
 		return json.RawMessage(`{"type": "web_search_preview"}`)
 	case "computer_use_preview":
 		return json.RawMessage(`{"type": "computer_use_preview"}`)
+	case "mcp":
+		return json.RawMessage(`{"type": "mcp"}`)
 	default:
 		return json.RawMessage(`"auto"`)
 	}

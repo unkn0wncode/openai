@@ -67,6 +67,14 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[FunctionCallOutput](a)
 	case "reasoning":
 		return unmarshalToType[Reasoning](a)
+	case "mcp_list_tools":
+		return unmarshalToType[MCPListTools](a)
+	case "mcp_approval_request":
+		return unmarshalToType[MCPApprovalRequest](a)
+	case "mcp_approval_response":
+		return unmarshalToType[MCPApprovalResponse](a)
+	case "mcp_call":
+		return unmarshalToType[MCPCall](a)
 	default:
 		return nil, fmt.Errorf("unsupported content type: %s", a.Type)
 	}
@@ -558,3 +566,114 @@ func (r Reasoning) MarshalJSON() ([]byte, error) {
 	type alias Reasoning
 	return openai.Marshal(alias(r))
 }
+
+// MCPListTools describes tools available on an MCP server.
+type MCPListTools struct {
+	// required
+
+	Type        string    `json:"type"` // "mcp_list_tools"
+	ID          string    `json:"id"`
+	ServerLabel string    `json:"server_label"`
+	Tools       []MCPTool `json:"tools"`
+
+	// optional
+
+	Error string `json:"error,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "mcp_list_tools", discarding any prior value.
+func (m MCPListTools) MarshalJSON() ([]byte, error) {
+	m.Type = "mcp_list_tools"
+	type alias MCPListTools
+	return openai.Marshal(alias(m))
+}
+
+// MCPTool describes a tool available on an MCP server.
+type MCPTool struct {
+	// required
+
+	Name        string          `json:"name"`
+	InputSchema json.RawMessage `json:"input_schema"`
+
+	// optional
+
+	Description string          `json:"description,omitempty"`
+	Annotations []AnyAnnotation `json:"annotations,omitempty"`
+}
+
+// MCPApprovalRequest describes a request to approve an MCP tool call.
+type MCPApprovalRequest struct {
+	Type        string          `json:"type"` // "mcp_approval_request"
+	ID          string          `json:"id"`
+	ServerLabel string          `json:"server_label"`
+	Name        string          `json:"name"`
+	Arguments   json.RawMessage `json:"arguments"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "mcp_approval_request", discarding any prior value.
+func (m MCPApprovalRequest) MarshalJSON() ([]byte, error) {
+	m.Type = "mcp_approval_request"
+	type alias MCPApprovalRequest
+	return openai.Marshal(alias(m))
+}
+
+// Respond generates a response to an MCP approval request.
+// Reason is optional.
+func (m MCPApprovalRequest) Respond(approve bool, reason string) MCPApprovalResponse {
+	return MCPApprovalResponse{
+		Type:              "mcp_approval_response",
+		ApprovalRequestID: m.ID,
+		Approve:           approve,
+		Reason:            reason,
+	}
+}
+
+// MCPApprovalResponse describes a response to an MCP approval request.
+type MCPApprovalResponse struct {
+	// required
+
+	Type              string `json:"type"` // "mcp_approval_response"
+	ApprovalRequestID string `json:"approval_request_id"`
+	Approve           bool   `json:"approve"`
+
+	// optional
+
+	ID     string `json:"id,omitempty"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "mcp_approval_response", discarding any prior value.
+func (m MCPApprovalResponse) MarshalJSON() ([]byte, error) {
+	m.Type = "mcp_approval_response"
+	type alias MCPApprovalResponse
+	return openai.Marshal(alias(m))
+}
+
+// MCPCall describes a call to an MCP tool.
+type MCPCall struct {
+	// required
+
+	Type        string          `json:"type"` // "mcp_call"
+	ID          string          `json:"id"`
+	ServerLabel string          `json:"server_label"`
+	Name        string          `json:"name"`
+	Arguments   json.RawMessage `json:"arguments"`
+
+	// optional
+
+	Error  string `json:"error,omitempty"`
+	Output string `json:"output,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "mcp_call", discarding any prior value.
+func (m MCPCall) MarshalJSON() ([]byte, error) {
+	m.Type = "mcp_call"
+	type alias MCPCall
+	return openai.Marshal(alias(m))
+}
+
+// TODO: Add Code interpreter tool call type

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 )
 
@@ -133,27 +134,76 @@ func (tco ToolChoiceOption) MarshalJSON() ([]byte, error) {
 
 // Tool represents a tool that can be used by the model.
 type Tool struct {
-	// Type of tool: "function", "file_search", "web_search_preview", "computer_use_preview"
+	// Type of tool: "function", "file_search", "web_search_preview", "computer_use_preview", "mcp"
 	Type string `json:"type"`
-	// Name of the tool (required for function type)
+
+	// fields for functions
+
+	// Name of the tool
 	Name string `json:"name,omitempty"`
-	// Description of the tool (required for function type)
+	// Description of the tool
 	Description string `json:"description,omitempty"`
-	// Parameters schema (required for function type)
+	// Parameters schema
 	Parameters json.RawMessage `json:"parameters,omitempty"`
+	// Whether to enforce strict schema validation
+	Strict bool `json:"strict,omitempty"`
+	// Underlying FunctionCall (not sent to API)
+	Function FunctionCall `json:"-"`
+
+	// fields for file_search
+
 	// Vector store IDs for file_search type
 	VectorStoreIDs []string `json:"vector_store_ids,omitempty"`
 	// Max number of results for file_search type
 	MaxNumResults int `json:"max_num_results,omitempty"`
+
+	// fields for computer_use_preview
+
 	// Display dimensions for computer_use_preview type
 	DisplayWidth  int `json:"display_width,omitempty"`
 	DisplayHeight int `json:"display_height,omitempty"`
 	// Environment for computer_use_preview type
 	Environment string `json:"environment,omitempty"`
-	// Whether to enforce strict schema validation (for function type)
-	Strict bool `json:"strict,omitempty"`
-	// Underlying FunctionCall (not sent to API)
-	Function FunctionCall `json:"-"`
+
+	// fields for mcp
+
+	// A label for this MCP server, used to identify it in tool calls.
+	ServerLabel string `json:"server_label,omitempty"`
+	// The URL for the MCP server.
+	ServerURL string `json:"server_url,omitempty"`
+	// Optional HTTP headers to send to the MCP server. Use for authentication or other purposes.
+	Headers http.Header `json:"headers,omitempty"`
+	// List of allowed tool names.
+	// TODO: it also can be a filter object but it's functionally same as just []string. Add if it allows something more in future.
+	AllowedTools []string `json:"allowed_tools,omitempty"`
+	// Specify which of the MCP server's tools require approval. Defaults to always.
+	// Either "always", or "never", or MCPApprovalList.
+	RequireApproval any `json:"require_approval,omitempty"`
+}
+
+// MCPApprovalList is a list of MCP tool approval rules.
+// It is marshalled as required by the API but filled in a simplified way.
+type MCPApprovalList struct {
+	Always []string `json:"always,omitempty"`
+	Never  []string `json:"never,omitempty"`
+}
+
+// MarshalJSON implements json.Marshaler.
+// Marshals "always" and "never" lists as objects with "tool_names" field.
+func (al MCPApprovalList) MarshalJSON() ([]byte, error) {
+	alias := struct {
+		Always map[string][]string `json:"always,omitempty"`
+		Never  map[string][]string `json:"never,omitempty"`
+	}{}
+
+	if len(al.Always) > 0 {
+		alias.Always = map[string][]string{"tool_names": al.Always}
+	}
+	if len(al.Never) > 0 {
+		alias.Never = map[string][]string{"tool_names": al.Never}
+	}
+
+	return json.Marshal(alias)
 }
 
 // RegisterTool registers a tool that can be used by the model.
