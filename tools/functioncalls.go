@@ -134,7 +134,8 @@ func (tco ToolChoiceOption) MarshalJSON() ([]byte, error) {
 
 // Tool represents a tool that can be used by the model.
 type Tool struct {
-	// Type of tool: "function", "file_search", "web_search_preview", "computer_use_preview", "mcp"
+	// Type of tool: "function", "file_search", "web_search_preview", "computer_use_preview",
+	// "mcp", "local_shell"
 	Type string `json:"type"`
 
 	// fields for functions

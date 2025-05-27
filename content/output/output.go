@@ -75,6 +75,10 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[MCPApprovalResponse](a)
 	case "mcp_call":
 		return unmarshalToType[MCPCall](a)
+	case "local_shell_call":
+		return unmarshalToType[LocalShellCall](a)
+	case "local_shell_call_output":
+		return unmarshalToType[LocalShellCallOutput](a)
 	default:
 		return nil, fmt.Errorf("unsupported content type: %s", a.Type)
 	}
@@ -674,6 +678,67 @@ func (m MCPCall) MarshalJSON() ([]byte, error) {
 	m.Type = "mcp_call"
 	type alias MCPCall
 	return openai.Marshal(alias(m))
+}
+
+// LocalShellCall describes a call to a local shell tool.
+type LocalShellCall struct {
+	Type   string           `json:"type"` // "local_shell_call"
+	ID     string           `json:"id"`
+	CallID string           `json:"call_id"`
+	Action LocalShellAction `json:"action"`
+	Status string           `json:"status"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "local_shell_call", discarding any prior value.
+func (l LocalShellCall) MarshalJSON() ([]byte, error) {
+	l.Type = "local_shell_call"
+	type alias LocalShellCall
+	return openai.Marshal(alias(l))
+}
+
+// LocalShellAction describes an action to be taken by a local shell tool.
+type LocalShellAction struct {
+	// required
+
+	Type    string            `json:"type"` // "exec"
+	Command []string          `json:"command"`
+	Env     map[string]string `json:"env"`
+
+	// optional
+
+	TimeoutMilliseconds int    `json:"timeout_milliseconds,omitempty"`
+	User                string `json:"user,omitempty"`
+	WorkingDirectory    string `json:"working_directory,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "exec", discarding any prior value.
+func (l LocalShellAction) MarshalJSON() ([]byte, error) {
+	l.Type = "exec"
+	type alias LocalShellAction
+	return openai.Marshal(alias(l))
+}
+
+// LocalShellCallOutput describes the output of a local shell call.
+type LocalShellCallOutput struct {
+	// required
+
+	Type   string `json:"type"` // "local_shell_call_output"
+	ID     string `json:"id"`
+	Output string `json:"output"`
+
+	// optional
+
+	Status string `json:"status,omitempty"` // "in_progress", "completed", "incomplete"
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "local_shell_call_output", discarding any prior value.
+func (l LocalShellCallOutput) MarshalJSON() ([]byte, error) {
+	l.Type = "local_shell_call_output"
+	type alias LocalShellCallOutput
+	return openai.Marshal(alias(l))
 }
 
 // TODO: Add Code interpreter tool call type
