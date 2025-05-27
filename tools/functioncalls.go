@@ -157,6 +157,10 @@ type Tool struct {
 	VectorStoreIDs []string `json:"vector_store_ids,omitempty"`
 	// Max number of results for file_search type
 	MaxNumResults int `json:"max_num_results,omitempty"`
+	// Filters for selecting files, see documentation:
+	// https://platform.openai.com/docs/guides/tools-file-search#metadata-filtering
+	// https://platform.openai.com/docs/guides/retrieval#attribute-filtering
+	Filters any `json:"filters,omitempty"`
 
 	// fields for computer_use_preview
 
