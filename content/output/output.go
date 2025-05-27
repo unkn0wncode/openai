@@ -79,6 +79,8 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[LocalShellCall](a)
 	case "local_shell_call_output":
 		return unmarshalToType[LocalShellCallOutput](a)
+	case "code_interpreter_call":
+		return unmarshalToType[CodeInterpreterCall](a)
 	default:
 		return nil, fmt.Errorf("unsupported content type: %s", a.Type)
 	}
@@ -741,4 +743,104 @@ func (l LocalShellCallOutput) MarshalJSON() ([]byte, error) {
 	return openai.Marshal(alias(l))
 }
 
-// TODO: Add Code interpreter tool call type
+// CodeInterpreterCall describes a call to a code interpreter tool.
+type CodeInterpreterCall struct {
+	// required
+
+	Type    string                     `json:"type"` // "code_interpreter_call"
+	ID      string                     `json:"id"`
+	Code    string                     `json:"code"`
+	Status  string                     `json:"status"`
+	Results []CodeInterpreterResultAny `json:"results"`
+
+	// optional
+
+	ContainerID string `json:"container_id,omitempty"`
+}
+
+// CodeInterpreterResultText describes a log of a call interpreter tool.
+type CodeInterpreterResultText struct {
+	Type string `json:"type"` // "logs"
+	Logs string `json:"logs"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "logs", discarding any prior value.
+func (c CodeInterpreterResultText) MarshalJSON() ([]byte, error) {
+	c.Type = "logs"
+	type alias CodeInterpreterResultText
+	return openai.Marshal(alias(c))
+}
+
+// CodeInterpreterResultFile describes files made by a call interpreter tool.
+type CodeInterpreterResultFile struct {
+	Type  string                `json:"type"` // "files"
+	Files []CodeInterpreterFile `json:"files"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "files", discarding any prior value.
+func (c CodeInterpreterResultFile) MarshalJSON() ([]byte, error) {
+	c.Type = "files"
+	type alias CodeInterpreterResultFile
+	return openai.Marshal(alias(c))
+}
+
+// CodeInterpreterFile describes a file made by a call interpreter tool.
+type CodeInterpreterFile struct {
+	FileID   string `json:"file_id"`
+	MimeType string `json:"mime_type"`
+}
+
+// CodeInterpreterResultAny is a partial representation of a code interpreter result with only the "type" field unmarshaled.
+// It can be used to find a correct type and further unmarshal the raw content.
+type CodeInterpreterResultAny struct {
+	Type string `json:"type"`
+	raw  json.RawMessage
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+// It extracts only the "type" field, then saves the raw JSON for later.
+func (c *CodeInterpreterResultAny) UnmarshalJSON(data []byte) error {
+	// Extract only the "type" field, then save raw JSON for later.
+	var tmp struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	c.Type = tmp.Type
+	c.raw = data
+	return nil
+}
+
+// UnmarshalToTarget unmarshals the result into a given target.
+func (c *CodeInterpreterResultAny) UnmarshalToTarget(target any) error {
+	return json.Unmarshal(c.raw, target)
+}
+
+// Unmarshal unmarshals the full result content into a type specified in the "type" field.
+func (c *CodeInterpreterResultAny) Unmarshal() (any, error) {
+	switch c.Type {
+	case "logs":
+		return unmarshalToType[CodeInterpreterResultText](c)
+	case "files":
+		return unmarshalToType[CodeInterpreterResultFile](c)
+	default:
+		return nil, fmt.Errorf("unsupported code interpreter result type: %s", c.Type)
+	}
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It just returns the saved raw content.
+func (c CodeInterpreterResultAny) MarshalJSON() ([]byte, error) {
+	return c.raw, nil
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "code_interpreter_call", discarding any prior value.
+func (c CodeInterpreterCall) MarshalJSON() ([]byte, error) {
+	c.Type = "code_interpreter_call"
+	type alias CodeInterpreterCall
+	return openai.Marshal(alias(c))
+}

@@ -308,6 +308,8 @@ func ForceToolChoice(toolType string, name string) json.RawMessage {
 		return json.RawMessage(`{"type": "mcp"}`)
 	case "local_shell":
 		return json.RawMessage(`{"type": "local_shell"}`)
+	case "code_interpreter":
+		return json.RawMessage(`{"type": "code_interpreter"}`)
 	default:
 		return json.RawMessage(`"auto"`)
 	}

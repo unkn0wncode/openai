@@ -135,7 +135,7 @@ func (tco ToolChoiceOption) MarshalJSON() ([]byte, error) {
 // Tool represents a tool that can be used by the model.
 type Tool struct {
 	// Type of tool: "function", "file_search", "web_search_preview", "computer_use_preview",
-	// "mcp", "local_shell"
+	// "mcp", "local_shell", "code_interpreter"
 	Type string `json:"type"`
 
 	// fields for functions
@@ -180,6 +180,15 @@ type Tool struct {
 	// Specify which of the MCP server's tools require approval. Defaults to always.
 	// Either "always", or "never", or MCPApprovalList.
 	RequireApproval any `json:"require_approval,omitempty"`
+
+	// fields for code_interpreter
+
+	// The code interpreter container. Can be a container ID or an object that specifies uploaded
+	// file IDs to make available to your code:
+	//  {"type": "auto", "file_ids": []string}
+	// Note that the field itself is required but the list of IDs is optional:
+	//  {"type": "auto"}
+	Container any `json:"container,omitempty"`
 }
 
 // MCPApprovalList is a list of MCP tool approval rules.

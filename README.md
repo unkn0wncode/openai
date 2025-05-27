@@ -205,6 +205,9 @@ According to the docs, the following types are allowed in `responses.Request.Inp
   - `output.MCPCall`
   - `output.LocalShellCall`
   - `output.LocalShellCallOutput`
+  - `output.CodeInterpreterCall`, with its `Results` being a slice of the following types (mixed):
+    - `output.CodeInterpreterResultText`
+    - `output.CodeInterpreterResultFile`
   - `input.ItemReference`
 
 This may be overwhelming, but you can keep it simple by sending only strings and messages in most cases.
@@ -226,6 +229,9 @@ Possible output types in the `responses.Response.ParsedOutputs` slice are:
 - `output.MCPCall`
 - `output.LocalShellCall`
 - `output.LocalShellCallOutput`
+- `output.CodeInterpreterCall`, with its `Results` being a slice of the following types (mixed):
+  - `output.CodeInterpreterResultText`
+  - `output.CodeInterpreterResultFile`
 
 You can simply iterate over the outputs and type-assert each, but also there are helper methods to extract outputs of specific types:
 - `Response.Texts() []string` returns output texts from output messages.
