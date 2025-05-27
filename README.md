@@ -203,6 +203,8 @@ According to the docs, the following types are allowed in `responses.Request.Inp
   - `output.MCPApprovalRequest`
   - `output.MCPApprovalResponse`
   - `output.MCPCall`
+  - `output.LocalShellCall`
+  - `output.LocalShellCallOutput`
   - `input.ItemReference`
 
 This may be overwhelming, but you can keep it simple by sending only strings and messages in most cases.
@@ -222,6 +224,8 @@ Possible output types in the `responses.Response.ParsedOutputs` slice are:
 - `output.MCPApprovalRequest`
 - `output.MCPApprovalResponse`
 - `output.MCPCall`
+- `output.LocalShellCall`
+- `output.LocalShellCallOutput`
 
 You can simply iterate over the outputs and type-assert each, but also there are helper methods to extract outputs of specific types:
 - `Response.Texts() []string` returns output texts from output messages.
