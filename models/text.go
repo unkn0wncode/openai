@@ -32,6 +32,7 @@ const (
 	GPTO1Preview20240912 = "o1-preview-2024-09-12"
 	GPTO3Mini            = "o3-mini"
 	GPTO3Mini20250131    = "o3-mini-2025-01-31"
+	GPTO3                = "o3"
 
 	// Deprecated or unused models
 	GPT45    = "gpt-4.5"
@@ -98,6 +99,7 @@ var Data = map[string]struct {
 	GPTO1Preview20240912:        {0.00001500, 0.00000750, 0.00006000, 128000, 32768},
 	GPTO3Mini:                   {0.00000110, 0.00000055, 0.00000440, 200000, 100000},
 	GPTO3Mini20250131:           {0.00000110, 0.00000055, 0.00000440, 200000, 100000},
+	GPTO3:                       {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
 
 	// Deprecated or unused models
 	"gpt-3.5-turbo-0613":     {0.0000015, 0.0000015, 0.000002, 4096, 4096},
