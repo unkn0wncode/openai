@@ -18,6 +18,12 @@ const (
 	TextFormatTypeText       = "text"
 	TextFormatTypeJSONObject = "json_object"
 	TextFormatTypeJSONSchema = "json_schema"
+
+	// Service tiers
+	ServiceTierAuto     = "auto"     // service tier configured in the Project settings
+	ServiceTierDefault  = "default"  // standard pricing and performance for the selected model
+	ServiceTierFlex     = "flex"     // slower but cheaper
+	ServiceTierPriority = "priority" // faster but more expensive
 )
 
 // Service is the service layer for OpenAI responses API.
@@ -70,6 +76,7 @@ type Request struct {
 	ParallelToolCalls  *bool             `json:"parallel_tool_calls,omitempty"`  // Allow parallel tool calls, default true
 	PreviousResponseID string            `json:"previous_response_id,omitempty"` // ID of previous response
 	Reasoning          *ReasoningConfig  `json:"reasoning,omitempty"`            // Reasoning configuration
+	ServiceTier        string            `json:"service_tier,omitempty"`         // Service tier to use, default "auto"
 	Store              *bool             `json:"store,omitempty"`                // Whether to store the response, default true
 	Stream             bool              `json:"stream,omitempty"`               // Stream the response, default false
 	Temperature        float64           `json:"temperature,omitempty"`          // default 1
