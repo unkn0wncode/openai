@@ -57,7 +57,7 @@ const (
 	OmniMod           = "omni-moderation-latest"
 )
 
-//go:generate go run ../internal/cmd/getmodels/main.go
+//go:generate go run ../internal/cmd/getmodels
 
 // CODE BELOW THIS LINE IS GENERATED. ONLY EDIT IF YOU KNOW HOW.
 

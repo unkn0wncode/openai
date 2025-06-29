@@ -6,11 +6,8 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/exec"
 	"regexp"
@@ -21,7 +18,6 @@ import (
 )
 
 const (
-	modelsAPI      = "https://models.dev/api.json"
 	providerOpenAI = "openai"
 	modelsFile     = "text.go"
 )
@@ -43,7 +39,8 @@ var Data = map[string]struct {
 	"":                          {0.00000000, 0.00000000, 0.00000000, 4096, 4096},
 	{{- define "modelList"}}{{range .}}{{with .ConstantName}}{{.}}{{else}}"{{.ID}}"{{end}}: { {{- .PriceInStr}}, {{.PriceCachedInStr}}, {{.PriceOutStr}}, {{.LimitContext}}, {{.LimitOutput -}} },
 	{{end}}{{end}}
-	{{template "modelList" .Models}}
+	{{template "modelList" .Constants -}}
+	{{template "modelList" .Literals}}
 
 	// Deprecated or unused models
 	{{template "modelList" .Deprecated}}
@@ -69,47 +66,7 @@ var (
 	outputBuilder = strings.Builder{}
 )
 
-type payload map[providerName]providerData
-
-type (
-	providerName string
-	modelID      string
-)
-
-type providerData struct {
-	ID     providerName          `json:"id"`
-	Env    []string              `json:"env"`
-	NPM    string                `json:"npm"`
-	Doc    string                `json:"doc"`
-	Models map[modelID]modelData `json:"models"`
-}
-
-type modelData struct {
-	ID          modelID `json:"id"`
-	Name        string  `json:"name"`
-	Attachment  bool    `json:"attachment"`
-	Reasoning   bool    `json:"reasoning"`
-	Temperature bool    `json:"temperature"`
-	ToolCalls   bool    `json:"tool_calls"`
-	Knowledge   string  `json:"knowledge"`    // YYYY-MM
-	ReleaseDate string  `json:"release_date"` // YYYY-MM-DD
-	LastUpdated string  `json:"last_updated"` // YYYY-MM-DD
-	OpenWeights bool    `json:"open_weights"`
-	Modalities  struct {
-		Input  []string `json:"input"`
-		Output []string `json:"output"`
-	} `json:"modalities"`
-	Cost struct {
-		Input     float64 `json:"input"`
-		Output    float64 `json:"output"`
-		CacheRead float64 `json:"cache_read"`
-	} `json:"cost"`
-	Limit struct {
-		Context int `json:"context"`
-		Output  int `json:"output"`
-	} `json:"limit"`
-}
-
+// outputData contains model data for the output template.
 type outputData struct {
 	ID           modelID
 	ConstantName string
@@ -121,37 +78,6 @@ type outputData struct {
 	PriceOutStr      string
 	LimitContext     int
 	LimitOutput      int
-}
-
-// fetchOpenAIData retrieves the model metadata for the `openai` provider.
-func fetchOpenAIData() (*providerData, error) {
-	logger.Info("Getting models from models.dev")
-	resp, err := http.Get(modelsAPI)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get models.dev API data: %w", err)
-	}
-	defer resp.Body.Close()
-	logger.Info("Response received", "status", resp.Status)
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read models.dev response: %w", err)
-	}
-
-	var apiData payload
-	err = json.Unmarshal(body, &apiData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal models.dev response: %w", err)
-	}
-	logger.Info(fmt.Sprintf("Got providers: %d", len(apiData)))
-
-	openAIData := apiData[providerOpenAI]
-	logger.Info(fmt.Sprintf("Got %d models for %s", len(openAIData.Models), providerOpenAI))
-	if len(openAIData.Models) == 0 {
-		panic("no models returned for openai")
-	}
-
-	return &openAIData, nil
 }
 
 // parseModelsFile parses the models/text.go file and returns a list of outputData
@@ -297,14 +223,18 @@ func main() {
 	}
 
 	groupedData := struct {
-		Models     []outputData
+		Constants  []outputData
+		Literals   []outputData
 		Deprecated []outputData
 	}{}
 	for _, data := range formattedData {
-		if data.IsDeprecated {
+		switch {
+		case data.ConstantName != "":
+			groupedData.Constants = append(groupedData.Constants, data)
+		case data.IsDeprecated:
 			groupedData.Deprecated = append(groupedData.Deprecated, data)
-		} else {
-			groupedData.Models = append(groupedData.Models, data)
+		default:
+			groupedData.Literals = append(groupedData.Literals, data)
 		}
 	}
 
