@@ -134,7 +134,7 @@ func (tco ToolChoiceOption) MarshalJSON() ([]byte, error) {
 
 // Tool represents a tool that can be used by the model.
 type Tool struct {
-	// Type of tool: "function", "file_search", "web_search_preview", "computer_use_preview",
+	// Type of tool: "function", "file_search", "web_search", "computer_use_preview",
 	// "mcp", "local_shell", "code_interpreter"
 	Type string `json:"type"`
 
@@ -255,8 +255,8 @@ func (r *Registry) RegisterTool(tool Tool) error {
 			return fmt.Errorf("file_search tool '%s' requires vector_store_ids", tool.Name)
 		}
 
-	case "web_search_preview":
-		// Web search preview doesn't require additional fields
+	case "web_search":
+		// Web search doesn't require additional fields
 
 	case "computer_use_preview":
 		// Computer use preview can have display dimensions and environment
@@ -274,6 +274,10 @@ func (r *Registry) RegisterTool(tool Tool) error {
 	r.Lock()
 	defer r.Unlock()
 
+	name := tool.Name
+	if name == "" {
+		name = tool.Type
+	}
 	r.Tools[tool.Name] = tool
 
 	return nil

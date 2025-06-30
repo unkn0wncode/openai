@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"slices"
 	"time"
 
 	"github.com/unkn0wncode/openai/content/output"
@@ -29,6 +30,16 @@ func NewClient(config *openai.Config) *Client {
 	return &Client{Config: config}
 }
 
+// builtinTools is a list of tools that are built into the Responses API.
+var builtinTools = []string{
+	"web_search",
+	"file_search",
+	"computer_use_preview",
+	"mcp",
+	"local_shell",
+	"code_interpreter",
+}
+
 // interface compliance checks
 var _ responses.Service = (*Client)(nil)
 
@@ -45,6 +56,17 @@ func (c *Client) marshalRequest(data *responses.Request) ([]byte, error) {
 
 	var toolList []tools.Tool
 	for _, name := range data.Tools {
+		// if given tool is builtin, add it by type
+		if slices.Contains(builtinTools, name) {
+			for _, t := range c.Config.Tools.Tools {
+				if t.Type == name {
+					toolList = append(toolList, t)
+					break
+				}
+			}
+			continue
+		}
+
 		// try to get tool by name, if not found try to get function by name
 		t, ok := c.Config.Tools.GetTool(name)
 		if ok {

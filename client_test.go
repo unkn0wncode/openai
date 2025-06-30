@@ -337,3 +337,38 @@ func TestClient_Responses_BackgroundPolling(t *testing.T) {
 	require.NotEmpty(t, final.Texts())
 	t.Logf("Background poll texts: %v", final.JoinedTexts())
 }
+
+// TestClient_Responses_WebSearch checks the web_search tool usage in responses API.
+func TestClient_Responses_WebSearch(t *testing.T) {
+	c := NewClient(testToken)
+
+	c.Tools().RegisterTool(tools.Tool{
+		Type: "web_search",
+	})
+
+	// Prepare request forcing the use of web_search tool
+	req := responses.Request{
+		Model:      models.Default,
+		Input:      "What's the newest version of Golang?",
+		Tools:      []string{"web_search"},
+		ToolChoice: responses.ForceToolChoice("web_search", ""),
+		User:       "test-user",
+	}
+
+	resp, err := c.Responses.Send(&req)
+	require.NoError(t, err)
+	require.NotEmpty(t, resp)
+	require.NotEmpty(t, resp.ID)
+
+	// Ensure that the response includes a web_search_call output
+	require.NoError(t, resp.Parse())
+	var found bool
+	for _, o := range resp.ParsedOutputs {
+		if _, ok := o.(output.WebSearchCall); ok {
+			found = true
+			break
+		}
+	}
+	t.Logf("resp: %v", resp.Texts())
+	require.True(t, found, "expected web_search_call in response outputs")
+}
