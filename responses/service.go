@@ -307,7 +307,7 @@ func ForceToolChoice(toolType string, name string) json.RawMessage {
 		return json.RawMessage(fmt.Sprintf(`{"type": "function", "name": "%s"}`, name))
 	case "file_search":
 		return json.RawMessage(`{"type": "file_search"}`)
-	case "web_search":
+	case "web_search", "web_search_preview":
 		return json.RawMessage(`{"type": "web_search"}`)
 	case "computer_use_preview":
 		return json.RawMessage(`{"type": "computer_use_preview"}`)

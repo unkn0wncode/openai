@@ -33,6 +33,7 @@ func NewClient(config *openai.Config) *Client {
 // builtinTools is a list of tools that are built into the Responses API.
 var builtinTools = []string{
 	"web_search",
+	"web_search_preview",
 	"file_search",
 	"computer_use_preview",
 	"mcp",
