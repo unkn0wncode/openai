@@ -185,6 +185,15 @@ type Tool struct {
 	// Either "always", or "never", or MCPApprovalList.
 	RequireApproval any `json:"require_approval,omitempty"`
 
+	// Web search preview
+
+	// High level guidance for the amount of context window space to use for the search.
+	// One of low, medium, or high. medium is the default.
+	SearchContextSize string `json:"search_context_size,omitempty"`
+
+	// User location object
+	UserLocation *UserLocation `json:"user_location,omitempty"`
+
 	// fields for code_interpreter
 
 	// The code interpreter container. Can be a container ID or an object that specifies uploaded
@@ -193,6 +202,20 @@ type Tool struct {
 	// Note that the field itself is required but the list of IDs is optional:
 	//  {"type": "auto"}
 	Container any `json:"container,omitempty"`
+}
+
+// UserLocation represents a user's location.
+type UserLocation struct {
+	// Always `approximate`
+	Type string `json:"type"`
+	// Free text input for the city of the user, e.g. "San Francisco"
+	City string `json:"city,omitempty"`
+	// The two-letter ISO country code, e.g. "US"
+	Country string `json:"country,omitempty"`
+	// Free text input for the region of the user, e.g. "California"
+	Region string `json:"region,omitempty"`
+	// The timezone of the user, e.g. "America/Los_Angeles"
+	Timezone string `json:"timezone,omitempty"`
 }
 
 // MCPApprovalList is a list of MCP tool approval rules.
