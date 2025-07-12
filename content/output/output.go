@@ -477,9 +477,10 @@ func (c ComputerCallOutput) MarshalJSON() ([]byte, error) {
 
 // WebSearchCall describes a use of the web search tool.
 type WebSearchCall struct {
-	Type   string `json:"type"` // "web_search_call"
-	ID     string `json:"id"`
-	Status string `json:"status"` // "in_progress", "completed", "incomplete"
+	Type   string             `json:"type"` // "web_search_call"
+	ID     string             `json:"id"`
+	Status string             `json:"status"` // "in_progress", "completed", "incomplete"
+	Action AnyWebSearchAction `json:"action"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -487,6 +488,94 @@ type WebSearchCall struct {
 func (w WebSearchCall) MarshalJSON() ([]byte, error) {
 	w.Type = "web_search_call"
 	type alias WebSearchCall
+	return openai.Marshal(alias(w))
+}
+
+// AnyWebSearchAction is a union type for all possible web search actions.
+type AnyWebSearchAction struct {
+	Type string `json:"type"`
+	raw  json.RawMessage
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+// It extracts only the "type" field, then saves the raw JSON for later.
+func (a *AnyWebSearchAction) UnmarshalJSON(data []byte) error {
+	var tmp struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	a.Type = tmp.Type
+	a.raw = data
+	return nil
+}
+
+// UnmarshalToTarget unmarshals the action into a given target.
+func (a *AnyWebSearchAction) UnmarshalToTarget(target any) error {
+	return json.Unmarshal(a.raw, target)
+}
+
+// Unmarshal unmarshals the full action content into a type specified in the "type" field.
+func (a *AnyWebSearchAction) Unmarshal() (any, error) {
+	switch a.Type {
+	case "search":
+		return unmarshalToType[WebSearchActionSearch](a)
+	case "open_page":
+		return unmarshalToType[WebSearchActionOpenPage](a)
+	case "find":
+		return unmarshalToType[WebSearchActionFind](a)
+	default:
+		return nil, fmt.Errorf("unsupported web search action type: %s", a.Type)
+	}
+}
+
+// WebSearchActionSearch describes a search action.
+type WebSearchActionSearch struct {
+	// required
+
+	Type  string `json:"type"` // "search"
+	Query string `json:"query"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "search", discarding any prior value.
+func (w WebSearchActionSearch) MarshalJSON() ([]byte, error) {
+	w.Type = "search"
+	type alias WebSearchActionSearch
+	return openai.Marshal(alias(w))
+}
+
+// WebSearchActionOpenPage describes an open page action.
+type WebSearchActionOpenPage struct {
+	// required
+
+	Type string `json:"type"` // "open_page"
+	URL  string `json:"url"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "open_page", discarding any prior value.
+func (w WebSearchActionOpenPage) MarshalJSON() ([]byte, error) {
+	w.Type = "open_page"
+	type alias WebSearchActionOpenPage
+	return openai.Marshal(alias(w))
+}
+
+// WebSearchActionFind describes a find action.
+type WebSearchActionFind struct {
+	// required
+
+	Type    string `json:"type"` // "find"
+	URL     string `json:"url"`
+	Pattern string `json:"pattern"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "find", discarding any prior value.
+func (w WebSearchActionFind) MarshalJSON() ([]byte, error) {
+	w.Type = "find"
+	type alias WebSearchActionFind
 	return openai.Marshal(alias(w))
 }
 
