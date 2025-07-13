@@ -28,7 +28,7 @@ config.json
 *.dump
 
 # Datasets
-tiktoken/*
+tiktoken/
 *.dat
 
 # Debug output
