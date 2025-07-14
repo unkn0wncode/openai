@@ -31,6 +31,9 @@ type Service interface {
 	// Send sends a request to the Responses API.
 	Send(req *Request) (response *Response, err error)
 
+	// Stream sends a request with parameter "stream":true and returns a stream of events.
+	Stream(req *Request) (stream <-chan any, err error)
+
 	// NewMessage creates a new empty message.
 	NewMessage() *output.Message
 

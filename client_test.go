@@ -15,6 +15,7 @@ import (
 	"github.com/unkn0wncode/openai/content/output"
 	"github.com/unkn0wncode/openai/models"
 	"github.com/unkn0wncode/openai/responses"
+	"github.com/unkn0wncode/openai/responses/streaming"
 	"github.com/unkn0wncode/openai/roles"
 	"github.com/unkn0wncode/openai/tools"
 
@@ -371,4 +372,34 @@ func TestClient_Responses_WebSearch(t *testing.T) {
 	}
 	t.Logf("resp: %v", resp.Texts())
 	require.True(t, found, "expected web_search_call in response outputs")
+}
+
+func TestClient_Responses_Stream(t *testing.T) {
+	c := NewClient(testToken)
+
+	req := &responses.Request{
+		Model:  models.DefaultNano,
+		Input:  "Write a haiku about AI agents.",
+		Stream: true,
+	}
+
+	stream, err := c.Responses.Stream(req)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	outputText := ""
+	eventCount := 0
+	for event := range stream {
+		eventCount++
+		err, ok := event.(error)
+		require.False(t, ok, "got error from event stream: %v", err)
+
+		if text, ok := event.(streaming.ResponseOutputTextDone); ok {
+			outputText = text.Text
+			t.Logf("output text: %s", outputText)
+		}
+	}
+
+	require.NotZero(t, eventCount)
+	require.NotEmpty(t, outputText)
 }

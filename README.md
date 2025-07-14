@@ -123,6 +123,7 @@ fmt.Println(resp.JoinedTexts())
 
 The `client.Responses` exposes the following methods:
 - `Send` sends a given request to the API and returns response data focusing on outputs. It may run a sequence of requests if the response contains tool calls that can be handled automatically (by using tools and sending tool outputs to API) and then will return all outputs at once, except for already handled tool calls.
+- `Stream` sends a given request to the API and returns a stream of events. It can be used to read the response as it's being generated. See the Streaming section for details.
 - `Poll` polls a background response by ID until completion, failure, or context cancellation.
 - `NewRequest` creates a new empty request. It is only a shorthand to make the type `responses.Request` more easily discoverable. You can use the request type directly.
 - `NewMessage` creates a new empty message. It is only a shorthand to make the type `output.Message` more easily discoverable. You can use the message type directly.
@@ -262,6 +263,14 @@ Assistant: It's not normal for dogs to meow. (ID_3)
 ### Instructions
 
 Because the conversation context is managed automatically, it is possible for "system" messages to be trimmed out. This is why prompting in Responses API is done via a separate field: `responses.Request.Instructions`. This field is supposed to be supplied with each request and can be easily changed between requests within the same conversation if you want the model to change its behavior.
+
+### Streaming
+
+You can set `responses.Request.Stream` to `true` and use `responses.Response.Stream(req)` to get a stream of `any` events.
+
+In normal flow, you'll get a sequence of events with types from the `responses/streaming` package. If any error occurs during streaming, it will be sent to the same stream, and then the stream will be closed. Only streaming event types and errors can be sent in the stream. Successful termination of the stream is indicated by the stream closing with no error, `io.EOF` is ignored and not sent.
+
+Some event types have fields than may contain multiple different types of data. Such fields are left as `json.RawMessage` and mostly can be parsed further using types from the `output` package, but this is not done automatically.
 
 ## Chat API (Legacy)
 

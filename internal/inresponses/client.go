@@ -1,6 +1,7 @@
 package inresponses
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -17,6 +18,7 @@ import (
 	openai "github.com/unkn0wncode/openai/internal"
 	"github.com/unkn0wncode/openai/models"
 	"github.com/unkn0wncode/openai/responses"
+	"github.com/unkn0wncode/openai/responses/streaming"
 	"github.com/unkn0wncode/openai/tools"
 )
 
@@ -114,6 +116,10 @@ func (c *Client) executeRequest(data *responses.Request) (*response, error) {
 	// Check if we have input
 	if data.Input == nil {
 		return nil, fmt.Errorf("input is required")
+	}
+
+	if data.Stream {
+		return nil, fmt.Errorf("request has 'stream' parameter but was invoked with Send method, use Stream method instead")
 	}
 
 	b, err := c.marshalRequest(data)
@@ -545,4 +551,101 @@ func (c *Client) Poll(ctx context.Context, id string, interval time.Duration) (*
 		case <-time.After(interval):
 		}
 	}
+}
+
+// Stream sends a request with parameter "stream":true and returns a stream of events.
+func (c *Client) Stream(data *responses.Request) (<-chan any, error) {
+	if data == nil {
+		return nil, fmt.Errorf("request is nil")
+	}
+
+	if data.Model == "" {
+		data.Model = models.Default
+	}
+
+	// Check if we have input
+	if data.Input == nil {
+		return nil, fmt.Errorf("input is required")
+	}
+
+	if !data.Stream {
+		return nil, fmt.Errorf("request has no 'stream' parameter but was invoked with Stream method, use Send method instead")
+	}
+
+	b, err := c.marshalRequest(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, c.BaseAPI+"v1/responses", bytes.NewBuffer(b))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	c.AddHeaders(req)
+
+	var resp *http.Response
+	before := time.Now()
+	resp, err = c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+
+	// set up a reader that will read the response body by portions
+	reader := bufio.NewReader(resp.Body)
+
+	stream := make(chan any)
+	go func() {
+		defer resp.Body.Close()
+		defer close(stream)
+
+		eventCount := 0
+		defer func() {
+			duration := time.Since(before)
+			c.Config.Log.Debug(
+				fmt.Sprintf("Stream finished after %s, got %d events",
+					duration, eventCount),
+			)
+		}()
+
+		for {
+			chunk, err := reader.ReadBytes('\n')
+			switch {
+			case err == nil:
+			case errors.Is(err, io.EOF):
+				return
+			default:
+				stream <- err
+				return
+			}
+
+			// check what we got
+			switch {
+			case len(chunk) == 0, string(chunk) == "\n":
+				// separator between events, skip
+				continue
+			case bytes.HasPrefix(chunk, []byte("event: ")):
+				// event header with event type, skip
+				continue
+			case bytes.HasPrefix(chunk, []byte("data: ")):
+				// event data, handle
+			default:
+				// unexpected payload, return error
+				stream <- fmt.Errorf("unexpected payload: %s", string(chunk))
+				return
+			}
+
+			// trim prefix and unmarshal data
+			eventCount++
+			chunk = chunk[len("data: "):]
+			event, err := streaming.Unmarshal(chunk)
+			if err != nil {
+				stream <- fmt.Errorf("failed to unmarshal event data: %w", err)
+				return
+			}
+
+			stream <- event
+		}
+	}()
+
+	return stream, nil
 }
