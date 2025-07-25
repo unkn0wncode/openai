@@ -515,7 +515,7 @@ func (c *Client) Poll(ctx context.Context, id string, interval time.Duration) (*
 	}
 
 	for {
-		req, err := http.NewRequest(http.MethodGet, url, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create poll request: %w", err)
 		}
