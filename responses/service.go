@@ -11,6 +11,7 @@ import (
 
 	"github.com/unkn0wncode/openai/content/input"
 	"github.com/unkn0wncode/openai/content/output"
+	"github.com/unkn0wncode/openai/responses/streaming"
 )
 
 const (
@@ -31,8 +32,8 @@ type Service interface {
 	// Send sends a request to the Responses API.
 	Send(req *Request) (response *Response, err error)
 
-	// Stream sends a request with parameter "stream":true and returns a stream of events.
-	Stream(req *Request) (stream <-chan any, err error)
+	// Stream sends a request with parameter "stream":true and returns a streaming iterator.
+	Stream(ctx context.Context, req *Request) (*streaming.StreamIterator, error)
 
 	// NewMessage creates a new empty message.
 	NewMessage() *output.Message

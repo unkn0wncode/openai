@@ -383,23 +383,192 @@ func TestClient_Responses_Stream(t *testing.T) {
 		Stream: true,
 	}
 
-	stream, err := c.Responses.Stream(req)
+	stream, err := c.Responses.Stream(t.Context(), req)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 
 	outputText := ""
 	eventCount := 0
-	for event := range stream {
+	for stream.Next() {
 		eventCount++
-		err, ok := event.(error)
-		require.False(t, ok, "got error from event stream: %v", err)
+		event := stream.Event()
 
-		if text, ok := event.(streaming.ResponseOutputTextDone); ok {
-			outputText = text.Text
-			t.Logf("output text: %s", outputText)
+		switch e := event.(type) {
+		case streaming.ResponseOutputTextDelta:
+			outputText += e.Delta
+			t.Logf("text delta: %s", e.Delta)
+		case streaming.ResponseOutputTextDone:
+			t.Logf("streamed text: %s", e.Text)
 		}
 	}
 
+	require.NoError(t, stream.Err())
 	require.NotZero(t, eventCount)
 	require.NotEmpty(t, outputText)
+}
+
+func TestClient_Responses_Stream_ContextCancellation(t *testing.T) {
+	c := NewClient(testToken)
+
+	req := &responses.Request{
+		Model:  models.DefaultNano,
+		Input:  "Write a very long detailed essay about artificial intelligence, machine learning, and the future of technology. Make it at least 2000 words.",
+		Stream: true,
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	stream, err := c.Responses.Stream(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	eventCount := 0
+	for stream.Next() {
+		eventCount++
+
+		if eventCount == 5 {
+			cancel()
+		}
+
+		event := stream.Event()
+		if delta, ok := event.(streaming.ResponseOutputTextDelta); ok {
+			t.Logf("Received delta: %s", delta.Delta)
+		}
+	}
+
+	require.Error(t, stream.Err())
+	require.Equal(t, context.Canceled, stream.Err())
+	require.True(t, eventCount >= 5, "Should have received at least 5 events before cancellation")
+	t.Logf("Received %d events before cancellation", eventCount)
+}
+
+func TestClient_Responses_Stream_ContextCancellation_Range(t *testing.T) {
+	c := NewClient(testToken)
+
+	req := &responses.Request{
+		Model:  models.DefaultNano,
+		Input:  "Write a very long detailed essay about artificial intelligence, machine learning, and the future of technology. Make it at least 2000 words.",
+		Stream: true,
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	stream, err := c.Responses.Stream(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	eventCount := 0
+	for event := range stream.Chan() {
+		eventCount++
+
+		if eventCount == 5 {
+			cancel()
+		}
+
+		switch e := event.(type) {
+		case streaming.ResponseOutputTextDelta:
+			t.Logf("Received delta: %s", e.Delta)
+		case error:
+			require.Equal(t, context.Canceled, e)
+			t.Logf("Received expected cancellation error through channel after %d events", eventCount)
+		}
+	}
+
+	if stream.Err() != nil {
+		require.Equal(t, context.Canceled, stream.Err())
+		t.Logf("Cancellation error also available via Err()")
+	}
+}
+
+func TestClient_Responses_Stream_CollectText(t *testing.T) {
+	c := NewClient(testToken)
+
+	req := &responses.Request{
+		Model:  models.DefaultNano,
+		Input:  "Write a haiku about AI agents.",
+		Stream: true,
+	}
+
+	stream, err := c.Responses.Stream(t.Context(), req)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	var fullText string
+	for stream.Next() {
+		event := stream.Event()
+		if delta, ok := event.(streaming.ResponseOutputTextDelta); ok {
+			fullText += delta.Delta
+		}
+	}
+	require.NotEmpty(t, fullText)
+
+	t.Logf("collected text: %s", fullText)
+}
+
+func TestClient_Responses_Stream_Range(t *testing.T) {
+	c := NewClient(testToken)
+
+	req := &responses.Request{
+		Model:  models.DefaultNano,
+		Input:  "Write a haiku about AI agents.",
+		Stream: true,
+	}
+
+	stream, err := c.Responses.Stream(t.Context(), req)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	outputText := ""
+	eventCount := 0
+	for event := range stream.Chan() {
+		eventCount++
+
+		switch e := event.(type) {
+		case streaming.ResponseOutputTextDelta:
+			outputText += e.Delta
+			t.Logf("text delta: %s", e.Delta)
+		case streaming.ResponseOutputTextDone:
+			t.Logf("streamed text: %s", e.Text)
+		case error:
+			require.NoError(t, e)
+		}
+	}
+
+	require.NoError(t, stream.Err())
+	require.NotZero(t, eventCount)
+	require.NotEmpty(t, outputText)
+}
+
+func TestClient_Responses_Stream_All(t *testing.T) {
+	c := NewClient(testToken)
+
+	req := &responses.Request{
+		Model:  models.DefaultNano,
+		Input:  "Write a haiku about AI agents.",
+		Stream: true,
+	}
+
+	stream, err := c.Responses.Stream(t.Context(), req)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	events := stream.All()
+	require.NotEmpty(t, events)
+
+	var outputText string
+	textDeltaCount := 0
+	for _, event := range events {
+		if delta, ok := event.(streaming.ResponseOutputTextDelta); ok {
+			outputText += delta.Delta
+			textDeltaCount++
+		}
+	}
+
+	require.NoError(t, stream.Err())
+	require.NotZero(t, textDeltaCount)
+	require.NotEmpty(t, outputText)
+	t.Logf("Collected %d total events, %d text deltas", len(events), textDeltaCount)
+	t.Logf("Final text: %s", outputText)
 }

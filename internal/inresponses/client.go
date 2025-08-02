@@ -553,8 +553,9 @@ func (c *Client) Poll(ctx context.Context, id string, interval time.Duration) (*
 	}
 }
 
-// Stream sends a request with parameter "stream":true and returns a stream of events.
-func (c *Client) Stream(data *responses.Request) (<-chan any, error) {
+
+// streamEvents sends a request with parameter "stream":true and returns a stream of events as a channel.
+func (c *Client) streamEvents(ctx context.Context, data *responses.Request) (<-chan any, error) {
 	if data == nil {
 		return nil, fmt.Errorf("request is nil")
 	}
@@ -577,7 +578,7 @@ func (c *Client) Stream(data *responses.Request) (<-chan any, error) {
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, c.BaseAPI+"v1/responses", bytes.NewBuffer(b))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseAPI+"v1/responses", bytes.NewBuffer(b))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -590,8 +591,8 @@ func (c *Client) Stream(data *responses.Request) (<-chan any, error) {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 
-	// set up a reader that will read the response body by portions
-	reader := bufio.NewReader(resp.Body)
+	// Use 64KB buffer for better performance with streaming responses
+	reader := bufio.NewReaderSize(resp.Body, 64*1024)
 
 	stream := make(chan any)
 	go func() {
@@ -608,6 +609,13 @@ func (c *Client) Stream(data *responses.Request) (<-chan any, error) {
 		}()
 
 		for {
+			select {
+			case <-ctx.Done():
+				stream <- ctx.Err()
+				return
+			default:
+			}
+
 			chunk, err := reader.ReadBytes('\n')
 			switch {
 			case err == nil:
@@ -648,4 +656,13 @@ func (c *Client) Stream(data *responses.Request) (<-chan any, error) {
 	}()
 
 	return stream, nil
+}
+
+// Stream sends a request with parameter "stream":true and returns a streaming iterator.
+func (c *Client) Stream(ctx context.Context, req *responses.Request) (*streaming.StreamIterator, error) {
+	eventChan, err := c.streamEvents(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return streaming.NewStreamIterator(ctx, eventChan), nil
 }
