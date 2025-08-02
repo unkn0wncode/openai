@@ -64,10 +64,9 @@ func (s *Stream) Err() error {
 	return s.err
 }
 
-// Close closes the stream (no-op since we don't own the channel).
-func (s *Stream) Close() error {
+// Close closes the stream.
+func (s *Stream) Close() {
 	s.done = true
-	return nil
 }
 
 // StreamIterator provides both Next() iteration and channel-based iteration.
