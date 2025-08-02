@@ -89,14 +89,25 @@ func (s *StreamIterator) Chan() <-chan any {
 		defer close(ch)
 		defer func() { s.chanConsumed = true }()
 
-		for event := range s.eventChan {
-			if err, isErr := event.(error); isErr {
-				s.err = err
+		for {
+			select {
+			case event, ok := <-s.eventChan:
+				if !ok {
+					return
+				}
+				if err, isErr := event.(error); isErr {
+					s.err = err
+					s.done = true
+					ch <- err
+					return
+				}
+				ch <- event
+			case <-s.ctx.Done():
+				s.err = s.ctx.Err()
 				s.done = true
-				ch <- err
+				ch <- s.ctx.Err()
 				return
 			}
-			ch <- event
 		}
 	}()
 	return ch
@@ -106,6 +117,10 @@ func (s *StreamIterator) Chan() <-chan any {
 // This is a convenience method that consumes the entire stream.
 // After completion, check Err() for any errors that occurred.
 func (s *StreamIterator) All() []any {
+	if s.ctx.Err() != nil {
+		return nil
+	}
+
 	events := []any{}
 	for event := range s.Chan() {
 		events = append(events, event)
