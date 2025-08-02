@@ -572,3 +572,38 @@ func TestClient_Responses_Stream_All(t *testing.T) {
 	t.Logf("Collected %d total events, %d text deltas", len(events), textDeltaCount)
 	t.Logf("Final text: %s", outputText)
 }
+
+func TestClient_Responses_Stream_MultipleChan(t *testing.T) {
+	c := NewClient(testToken)
+
+	req := &responses.Request{
+		Model:  models.DefaultNano,
+		Input:  "Write a haiku about AI agents.",
+		Stream: true,
+	}
+
+	stream, err := c.Responses.Stream(t.Context(), req)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	ch1 := stream.Chan()
+	ch2 := stream.Chan()
+	ch3 := stream.Chan()
+
+	require.Equal(t, ch1, ch2, "Chan() should return same channel on multiple calls")
+	require.Equal(t, ch1, ch3, "Chan() should return same channel on multiple calls")
+
+	eventCount := 0
+	var outputText string
+	for event := range ch1 {
+		eventCount++
+		if delta, ok := event.(streaming.ResponseOutputTextDelta); ok {
+			outputText += delta.Delta
+		}
+	}
+
+	require.NoError(t, stream.Err())
+	require.NotZero(t, eventCount)
+	require.NotEmpty(t, outputText)
+	t.Logf("Multiple Chan() calls work correctly, got %d events", eventCount)
+}

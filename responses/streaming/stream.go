@@ -1,7 +1,10 @@
 // Package streaming provides a streaming iterator API for OpenAI Responses API.
 package streaming
 
-import "context"
+import (
+	"context"
+	"sync"
+)
 
 // Stream represents a streaming response iterator with a Next() method.
 type Stream struct {
@@ -70,7 +73,8 @@ func (s *Stream) Close() error {
 // StreamIterator provides both Next() iteration and channel-based iteration.
 type StreamIterator struct {
 	*Stream
-	chanConsumed bool // Track if channel has been consumed
+	chanOnce   sync.Once
+	outputChan chan any
 }
 
 // NewStreamIterator creates a new StreamIterator from a Stream.
@@ -84,33 +88,34 @@ func NewStreamIterator(ctx context.Context, eventChan <-chan any) *StreamIterato
 // This allows: for event := range stream.Chan() { ... }
 // Errors are sent through the channel AND stored for later access via Err().
 func (s *StreamIterator) Chan() <-chan any {
-	ch := make(chan any)
-	go func() {
-		defer close(ch)
-		defer func() { s.chanConsumed = true }()
+	s.chanOnce.Do(func() {
+		s.outputChan = make(chan any)
+		go func() {
+			defer close(s.outputChan)
 
-		for {
-			select {
-			case event, ok := <-s.eventChan:
-				if !ok {
-					return
-				}
-				if err, isErr := event.(error); isErr {
-					s.err = err
+			for {
+				select {
+				case event, ok := <-s.eventChan:
+					if !ok {
+						return
+					}
+					if err, isErr := event.(error); isErr {
+						s.err = err
+						s.done = true
+						s.outputChan <- err
+						return
+					}
+					s.outputChan <- event
+				case <-s.ctx.Done():
+					s.err = s.ctx.Err()
 					s.done = true
-					ch <- err
+					s.outputChan <- s.ctx.Err()
 					return
 				}
-				ch <- event
-			case <-s.ctx.Done():
-				s.err = s.ctx.Err()
-				s.done = true
-				ch <- s.ctx.Err()
-				return
 			}
-		}
-	}()
-	return ch
+		}()
+	})
+	return s.outputChan
 }
 
 // All collects all events from the stream into a slice.
