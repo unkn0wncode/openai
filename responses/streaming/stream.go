@@ -104,11 +104,14 @@ func (s *StreamIterator) Chan() <-chan any {
 						s.outputChan <- err
 						return
 					}
-					s.outputChan <- event
+					select {
+					case s.outputChan <- event:
+					case <-s.ctx.Done():
+						return
+					}
 				case <-s.ctx.Done():
 					s.err = s.ctx.Err()
 					s.done = true
-					s.outputChan <- s.ctx.Err()
 					return
 				}
 			}
