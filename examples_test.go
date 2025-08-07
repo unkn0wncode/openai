@@ -24,12 +24,13 @@ func TestExamples(t *testing.T) {
 	for _, dir := range exampleDirs {
 		name := strings.ReplaceAll(dir, string(filepath.Separator), "_")
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			cmd := exec.Command("go", "run", ".")
 			cmd.Dir = filepath.FromSlash(dir)
 			cmd.Env = append(os.Environ(), "OPENAI_API_KEY="+token)
 			output, err := cmd.CombinedOutput()
-			require.NoError(t, err)
 			t.Logf("example %s output:\n%s", dir, string(output))
+			require.NoError(t, err)
 		})
 	}
 }

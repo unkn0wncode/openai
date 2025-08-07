@@ -3,9 +3,9 @@ package models
 
 const (
 	Default                = Latest
-	DefaultMini            = GPT4QuasarMini
-	DefaultNano            = GPT4QuasarNano
-	Latest                 = GPT4Quasar
+	DefaultMini            = GPT5Mini
+	DefaultNano            = GPT5Nano
+	Latest                 = GPT5
 	GPT                    = "gpt-3.5-turbo"
 	GPTSnap                = "gpt-3.5-turbo-0125"
 	GPT4Vision             = "gpt-4-vision-preview"
@@ -36,6 +36,14 @@ const (
 	GPTO3Mini              = "o3-mini"
 	GPTO3Mini20250131      = "o3-mini-2025-01-31"
 	GPTO3                  = "o3"
+	GPT5                   = "gpt-5"
+	GPT5Mini               = "gpt-5-mini"
+	GPT5Nano               = "gpt-5-nano"
+	GPT5Chat               = "gpt-5-chat"
+	GPT520250807           = "gpt-5-2025-08-07"
+	GPT5Mini20250807       = "gpt-5-mini-2025-08-07"
+	GPT5Nano20250807       = "gpt-5-nano-2025-08-07"
+	GPT5Chat20250807       = "gpt-5-chat-2025-08-07"
 
 	// Deprecated or unused models
 	GPT45    = "gpt-4.5"
@@ -104,6 +112,14 @@ var Data = map[string]struct {
 	GPTO3Mini:              {0.00000110, 0.00000055, 0.00000440, 200000, 100000},
 	GPTO3Mini20250131:      {0.00000110, 0.00000055, 0.00000440, 200000, 100000},
 	GPTO3:                  {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
+	GPT5:                   {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
+	GPT5Mini:               {0.00000025, 0.00000003, 0.00000200, 400000, 128000},
+	GPT5Nano:               {0.00000005, 0.00000001, 0.00000040, 400000, 128000},
+	GPT5Chat:               {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
+	GPT520250807:           {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
+	GPT5Mini20250807:       {0.00000025, 0.00000003, 0.00000200, 400000, 128000},
+	GPT5Nano20250807:       {0.00000005, 0.00000001, 0.00000040, 400000, 128000},
+	GPT5Chat20250807:       {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
 	GPT45:                  {0.00006000, 0.00006000, 0.00018000, 8192, 4096},
 	GPT4564k:               {0.00012000, 0.00012000, 0.00036000, 64000, 4096},
 	GPT4:                   {0.00001000, 0.00000000, 0.00003000, 8192, 8192},

@@ -140,7 +140,7 @@ func TestClient_Assistants(t *testing.T) {
 	// Create a new assistant
 	assistant, err := c.Assistants.CreateAssistant(assistants.CreateParams{
 		Name:  "Test Assistant",
-		Model: models.DefaultNano,
+		Model: models.GPT4QuasarNano, // GPT-5 does not support assistants
 	})
 	require.NoError(t, err)
 	require.NotNil(t, assistant)
@@ -349,11 +349,10 @@ func TestClient_Responses_WebSearch(t *testing.T) {
 
 	// Prepare request forcing the use of web_search tool
 	req := responses.Request{
-		Model:      models.Default,
-		Input:      "What's the newest version of Golang?",
-		Tools:      []string{"web_search"},
-		ToolChoice: responses.ForceToolChoice("web_search", ""),
-		User:       "test-user",
+		Model: models.DefaultMini,
+		Input: "What's the newest version of Golang? Use web_search tool to check.",
+		Tools: []string{"web_search"}, // GPT-5 cannot force tool choice for web_search
+		User:  "test-user",
 	}
 
 	resp, err := c.Responses.Send(&req)
