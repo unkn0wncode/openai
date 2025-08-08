@@ -79,17 +79,22 @@ type Request struct {
 	Metadata           map[string]string `json:"metadata,omitempty"`             // Key-value pairs
 	ParallelToolCalls  *bool             `json:"parallel_tool_calls,omitempty"`  // Allow parallel tool calls, default true
 	PreviousResponseID string            `json:"previous_response_id,omitempty"` // ID of previous response
+	Prompt             *Prompt           `json:"prompt,omitempty"`               // Reference to a prompt template and its variables
+	PromptCacheKey     string            `json:"prompt_cache_key,omitempty"`     // Used for matching similar requests with cached input
 	Reasoning          *ReasoningConfig  `json:"reasoning,omitempty"`            // Reasoning configuration
+	SafetyIdentifier   string            `json:"safety_identifier,omitempty"`    // Stable unique identifier for end user, preferably anonymized
 	ServiceTier        string            `json:"service_tier,omitempty"`         // Service tier to use, default "auto"
 	Store              *bool             `json:"store,omitempty"`                // Whether to store the response, default true
 	Stream             bool              `json:"stream,omitempty"`               // Stream the response, default false
+	StreamOptions      *StreamOptions    `json:"stream_options,omitempty"`       // Streaming configuration
 	Temperature        float64           `json:"temperature,omitempty"`          // default 1
 	Text               *TextFormat       `json:"text,omitempty"`                 // Text format configuration
 	ToolChoice         json.RawMessage   `json:"tool_choice,omitempty"`          // default "auto", can be "none", "required", or an object
 	TopP               float64           `json:"top_p,omitempty"`                // default 1
 	Truncation         string            `json:"truncation,omitempty"`           // "auto" or "disabled"
-	User               string            `json:"user,omitempty"`                 // default ""
+	User               string            `json:"user,omitempty"`                 // Deprecated: use SafetyIdentifier and PromptCacheKey instead
 	Background         bool              `json:"background,omitempty"`           // if true, the API returns immediately with only a response ID
+	Verbosity          string            `json:"verbosity,omitempty"`            // "low", "medium", or "high", default "medium"
 
 	// names of tools/functions to include, will be marshaled as their full structs from tools registry
 	Tools []string `json:"-"`
@@ -125,6 +130,24 @@ func (data *Request) Clone() *Request {
 	// Copy any other reference types as needed
 
 	return &clone
+}
+
+// Prompt is a reference to a prompt template and its variables.
+type Prompt struct {
+	ID        string                     `json:"id"`
+	Variables map[string]json.RawMessage `json:"variables"`
+	Version   *string                    `json:"version"`
+}
+
+// StreamOptions is a set of options for streaming responses.
+type StreamOptions struct {
+	// Stream obfuscation adds random characters to an obfuscation field on streaming delta events
+	// to normalize payload sizes as a mitigation to certain side-channel attacks.
+	// These obfuscation fields are included by default, but add a small amount of overhead
+	// to the data stream.
+	// You can set include_obfuscation to false to optimize for bandwidth if you trust the network
+	// links between your application and the OpenAI API.
+	IncludeObfuscation bool `json:"include_obfuscation,omitempty"`
 }
 
 // Response is a wrapper for outputs returned from the Responses API.
@@ -286,7 +309,7 @@ func (r *Response) MCPApprovalRequests() []output.MCPApprovalRequest {
 
 // ReasoningConfig represents configuration options for reasoning models.
 type ReasoningConfig struct {
-	Effort          string `json:"effort,omitempty"`           // "low", "medium", or "high"
+	Effort          string `json:"effort,omitempty"`           // "minimal", "low", "medium", or "high"
 	GenerateSummary string `json:"generate_summary,omitempty"` // "concise" or "detailed"
 }
 
