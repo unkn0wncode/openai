@@ -671,7 +671,7 @@ type CustomToolCallOutput struct {
 }
 
 // MarshalJSON implements the json.Marshaler interface.
-// It fills in the "type" field with "custom_tool_output", discarding any prior value.
+// It fills in the "type" field with "custom_tool_call_output", discarding any prior value.
 func (c CustomToolCallOutput) MarshalJSON() ([]byte, error) {
 	c.Type = "custom_tool_call_output"
 	type alias CustomToolCallOutput
