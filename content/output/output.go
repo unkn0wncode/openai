@@ -65,6 +65,10 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[FunctionCall](a)
 	case "function_call_output":
 		return unmarshalToType[FunctionCallOutput](a)
+	case "custom_tool_call":
+		return unmarshalToType[CustomToolCall](a)
+	case "custom_tool_call_output":
+		return unmarshalToType[CustomToolCallOutput](a)
 	case "reasoning":
 		return unmarshalToType[Reasoning](a)
 	case "mcp_list_tools":
@@ -627,6 +631,51 @@ func (f FunctionCallOutput) MarshalJSON() ([]byte, error) {
 	f.Type = "function_call_output"
 	type alias FunctionCallOutput
 	return openai.Marshal(alias(f))
+}
+
+// CustomToolCall describes a use of a custom tool call.
+type CustomToolCall struct {
+	// required
+
+	Type   string `json:"type"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Input  string `json:"input"`
+	Status string `json:"status"`
+
+	// optional
+
+	CallID string `json:"call_id,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "custom_tool_call", discarding any prior value.
+func (c CustomToolCall) MarshalJSON() ([]byte, error) {
+	c.Type = "custom_tool_call"
+	type alias CustomToolCall
+	return openai.Marshal(alias(c))
+}
+
+// CustomToolCallOutput describes the output of a custom tool call.
+type CustomToolCallOutput struct {
+	// required
+
+	Type   string `json:"type"`
+	CallID string `json:"call_id"`
+	Output string `json:"output"`
+
+	// optional
+
+	ID     string `json:"id,omitempty"`
+	Status string `json:"status,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "custom_tool_call_output", discarding any prior value.
+func (c CustomToolCallOutput) MarshalJSON() ([]byte, error) {
+	c.Type = "custom_tool_call_output"
+	type alias CustomToolCallOutput
+	return openai.Marshal(alias(c))
 }
 
 // Reasoning describes model's internal thinking process.

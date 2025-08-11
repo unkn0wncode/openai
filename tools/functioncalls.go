@@ -151,6 +151,15 @@ type Tool struct {
 	// Underlying FunctionCall (not sent to API)
 	Function FunctionCall `json:"-"`
 
+	// fields for custom tools
+
+	// Custom tool execution handler. If nil, calls will be returned instead of executed.
+	Custom func(input string) (string, error) `json:"-"`
+
+	// Optional input format constraints for custom tools. Follows API schema.
+	// Use type "text" for unconstrained text, or type "grammar" with Syntax and Definition.
+	Format *CustomToolFormat `json:"format,omitempty"`
+
 	// fields for file_search
 
 	// Vector store IDs for file_search type
@@ -202,6 +211,14 @@ type Tool struct {
 	// Note that the field itself is required but the list of IDs is optional:
 	//  {"type": "auto"}
 	Container any `json:"container,omitempty"`
+}
+
+// CustomToolFormat represents the `format` object for custom tools.
+// When Type is "grammar", Syntax must be "lark" or "regex" and Definition must be set.
+type CustomToolFormat struct {
+	Type       string `json:"type"`
+	Syntax     string `json:"syntax,omitempty"`
+	Definition string `json:"definition,omitempty"`
 }
 
 // UserLocation represents a user's location.
@@ -272,6 +289,27 @@ func (r *Registry) RegisterTool(tool Tool) error {
 		r.CreateFunction(fc)
 		return nil
 
+	case "custom":
+		// Custom tools require name; description is optional per API
+		if tool.Name == "" {
+			return fmt.Errorf("custom tool name is required")
+		}
+		// Validate format when provided
+		if tool.Format != nil {
+			switch tool.Format.Type {
+			case "", "text":
+				// ok
+			case "grammar":
+				if tool.Format.Syntax != "regex" && tool.Format.Syntax != "lark" {
+					return fmt.Errorf("custom tool '%s' format.syntax must be 'regex' or 'lark'", tool.Name)
+				}
+				if tool.Format.Definition == "" {
+					return fmt.Errorf("custom tool '%s' format.definition is required for grammar type", tool.Name)
+				}
+			default:
+				return fmt.Errorf("custom tool '%s' format.type must be 'text' or 'grammar'", tool.Name)
+			}
+		}
 	case "file_search":
 		// File search tools require vector_store_ids
 		if len(tool.VectorStoreIDs) == 0 {
