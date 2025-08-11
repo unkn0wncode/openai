@@ -88,13 +88,12 @@ type Request struct {
 	Stream             bool              `json:"stream,omitempty"`               // Stream the response, default false
 	StreamOptions      *StreamOptions    `json:"stream_options,omitempty"`       // Streaming configuration
 	Temperature        float64           `json:"temperature,omitempty"`          // default 1
-	Text               *TextFormat       `json:"text,omitempty"`                 // Text format configuration
+	Text               *TextOptions      `json:"text,omitempty"`                 // Text format configuration
 	ToolChoice         json.RawMessage   `json:"tool_choice,omitempty"`          // default "auto", can be "none", "required", or an object
 	TopP               float64           `json:"top_p,omitempty"`                // default 1
 	Truncation         string            `json:"truncation,omitempty"`           // "auto" or "disabled"
 	User               string            `json:"user,omitempty"`                 // Deprecated: use SafetyIdentifier and PromptCacheKey instead
 	Background         bool              `json:"background,omitempty"`           // if true, the API returns immediately with only a response ID
-	Verbosity          string            `json:"verbosity,omitempty"`            // "low", "medium", or "high", default "medium"
 
 	// names of tools/functions to include, will be marshaled as their full structs from tools registry
 	Tools []string `json:"-"`
@@ -313,9 +312,10 @@ type ReasoningConfig struct {
 	GenerateSummary string `json:"generate_summary,omitempty"` // "concise" or "detailed"
 }
 
-// TextFormat represents the format configuration for text responses.
-type TextFormat struct {
-	Format TextFormatType `json:"format"`
+// TextOptions represents the format configuration for text responses.
+type TextOptions struct {
+	Format    TextFormatType `json:"format"`
+	Verbosity string         `json:"verbosity,omitempty"` // "low", "medium", or "high", default "medium"
 }
 
 // TextFormatType represents the type of text format.
