@@ -62,6 +62,8 @@ type Content interface {
 		output.WebSearchCall |
 		output.FunctionCall |
 		output.FunctionCallOutput |
+		output.CustomToolCall |
+		output.CustomToolCallOutput |
 		output.Reasoning |
 		input.ItemReference
 }
@@ -332,6 +334,8 @@ func ForceToolChoice(toolType string, name string) json.RawMessage {
 	switch toolType {
 	case "function":
 		return json.RawMessage(fmt.Sprintf(`{"type": "function", "name": "%s"}`, name))
+	case "custom":
+		return json.RawMessage(fmt.Sprintf(`{"type": "custom", "name": "%s"}`, name))
 	case "file_search":
 		return json.RawMessage(`{"type": "file_search"}`)
 	case "web_search", "web_search_preview":

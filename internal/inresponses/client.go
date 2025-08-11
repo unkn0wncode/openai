@@ -316,6 +316,14 @@ type executableFunctionCall struct {
 	F         func(params json.RawMessage) (string, error)
 }
 
+// executableCustomToolCall is an intermediate representation of a custom tool call that can be executed.
+type executableCustomToolCall struct {
+	Name   string
+	CallID string
+	Input  string
+	F      func(input string) (string, error)
+}
+
 // Send sends a request to the Responses API with custom data.
 // Returns the AI reply, request ID, and any error.
 func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
@@ -349,7 +357,9 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 	// First pass: analyze outputs and categorize them
 	var messages []output.Message
 	var executableCalls []executableFunctionCall
+	var executableCustomCalls []executableCustomToolCall
 	var returnableCalls []output.FunctionCall
+	var returnableCustomCalls []output.CustomToolCall
 	var otherOutputs []output.Any
 	var otherParsedOutputs []any
 
@@ -389,6 +399,31 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 				Arguments: []byte(o.Arguments),
 				F:         F,
 			})
+		case output.CustomToolCall:
+			if req.ReturnToolCalls {
+				returnableCustomCalls = append(returnableCustomCalls, o)
+				continue
+			}
+
+			// Get the tool by name from the registered tools
+			t, ok := c.Tools.GetTool(o.Name)
+			if !ok {
+				return nil, fmt.Errorf("tool '%s' is not registered", o.Name)
+			}
+			if t.Type != "custom" {
+				return nil, fmt.Errorf("tool '%s' is not a custom tool", o.Name)
+			}
+			if t.Custom == nil {
+				returnableCustomCalls = append(returnableCustomCalls, o)
+				continue
+			}
+
+			executableCustomCalls = append(executableCustomCalls, executableCustomToolCall{
+				Name:   o.Name,
+				CallID: o.CallID,
+				Input:  o.Input,
+				F:      t.Custom,
+			})
 		default:
 			otherOutputs = append(otherOutputs, resp.Outputs[i])
 			otherParsedOutputs = append(otherParsedOutputs, o)
@@ -397,15 +432,15 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 
 	switch {
 	// Case 1: All outputs are messages/other outputs
-	case len(executableCalls) == 0 && len(returnableCalls) == 0:
+	case len(executableCalls) == 0 && len(executableCustomCalls) == 0 && len(returnableCalls) == 0 && len(returnableCustomCalls) == 0:
 		return resp, nil
 
-	// Case 2: Any returnable function calls present
-	case len(returnableCalls) > 0:
+	// Case 2: Any returnable function/custom calls present
+	case len(returnableCalls) > 0 || len(returnableCustomCalls) > 0:
 		return resp, nil
 
-	// Case 3: Mix of messages and executable function calls
-	case len(executableCalls) > 0:
+	// Case 3: Mix of messages and executable function/custom calls
+	case len(executableCalls) > 0 || len(executableCustomCalls) > 0:
 		// Handle messages with intermediate handler if set
 		if req.IntermediateMessageHandler != nil {
 			for _, msg := range messages {
@@ -413,29 +448,51 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 			}
 		}
 
-		// Execute function calls and collect outputs
-		var toolOutputs []output.FunctionCallOutput
+		// Execute calls and collect outputs (mixed types)
+		var toolOutputs []output.Any
+		// function calls
 		for _, call := range executableCalls {
 			fResult, err := call.F(call.Arguments)
 			switch {
 			case err == nil:
 			case errors.Is(err, tools.ErrDoNotRespond):
-				// here we return ID despite error
-				// because this error indicates intended behavior
 				return resp, nil
 			default:
-				return nil, fmt.Errorf(
-					"failed to execute function '%s': %w",
-					call.Name, err,
-				)
+				return nil, fmt.Errorf("failed to execute function '%s': %w", call.Name, err)
 			}
-
-			// Add the tool output that will be sent in a follow-up request
-			toolOutputs = append(toolOutputs, output.FunctionCallOutput{
+			// Add function_call_output
+			var anyOut output.Any
+			b, _ := json.Marshal(output.FunctionCallOutput{
 				Type:   "function_call_output",
 				CallID: call.CallID,
 				Output: fResult,
 			})
+			if err := json.Unmarshal(b, &anyOut); err != nil {
+				return nil, fmt.Errorf("failed to prepare function_call_output: %w", err)
+			}
+			toolOutputs = append(toolOutputs, anyOut)
+		}
+		// custom tool calls
+		for _, call := range executableCustomCalls {
+			fResult, err := call.F(call.Input)
+			switch {
+			case err == nil:
+			case errors.Is(err, tools.ErrDoNotRespond):
+				return resp, nil
+			default:
+				return nil, fmt.Errorf("failed to execute custom tool '%s': %w", call.Name, err)
+			}
+			// Add custom_tool_call_output
+			var anyOut output.Any
+			b, _ := json.Marshal(output.CustomToolCallOutput{
+				Type:   "custom_tool_call_output",
+				CallID: call.CallID,
+				Output: fResult,
+			})
+			if err := json.Unmarshal(b, &anyOut); err != nil {
+				return nil, fmt.Errorf("failed to prepare custom_tool_call_output: %w", err)
+			}
+			toolOutputs = append(toolOutputs, anyOut)
 		}
 
 		// we have tool outputs, send them in a follow-up request
@@ -552,7 +609,6 @@ func (c *Client) Poll(ctx context.Context, id string, interval time.Duration) (*
 		}
 	}
 }
-
 
 // streamEvents sends a request with parameter "stream":true and returns a stream of events as a channel.
 func (c *Client) streamEvents(ctx context.Context, data *responses.Request) (<-chan any, error) {
