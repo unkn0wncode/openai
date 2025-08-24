@@ -29,7 +29,7 @@ func main() {
 
 	req := responses.Request{
 		Model: models.Default,
-		Text: &responses.TextFormat{
+		Text: &responses.TextOptions{
 			Format: responses.TextFormatType{
 				Type:   "json_schema",
 				Schema: schema,

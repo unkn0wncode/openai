@@ -275,7 +275,7 @@ func TestClient_Responses_jsonSchema(t *testing.T) {
 
 	req := responses.Request{
 		Model: models.Default,
-		Text: &responses.TextFormat{
+		Text: &responses.TextOptions{
 			Format: responses.TextFormatType{
 				Type: responses.TextFormatTypeJSONSchema,
 				Schema: json.RawMessage(`{
