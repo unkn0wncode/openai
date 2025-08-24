@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/unkn0wncode/openai"
 	"github.com/unkn0wncode/openai/models"
@@ -17,6 +18,7 @@ func main() {
 	}
 
 	client := openai.NewClient(token)
+	client.Config().HTTPClient.Timeout = 60 * time.Second
 
 	if err := client.Tools().RegisterTool(tools.Tool{Type: "web_search"}); err != nil {
 		panic(err)

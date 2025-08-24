@@ -141,6 +141,10 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[ResponseReasoningSummaryDelta](a)
 	case "response.reasoning_summary.done":
 		return unmarshalToType[ResponseReasoningSummaryDone](a)
+	case "response.custom_tool_call_input.delta":
+		return unmarshalToType[ResponseCustomToolCallInputDelta](a)
+	case "response.custom_tool_call_input.done":
+		return unmarshalToType[ResponseCustomToolCallInputDone](a)
 	case "error":
 		return unmarshalToType[Error](a)
 	default:
@@ -368,8 +372,16 @@ type (
 			Text string `json:"text"`
 		} `json:"delta"`
 	}
-	ResponseReasoningSummaryDone ResponseReasoningSummaryTextDone // same fields // response.reasoning_summary.done
-	Error                        struct {                         // error
+	ResponseReasoningSummaryDone     ResponseReasoningSummaryTextDone // same fields // response.reasoning_summary.done
+	ResponseCustomToolCallInputDelta struct {                         // response.custom_tool_call_input.delta
+		OutputItemReference
+		Delta string `json:"delta"`
+	}
+	ResponseCustomToolCallInputDone struct { // response.custom_tool_call_input.done
+		OutputItemReference
+		Input string `json:"input"`
+	}
+	Error struct { // error
 		BaseEvent
 		Message string  `json:"message"`
 		Code    string  `json:"code"`

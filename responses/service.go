@@ -62,6 +62,8 @@ type Content interface {
 		output.WebSearchCall |
 		output.FunctionCall |
 		output.FunctionCallOutput |
+		output.CustomToolCall |
+		output.CustomToolCallOutput |
 		output.Reasoning |
 		input.ItemReference
 }
@@ -240,6 +242,21 @@ func (r *Response) FunctionCalls() []output.FunctionCall {
 	return functionCalls
 }
 
+// CustomToolCalls returns a slice of CustomToolCall objects from the response.
+func (r *Response) CustomToolCalls() []output.CustomToolCall {
+	if r.ParsedOutputs == nil {
+		r.Parse() // ignored error check here
+	}
+
+	var customFunctionCalls []output.CustomToolCall
+	for _, o := range r.ParsedOutputs {
+		if call, ok := o.(output.CustomToolCall); ok {
+			customFunctionCalls = append(customFunctionCalls, call)
+		}
+	}
+	return customFunctionCalls
+}
+
 // Refusals returns a slice of Refusal objects from the response.
 func (r *Response) Refusals() []string {
 	if r.ParsedOutputs == nil {
@@ -332,6 +349,8 @@ func ForceToolChoice(toolType string, name string) json.RawMessage {
 	switch toolType {
 	case "function":
 		return json.RawMessage(fmt.Sprintf(`{"type": "function", "name": "%s"}`, name))
+	case "custom":
+		return json.RawMessage(fmt.Sprintf(`{"type": "custom", "name": "%s"}`, name))
 	case "file_search":
 		return json.RawMessage(`{"type": "file_search"}`)
 	case "web_search", "web_search_preview":

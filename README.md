@@ -199,6 +199,8 @@ According to the docs, the following types are allowed in `responses.Request.Inp
   - `output.WebSearchCall`
   - `output.FunctionCall`
   - `output.FunctionCallOutput`
+  - `output.CustomToolCall`
+  - `output.CustomToolCallOutput`
   - `output.Reasoning`
   - `output.MCPListTools`
   - `output.MCPApprovalRequest`
@@ -221,6 +223,7 @@ Possible output types in the `responses.Response.ParsedOutputs` slice are:
   - `output.Refusal`
 - `output.FileSearchCall`
 - `output.FunctionCall`
+- `output.CustomToolCall`
 - `output.WebSearchCall`
 - `output.ComputerCall`
 - `output.Reasoning`
@@ -240,6 +243,7 @@ You can simply iterate over the outputs and type-assert each, but also there are
 - `Response.FirstText() string` returns the first text output in the response, or an empty string if there are no text outputs.
 - `Response.LastText() string` returns the last text output in the response, or an empty string if there are no text outputs.
 - `Response.FunctionCalls() []output.FunctionCall` returns all function calls from the response's top level.
+- `Response.CustomToolCalls() []output.CustomToolCall` returns all custom tool calls from the response's top level.
 - `Response.Refusals() []string` returns all refusals texts from output messages.
 
 ### Chaining requests with PreviousResponseID

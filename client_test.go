@@ -373,6 +373,69 @@ func TestClient_Responses_WebSearch(t *testing.T) {
 	require.True(t, found, "expected web_search_call in response outputs")
 }
 
+func TestClient_Responses_CustomToolAuto(t *testing.T) {
+	c := NewClient(testToken)
+
+	err := c.Tools().RegisterTool(tools.Tool{
+		Type:        "custom",
+		Name:        "submit_word",
+		Description: "Play a turn in a word game",
+	})
+	require.NoError(t, err)
+
+	req := responses.Request{
+		Model:        models.DefaultNano,
+		Instructions: "Play a word game with the user: use a tool to submit a word starting with the last letter of the word from user's turn",
+		Input:        "Apple",
+		Tools:        []string{"submit_word"},
+	}
+
+	resp, err := c.Responses.Send(&req)
+	require.NoError(t, err)
+	require.NotEmpty(t, resp)
+	require.NotEmpty(t, resp.ID)
+	require.NotEmpty(t, resp.ParsedOutputs)
+	toolCalls := resp.CustomToolCalls()
+	require.Len(t, toolCalls, 1)
+	require.Equal(t, "submit_word", toolCalls[0].Name)
+	require.NotEmpty(t, toolCalls[0].Input)
+	t.Logf("tool called with input: %s", toolCalls[0].Input)
+}
+
+func TestClient_Responses_CustomToolRegex(t *testing.T) {
+	c := NewClient(testToken)
+
+	err := c.Tools().RegisterTool(tools.Tool{
+		Type:        "custom",
+		Name:        "submit_word",
+		Description: "Play a turn in a word game",
+		Format: &tools.CustomToolFormat{
+			Type:       "grammar",
+			Syntax:     "regex",
+			Definition: "^[a-zA-Z]+$",
+		},
+	})
+	require.NoError(t, err)
+
+	req := responses.Request{
+		Model:        models.DefaultNano,
+		Instructions: "Play a word game with the user: use a tool to submit a word starting with the last letter of the word from user's turn",
+		Input:        "Apple",
+		Tools:        []string{"submit_word"},
+	}
+
+	resp, err := c.Responses.Send(&req)
+	require.NoError(t, err)
+	require.NotEmpty(t, resp)
+	require.NotEmpty(t, resp.ID)
+	require.NotEmpty(t, resp.ParsedOutputs)
+	toolCalls := resp.CustomToolCalls()
+	require.Len(t, toolCalls, 1)
+	require.Equal(t, "submit_word", toolCalls[0].Name)
+	require.NotEmpty(t, toolCalls[0].Input)
+	t.Logf("tool called with input: %s", toolCalls[0].Input)
+}
+
 func TestClient_Responses_Stream(t *testing.T) {
 	c := NewClient(testToken)
 
