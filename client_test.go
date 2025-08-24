@@ -395,21 +395,11 @@ func TestClient_Responses_CustomToolAuto(t *testing.T) {
 	require.NotEmpty(t, resp)
 	require.NotEmpty(t, resp.ID)
 	require.NotEmpty(t, resp.ParsedOutputs)
-	toolCalled := false
-	for _, o := range resp.ParsedOutputs {
-		toolCall, ok := o.(output.CustomToolCall)
-		if !ok {
-			t.Logf("output of type %T when expected output.CustomToolCall: %#v", o, o)
-			continue
-		}
-
-		toolCalled = true
-		require.Equal(t, "submit_word", toolCall.Name)
-		require.NotEmpty(t, toolCall.Input)
-		t.Logf("tool called with input: %s", toolCall.Input)
-		break
-	}
-	require.True(t, toolCalled, "expected tool to be called")
+	toolCalls := resp.CustomToolCalls()
+	require.Len(t, toolCalls, 1)
+	require.Equal(t, "submit_word", toolCalls[0].Name)
+	require.NotEmpty(t, toolCalls[0].Input)
+	t.Logf("tool called with input: %s", toolCalls[0].Input)
 }
 
 func TestClient_Responses_CustomToolRegex(t *testing.T) {
@@ -439,21 +429,11 @@ func TestClient_Responses_CustomToolRegex(t *testing.T) {
 	require.NotEmpty(t, resp)
 	require.NotEmpty(t, resp.ID)
 	require.NotEmpty(t, resp.ParsedOutputs)
-	toolCalled := false
-	for _, o := range resp.ParsedOutputs {
-		toolCall, ok := o.(output.CustomToolCall)
-		if !ok {
-			t.Logf("output of type %T when expected output.CustomToolCall: %#v", o, o)
-			continue
-		}
-
-		toolCalled = true
-		require.Equal(t, "submit_word", toolCall.Name)
-		require.NotEmpty(t, toolCall.Input)
-		t.Logf("tool called with input: %s", toolCall.Input)
-		break
-	}
-	require.True(t, toolCalled, "expected tool to be called")
+	toolCalls := resp.CustomToolCalls()
+	require.Len(t, toolCalls, 1)
+	require.Equal(t, "submit_word", toolCalls[0].Name)
+	require.NotEmpty(t, toolCalls[0].Input)
+	t.Logf("tool called with input: %s", toolCalls[0].Input)
 }
 
 func TestClient_Responses_Stream(t *testing.T) {
