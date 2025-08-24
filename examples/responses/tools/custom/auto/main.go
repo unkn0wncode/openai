@@ -42,7 +42,7 @@ func main() {
 	}
 
 	req := responses.Request{
-		Model: models.GPT5,
+		Model: models.GPT5Mini,
 		Input: "Search for golang tips using the notes_search tool and summarize what you find.",
 		Tools: []string{"notes_search"},
 	}

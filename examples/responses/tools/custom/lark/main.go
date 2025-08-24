@@ -30,6 +30,7 @@ func main() {
 		Description: "Evaluates arithmetic expressions.",
 		Format:      larkFormat,
 		Custom: func(input string) (string, error) {
+			fmt.Println("Tool called with input:", input)
 			return fmt.Sprintf("evaluated: %s", input), nil
 		},
 	}); err != nil {
@@ -37,7 +38,7 @@ func main() {
 	}
 
 	req := responses.Request{
-		Model: models.GPT5,
+		Model: models.GPT5Mini,
 		Input: "Use calc to compute (2+3)*4.",
 		Tools: []string{"calc"},
 	}

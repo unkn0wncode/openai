@@ -30,6 +30,7 @@ func main() {
 		Description: "Executes a constrained SQL SELECT statement.",
 		Format:      regexFormat,
 		Custom: func(input string) (string, error) {
+			fmt.Println("Called tool with input:", input)
 			return fmt.Sprintf("ran: %s", input), nil
 		},
 	}); err != nil {
@@ -37,7 +38,7 @@ func main() {
 	}
 
 	req := responses.Request{
-		Model: models.GPT5,
+		Model: models.GPT5Mini,
 		Input: "Use sql_runner to select user_name from users where id=1;",
 		Tools: []string{"sql_runner"},
 	}
