@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 
@@ -35,7 +36,7 @@ func main() {
 			if content, found := notes[query]; found {
 				return fmt.Sprintf("Found note '%s': %s", query, content), nil
 			}
-			return fmt.Sprintf("No note found for '%s'. Available: %v", query, getKeys(notes)), nil
+			return fmt.Sprintf("No note found for '%s'. Available: %v", query, maps.Keys(notes)), nil
 		},
 	}); err != nil {
 		panic(err)
@@ -53,12 +54,4 @@ func main() {
 	}
 
 	fmt.Println("Response:", resp.JoinedTexts())
-}
-
-func getKeys(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }
