@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/unkn0wncode/openai"
 	"github.com/unkn0wncode/openai/models"
@@ -18,6 +19,7 @@ func main() {
 	}
 
 	client := openai.NewClient(token)
+	client.Config().HTTPClient.Timeout = 60 * time.Second
 
 	req := &responses.Request{
 		Model:  models.DefaultNano,
