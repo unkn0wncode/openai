@@ -456,7 +456,7 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 			switch {
 			case err == nil:
 			case errors.Is(err, tools.ErrDoNotRespond):
-				// here we return ID despite error
+				// Here we return ID despite error
 				return resp, nil
 			default:
 				return nil, fmt.Errorf("failed to execute function '%s': %w", call.Name, err)
@@ -479,7 +479,6 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 			switch {
 			case err == nil:
 			case errors.Is(err, tools.ErrDoNotRespond):
-				// Tool requested no further model reply. See note above for rationale.
 				return resp, nil
 			default:
 				return nil, fmt.Errorf("failed to execute custom tool '%s': %w", call.Name, err)
