@@ -456,7 +456,7 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 			switch {
 			case err == nil:
 			case errors.Is(err, tools.ErrDoNotRespond):
-				// Here we return ID despite error
+				// Here we return ID despite error because this error indicates intended behavior
 				return resp, nil
 			default:
 				return nil, fmt.Errorf("failed to execute function '%s': %w", call.Name, err)
