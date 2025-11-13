@@ -197,7 +197,7 @@ type response struct {
 	Status            string `json:"status"`     // "completed", "failed", "in_progress", or "incomplete"
 	Error             any    `json:"error"`      // Error object with code and message
 	IncompleteDetails any    `json:"incomplete_details"`
-	Instructions      string `json:"instructions"`
+	Instructions      any    `json:"instructions"` // string, []output.Any
 	MaxOutputTokens   int    `json:"max_output_tokens"`
 	Model             string `json:"model"`
 

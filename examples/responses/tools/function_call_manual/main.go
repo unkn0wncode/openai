@@ -35,8 +35,8 @@ func main() {
 
 	// Ask the model to use the function
 	req := responses.Request{
-		Model:           models.Default,
-		Input:           "Please echo back the word 'hello'.",
+		Model:           models.DefaultNano,
+		Input:           "Please echo back the word 'hello' using the echo function.",
 		Tools:           []string{"echo"},
 		ReturnToolCalls: true, // important: do not auto-execute
 		User:            "manual-example",
