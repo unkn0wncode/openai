@@ -13,7 +13,7 @@ import (
 // Config contains configuration options for the OpenAI client.
 type Config struct {
 	// mutex is actually not used but protects other fields from copying by value
-	mux sync.Mutex
+	_ sync.Mutex
 
 	// BaseAPI is the base URL for OpenAI API endpoints
 	BaseAPI    string
