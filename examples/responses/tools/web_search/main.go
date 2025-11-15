@@ -25,10 +25,13 @@ func main() {
 	}
 
 	req := responses.Request{
-		Model: models.DefaultMini,
+		Model: models.Default,
 		Input: "What's the newest version of Golang? Use web_search tool to check.",
 		Tools: []string{"web_search"}, // GPT-5 cannot force tool choice for web_search
-		User:  "example-user",
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
+		User: "example-user",
 	}
 
 	resp, err := client.Responses.Send(&req)

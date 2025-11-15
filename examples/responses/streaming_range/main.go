@@ -20,8 +20,11 @@ func main() {
 	client := openai.NewClient(token)
 
 	req := &responses.Request{
-		Model:  models.DefaultNano,
-		Input:  "Write a 1000-character long Lorem Ipsum text.",
+		Model: models.Default,
+		Input: "Write a 1000-character long Lorem Ipsum text.",
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
 		Stream: true,
 	}
 
