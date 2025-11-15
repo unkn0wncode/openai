@@ -10,7 +10,7 @@ jobs:
   check-models:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
       - name: check-models
         env:
             OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
