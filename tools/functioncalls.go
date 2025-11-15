@@ -335,10 +335,6 @@ func (r *Registry) RegisterTool(tool Tool) error {
 	r.Lock()
 	defer r.Unlock()
 
-	name := tool.Name
-	if name == "" {
-		name = tool.Type
-	}
 	r.Tools[tool.Name] = tool
 
 	return nil
