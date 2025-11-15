@@ -146,6 +146,7 @@ There are a few concepts in the Responses API that may need further explanation:
 - Input/output types, such as in `responses.Request.Input` and `output.Message.Content` fields.
 - `responses.Request.PreviousResponseID` field that can be filled with `responses.Response.ID` for chaining requests with automatically managed context.
 - `responses.Request.Instructions` field that replaces system messages previously used in the Chat API.
+- Prompt caching configuration via `responses.Request.PromptCacheKey` and `responses.Request.PromptCacheRetention` (for GPT-5.1+ you can set `"24h"` to enable extended caching).
 - Our additional fields in the `responses.Request` type, such as `responses.Request.IntermediateMessageHandler`.
 
 ### Inputs
@@ -208,6 +209,10 @@ According to the docs, the following types are allowed in `responses.Request.Inp
   - `output.MCPCall`
   - `output.LocalShellCall`
   - `output.LocalShellCallOutput`
+  - `output.ApplyPatchCall`
+  - `output.ApplyPatchCallOutput`
+  - `output.ShellCall`
+  - `output.ShellCallOutput`
   - `output.CodeInterpreterCall`, with its `Results` being a slice of the following types (mixed):
     - `output.CodeInterpreterResultText`
     - `output.CodeInterpreterResultFile`
@@ -233,6 +238,10 @@ Possible output types in the `responses.Response.ParsedOutputs` slice are:
 - `output.MCPCall`
 - `output.LocalShellCall`
 - `output.LocalShellCallOutput`
+- `output.ApplyPatchCall`
+- `output.ApplyPatchCallOutput`
+- `output.ShellCall`
+- `output.ShellCallOutput`
 - `output.CodeInterpreterCall`, with its `Results` being a slice of the following types (mixed):
   - `output.CodeInterpreterResultText`
   - `output.CodeInterpreterResultFile`

@@ -65,6 +65,10 @@ type Content interface {
 		output.CustomToolCall |
 		output.CustomToolCallOutput |
 		output.Reasoning |
+		output.ApplyPatchCall |
+		output.ApplyPatchCallOutput |
+		output.ShellCall |
+		output.ShellCallOutput |
 		input.ItemReference
 }
 
@@ -75,27 +79,28 @@ type Request struct {
 	Input any    `json:"input"` // string or []Any
 
 	// Optional
-	Include            []string          `json:"include,omitempty"`              // Additional data to include in response: "file_search_call.results", "message.input_image.image_url", "computer_call_output.output.image_url"
-	Instructions       string            `json:"instructions,omitempty"`         // System message for context
-	MaxOutputTokens    int               `json:"max_output_tokens,omitempty"`    // Max tokens to generate
-	Metadata           map[string]string `json:"metadata,omitempty"`             // Key-value pairs
-	ParallelToolCalls  *bool             `json:"parallel_tool_calls,omitempty"`  // Allow parallel tool calls, default true
-	PreviousResponseID string            `json:"previous_response_id,omitempty"` // ID of previous response
-	Prompt             *Prompt           `json:"prompt,omitempty"`               // Reference to a prompt template and its variables
-	PromptCacheKey     string            `json:"prompt_cache_key,omitempty"`     // Used for matching similar requests with cached input
-	Reasoning          *ReasoningConfig  `json:"reasoning,omitempty"`            // Reasoning configuration
-	SafetyIdentifier   string            `json:"safety_identifier,omitempty"`    // Stable unique identifier for end user, preferably anonymized
-	ServiceTier        string            `json:"service_tier,omitempty"`         // Service tier to use, default "auto"
-	Store              *bool             `json:"store,omitempty"`                // Whether to store the response, default true
-	Stream             bool              `json:"stream,omitempty"`               // Stream the response, default false
-	StreamOptions      *StreamOptions    `json:"stream_options,omitempty"`       // Streaming configuration
-	Temperature        float64           `json:"temperature,omitempty"`          // default 1
-	Text               *TextOptions      `json:"text,omitempty"`                 // Text format configuration
-	ToolChoice         json.RawMessage   `json:"tool_choice,omitempty"`          // default "auto", can be "none", "required", or an object
-	TopP               float64           `json:"top_p,omitempty"`                // default 1
-	Truncation         string            `json:"truncation,omitempty"`           // "auto" or "disabled"
-	User               string            `json:"user,omitempty"`                 // Deprecated: use SafetyIdentifier and PromptCacheKey instead
-	Background         bool              `json:"background,omitempty"`           // if true, the API returns immediately with only a response ID
+	Include              []string          `json:"include,omitempty"`                // Additional data to include in response: "file_search_call.results", "message.input_image.image_url", "computer_call_output.output.image_url"
+	Instructions         string            `json:"instructions,omitempty"`           // System message for context
+	MaxOutputTokens      int               `json:"max_output_tokens,omitempty"`      // Max tokens to generate
+	Metadata             map[string]string `json:"metadata,omitempty"`               // Key-value pairs
+	ParallelToolCalls    *bool             `json:"parallel_tool_calls,omitempty"`    // Allow parallel tool calls, default true
+	PreviousResponseID   string            `json:"previous_response_id,omitempty"`   // ID of previous response
+	Prompt               *Prompt           `json:"prompt,omitempty"`                 // Reference to a prompt template and its variables
+	PromptCacheKey       string            `json:"prompt_cache_key,omitempty"`       // Used for matching similar requests with cached input
+	PromptCacheRetention string            `json:"prompt_cache_retention,omitempty"` // Prompt cache retention policy: "in_memory" (default) or "24h"
+	Reasoning            *ReasoningConfig  `json:"reasoning,omitempty"`              // Reasoning configuration
+	SafetyIdentifier     string            `json:"safety_identifier,omitempty"`      // Stable unique identifier for end user, preferably anonymized
+	ServiceTier          string            `json:"service_tier,omitempty"`           // Service tier to use, default "auto"
+	Store                *bool             `json:"store,omitempty"`                  // Whether to store the response, default true
+	Stream               bool              `json:"stream,omitempty"`                 // Stream the response, default false
+	StreamOptions        *StreamOptions    `json:"stream_options,omitempty"`         // Streaming configuration
+	Temperature          float64           `json:"temperature,omitempty"`            // default 1
+	Text                 *TextOptions      `json:"text,omitempty"`                   // Text format configuration
+	ToolChoice           json.RawMessage   `json:"tool_choice,omitempty"`            // default "auto", can be "none", "required", or an object
+	TopP                 float64           `json:"top_p,omitempty"`                  // default 1
+	Truncation           string            `json:"truncation,omitempty"`             // "auto" or "disabled"
+	User                 string            `json:"user,omitempty"`                   // Deprecated: use SafetyIdentifier and PromptCacheKey instead
+	Background           bool              `json:"background,omitempty"`             // if true, the API returns immediately with only a response ID
 
 	// names of tools/functions to include, will be marshaled as their full structs from tools registry
 	Tools []string `json:"-"`
@@ -323,9 +328,37 @@ func (r *Response) MCPApprovalRequests() []output.MCPApprovalRequest {
 	return approvalRequests
 }
 
+// ShellCalls returns a slice of ShellCall objects from the response.
+func (r *Response) ShellCalls() []output.ShellCall {
+	if r.ParsedOutputs == nil {
+		r.Parse() // ignored error check here
+	}
+	var shellCalls []output.ShellCall
+	for _, o := range r.ParsedOutputs {
+		if call, ok := o.(output.ShellCall); ok {
+			shellCalls = append(shellCalls, call)
+		}
+	}
+	return shellCalls
+}
+
+// ApplyPatchCalls returns a slice of ApplyPatchCall objects from the response.
+func (r *Response) ApplyPatchCalls() []output.ApplyPatchCall {
+	if r.ParsedOutputs == nil {
+		r.Parse() // ignored error check here
+	}
+	var applyPatchCalls []output.ApplyPatchCall
+	for _, o := range r.ParsedOutputs {
+		if call, ok := o.(output.ApplyPatchCall); ok {
+			applyPatchCalls = append(applyPatchCalls, call)
+		}
+	}
+	return applyPatchCalls
+}
+
 // ReasoningConfig represents configuration options for reasoning models.
 type ReasoningConfig struct {
-	Effort          string `json:"effort,omitempty"`           // "minimal", "low", "medium", or "high"
+	Effort          string `json:"effort,omitempty"`           // "none", "minimal", "low", "medium", or "high"
 	GenerateSummary string `json:"generate_summary,omitempty"` // "concise" or "detailed"
 }
 
@@ -363,6 +396,10 @@ func ForceToolChoice(toolType string, name string) json.RawMessage {
 		return json.RawMessage(`{"type": "local_shell"}`)
 	case "code_interpreter":
 		return json.RawMessage(`{"type": "code_interpreter"}`)
+	case "shell":
+		return json.RawMessage(`{"type": "shell"}`)
+	case "apply_patch":
+		return json.RawMessage(`{"type": "apply_patch"}`)
 	default:
 		return json.RawMessage(`"auto"`)
 	}

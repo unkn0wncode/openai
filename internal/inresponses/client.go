@@ -41,6 +41,8 @@ var builtinTools = []string{
 	"mcp",
 	"local_shell",
 	"code_interpreter",
+	"shell",
+	"apply_patch",
 }
 
 // interface compliance checks

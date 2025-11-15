@@ -135,7 +135,7 @@ func (tco ToolChoiceOption) MarshalJSON() ([]byte, error) {
 // Tool represents a tool that can be used by the model.
 type Tool struct {
 	// Type of tool: "function", "file_search", "web_search" (and preview), "computer_use_preview",
-	// "mcp", "local_shell", "code_interpreter"
+	// "mcp", "local_shell", "code_interpreter", "shell", "apply_patch"
 	Type string `json:"type"`
 
 	// fields for functions
@@ -323,6 +323,10 @@ func (r *Registry) RegisterTool(tool Tool) error {
 		// Computer use preview can have display dimensions and environment
 		// No specific validation required
 
+	case "shell", "apply_patch":
+		// These tools have no additional configuration at registration time.
+		// All parameters are defined by the platform and the model.
+
 	default:
 		return fmt.Errorf("unsupported tool type: %s", tool.Type)
 	}
@@ -335,7 +339,11 @@ func (r *Registry) RegisterTool(tool Tool) error {
 	r.Lock()
 	defer r.Unlock()
 
-	r.Tools[tool.Name] = tool
+	name := tool.Name
+	if name == "" {
+		name = tool.Type
+	}
+	r.Tools[name] = tool
 
 	return nil
 }

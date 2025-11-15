@@ -71,6 +71,10 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[CustomToolCallOutput](a)
 	case "reasoning":
 		return unmarshalToType[Reasoning](a)
+	case "apply_patch_call":
+		return unmarshalToType[ApplyPatchCall](a)
+	case "apply_patch_call_output":
+		return unmarshalToType[ApplyPatchCallOutput](a)
 	case "mcp_list_tools":
 		return unmarshalToType[MCPListTools](a)
 	case "mcp_approval_request":
@@ -83,6 +87,10 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[LocalShellCall](a)
 	case "local_shell_call_output":
 		return unmarshalToType[LocalShellCallOutput](a)
+	case "shell_call":
+		return unmarshalToType[ShellCall](a)
+	case "shell_call_output":
+		return unmarshalToType[ShellCallOutput](a)
 	case "code_interpreter_call":
 		return unmarshalToType[CodeInterpreterCall](a)
 	default:
@@ -678,6 +686,52 @@ func (c CustomToolCallOutput) MarshalJSON() ([]byte, error) {
 	return openai.Marshal(alias(c))
 }
 
+// ApplyPatchCall describes a use of the apply_patch tool.
+type ApplyPatchCall struct {
+	// required
+	Type      string              `json:"type"` // "apply_patch_call"
+	ID        string              `json:"id,omitempty"`
+	CallID    string              `json:"call_id"`
+	Status    string              `json:"status"` // "in_progress" or "completed"
+	Operation ApplyPatchOperation `json:"operation"`
+}
+
+// ApplyPatchOperation describes a file operation requested by the apply_patch tool.
+type ApplyPatchOperation struct {
+	// required
+	Type string `json:"type"` // "create_file", "update_file", or "delete_file"
+	Path string `json:"path"`
+	// optional
+	Diff string `json:"diff,omitempty"` // V4A diff representing file contents or changes
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "apply_patch_call", discarding any prior value.
+func (a ApplyPatchCall) MarshalJSON() ([]byte, error) {
+	a.Type = "apply_patch_call"
+	type alias ApplyPatchCall
+	return openai.Marshal(alias(a))
+}
+
+// ApplyPatchCallOutput describes the output of an apply_patch tool call.
+type ApplyPatchCallOutput struct {
+	// required
+	Type   string `json:"type"` // "apply_patch_call_output"
+	CallID string `json:"call_id"`
+	Status string `json:"status"` // "completed" or "failed"
+	// optional
+	ID     string `json:"id,omitempty"`
+	Output string `json:"output,omitempty"` // human-readable status or error message
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "apply_patch_call_output", discarding any prior value.
+func (a ApplyPatchCallOutput) MarshalJSON() ([]byte, error) {
+	a.Type = "apply_patch_call_output"
+	type alias ApplyPatchCallOutput
+	return openai.Marshal(alias(a))
+}
+
 // Reasoning describes model's internal thinking process.
 type Reasoning struct {
 	Type    string             `json:"type"` // "reasoning"
@@ -879,6 +933,61 @@ func (l LocalShellCallOutput) MarshalJSON() ([]byte, error) {
 	l.Type = "local_shell_call_output"
 	type alias LocalShellCallOutput
 	return openai.Marshal(alias(l))
+}
+
+// ShellCall describes a call to the GPT-5.1+ shell tool.
+type ShellCall struct {
+	Type   string      `json:"type"` // "shell_call"
+	ID     string      `json:"id,omitempty"`
+	CallID string      `json:"call_id"`
+	Action ShellAction `json:"action"`
+	Status string      `json:"status"` // "in_progress", "completed"
+}
+
+// ShellAction describes the action requested by the shell tool.
+type ShellAction struct {
+	Commands        []string `json:"commands"`                    // commands to execute
+	TimeoutMS       int      `json:"timeout_ms,omitempty"`        // optional per-call timeout
+	MaxOutputLength int      `json:"max_output_length,omitempty"` // requested max bytes for output
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "shell_call".
+func (s ShellCall) MarshalJSON() ([]byte, error) {
+	s.Type = "shell_call"
+	type alias ShellCall
+	return openai.Marshal(alias(s))
+}
+
+// ShellCallOutput describes the output of a shell tool call.
+type ShellCallOutput struct {
+	Type            string `json:"type"` // "shell_call_output"
+	ID              string `json:"id,omitempty"`
+	CallID          string `json:"call_id"`
+	MaxOutputLength int    `json:"max_output_length,omitempty"`
+	// Output contains one or more results from executing the requested shell commands.
+	Output []ShellCommandResult `json:"output"`
+}
+
+// ShellCommandResult describes the result of executing a single shell command.
+type ShellCommandResult struct {
+	Stdout  string           `json:"stdout"`
+	Stderr  string           `json:"stderr"`
+	Outcome ShellCallOutcome `json:"outcome"`
+}
+
+// ShellCallOutcome describes the outcome of a shell command.
+type ShellCallOutcome struct {
+	Type     string `json:"type"`                // "exit" or "timeout"
+	ExitCode *int   `json:"exit_code,omitempty"` // present only when type == "exit"
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "shell_call_output".
+func (s ShellCallOutput) MarshalJSON() ([]byte, error) {
+	s.Type = "shell_call_output"
+	type alias ShellCallOutput
+	return openai.Marshal(alias(s))
 }
 
 // CodeInterpreterCall describes a call to a code interpreter tool.
