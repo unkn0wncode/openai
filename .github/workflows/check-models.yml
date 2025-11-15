@@ -1,0 +1,17 @@
+name: Check for outdated or unimplemented models
+
+on:
+    schedule:
+        - cron: '0 0 * * *'
+    push:
+    workflow_dispatch:
+
+jobs:
+  check-models:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: check-models
+        env:
+            OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: go test ./models -run TestModelsList -timeout 50s
