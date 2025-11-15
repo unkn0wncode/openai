@@ -2,10 +2,11 @@
 package models
 
 const (
-	DefaultImage = GPTImage1
-	GPTImage1    = "gpt-image-1"
-	DALLE2       = "dall-e-2"
-	DALLE3       = "dall-e-3"
+	DefaultImage  = GPTImage1
+	GPTImage1     = "gpt-image-1"
+	GPTImage1Mini = "gpt-image-1-mini"
+	DALLE2        = "dall-e-2"
+	DALLE3        = "dall-e-3"
 )
 
 // ImageData contains pricing and limits for image generation models.
@@ -20,9 +21,10 @@ var ImageData = map[string]struct {
 	LimitInImageSize int // in bytes
 	LimitOutImages   int
 }{
-	GPTImage1: {0.00000500, 0.00001000, 0.00004000, PricePerImageData[GPTImage1], 32000, 16, 25*1024*1024, 10},
-	DALLE2:    {0.00000000, 0.00000000, 0.00000000, PricePerImageData[DALLE2], 1000, 1, 4*1024*1024, 1},
-	DALLE3:    {0.00000000, 0.00000000, 0.00000000, PricePerImageData[DALLE3], 4000, 1, 4*1024*1024, 1},
+	GPTImage1:     {0.00000500, 0.00001000, 0.00004000, PricePerImageData[GPTImage1], 32000, 16, 25 * 1024 * 1024, 10},
+	GPTImage1Mini: {0.00000200, 0.00000250, 0.00000800, PricePerImageData[GPTImage1Mini], 32000, 16, 25 * 1024 * 1024, 10},
+	DALLE2:        {0.00000000, 0.00000000, 0.00000000, PricePerImageData[DALLE2], 1000, 1, 4 * 1024 * 1024, 1},
+	DALLE3:        {0.00000000, 0.00000000, 0.00000000, PricePerImageData[DALLE3], 4000, 1, 4 * 1024 * 1024, 1},
 }
 
 // PricePerImageData contains pricing in USD per generated image depending on
@@ -47,6 +49,23 @@ var PricePerImageData = map[string]PricePerImage{
 			"1024x1024": 0.167,
 			"1024x1536": 0.25,
 			"1536x1024": 0.25,
+		},
+	},
+	GPTImage1Mini: {
+		"low": {
+			"1024x1024": 0.005,
+			"1024x1536": 0.006,
+			"1536x1024": 0.006,
+		},
+		"medium": {
+			"1024x1024": 0.011,
+			"1024x1536": 0.015,
+			"1536x1024": 0.015,
+		},
+		"high": {
+			"1024x1024": 0.036,
+			"1024x1536": 0.052,
+			"1536x1024": 0.052,
 		},
 	},
 	DALLE2: {

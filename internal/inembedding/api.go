@@ -79,7 +79,7 @@ func (c *Client) executeRequest(data Request) ([]embedding.Vector, error) {
 		data.Model = models.DefaultEmbedding
 	}
 
-	if data.Dimensions == 0 && data.Model != models.Ada2 {
+	if data.Dimensions == 0 {
 		data.Dimensions = defaultDimensions
 	}
 

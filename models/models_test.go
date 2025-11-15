@@ -89,38 +89,39 @@ func TestModelsList(t *testing.T) {
 	for model := range PricePerImageData {
 		packageModels = append(packageModels, model)
 	}
+	for model := range VideoData {
+		packageModels = append(packageModels, model)
+	}
+	for model := range DataTTS {
+		packageModels = append(packageModels, model)
+	}
 
 	// find mismatches:
 	// 1. models in the package but not in the API are "deleted"
 	// 2. models in the API but not in the package are "unimplemented"
 
-	var deletedModels []string
-	var unimplementedModels []string
 	for _, model := range packageModels {
 		if model == "" {
 			// skip default model placeholder
 			continue
 		}
-		if !slices.Contains(apiModels, model) {
-			deletedModels = append(deletedModels, model)
-		}
+		t.Run("is_deleted:"+model, func(t *testing.T) {
+			require.True(
+				t,
+				slices.Contains(apiModels, model),
+				"model %s is listed in the package but missing in the API",
+				model,
+			)
+		})
 	}
 	for _, model := range apiModels {
-		if !slices.Contains(packageModels, model) {
-			unimplementedModels = append(unimplementedModels, model)
-		}
+		t.Run("is_unimplemented:"+model, func(t *testing.T) {
+			require.True(
+				t,
+				slices.Contains(packageModels, model),
+				"model %s is listed in the API but missing in the package",
+				model,
+			)
+		})
 	}
-
-	require.Empty(
-		t,
-		unimplementedModels,
-		"These unimplemented models need to be added to the package:\n%s",
-		strings.Join(unimplementedModels, "\n"),
-	)
-	require.Empty(
-		t,
-		deletedModels,
-		"These deleted models need to be removed from the package:\n%s",
-		strings.Join(deletedModels, "\n"),
-	)
 }

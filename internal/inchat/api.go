@@ -136,14 +136,6 @@ func contextTokenLimit(model string) int {
 	return modelData.LimitContext
 }
 
-func outputTokenLimit(model string) int {
-	modelData, ok := models.Data[model]
-	if !ok {
-		return models.Data[""].LimitOutput
-	}
-	return modelData.LimitOutput
-}
-
 // trimMessages cuts off the oldest messages if the request is too long.
 func trimMessages(data chat.Request) []chat.Message {
 	hasSystemPrompt := len(data.Messages) > 0 &&
@@ -205,11 +197,6 @@ func (c *Client) execute(data chat.Request) (*response, error) {
 			newImages = append(newImages, img)
 		}
 		data.Messages[i].Images = newImages
-	}
-
-	// Ensure MaxTokens is set for specific models
-	if data.MaxTokens == 0 && data.Model == models.GPT4Vision {
-		data.MaxTokens = min(outputTokenLimit(data.Model), contextTokenLimit(data.Model)-inputTokens)
 	}
 
 	b, err := c.marshalRequest(data)
