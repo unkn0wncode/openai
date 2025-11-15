@@ -43,6 +43,7 @@ func TestMain(m *testing.M) {
 // TestClient_Chat_hi checks the basic chat functionality by sending a "hi" message
 // and checking the response.
 func TestClient_Chat_hi(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	req := chat.Request{
@@ -60,6 +61,7 @@ func TestClient_Chat_hi(t *testing.T) {
 
 // TestClient_Chat_Function checks the function calling functionality in chat API.
 func TestClient_Chat_Function(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	// Register test function
@@ -93,12 +95,15 @@ func TestClient_Chat_Function(t *testing.T) {
 
 // TestClient_Moderation checks the moderation functionality in moderation API.
 func TestClient_Moderation(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
-	bld := c.Moderation.NewModerationBuilder()
-	bld.SetMinConfidence(50)
 
 	t.Run("safe", func(t *testing.T) {
+		t.Parallel()
+		bld := c.Moderation.NewModerationBuilder()
+		bld.SetMinConfidence(50)
 		bld.AddText("hi")
+		
 		res, err := bld.Execute()
 		require.NoError(t, err)
 		require.NotEmpty(t, res)
@@ -107,7 +112,11 @@ func TestClient_Moderation(t *testing.T) {
 	})
 
 	t.Run("harmful", func(t *testing.T) {
+		t.Parallel()
+		bld := c.Moderation.NewModerationBuilder()
+		bld.SetMinConfidence(50)
 		bld.AddText("fuck you")
+
 		res, err := bld.Execute()
 		require.NoError(t, err)
 		require.NotEmpty(t, res)
@@ -118,6 +127,7 @@ func TestClient_Moderation(t *testing.T) {
 
 // TestClient_Completion checks the completion functionality in completion API.
 func TestClient_Completion(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	req := completion.Request{
@@ -135,6 +145,8 @@ func TestClient_Completion(t *testing.T) {
 
 // TestClient_Assistants checks the assistants functionality in assistants API.
 func TestClient_Assistants(t *testing.T) {
+	t.Parallel()
+	t.Skip("Assistants API is deprecated")
 	c := NewClient(testToken)
 
 	// Create a new assistant
@@ -178,6 +190,7 @@ func TestClient_Assistants(t *testing.T) {
 
 // TestClient_Responses_hi checks the responses functionality in responses API.
 func TestClient_Responses_hi(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	req := &responses.Request{
@@ -204,6 +217,7 @@ func TestClient_Responses_hi(t *testing.T) {
 
 // TestClient_Responses_dialogue checks the responses functionality with mixed input types.
 func TestClient_Responses_dialogue(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	req := &responses.Request{
@@ -223,6 +237,7 @@ func TestClient_Responses_dialogue(t *testing.T) {
 }
 
 func TestClient_Responses_Function(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	// Register a test function
@@ -255,7 +270,10 @@ func TestClient_Responses_Function(t *testing.T) {
 		Model: models.Default,
 		Input: "What's the weather like in San Francisco?",
 		Tools: []string{"get_current_weather"},
-		User:  "test-user",
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
+		User: "test-user",
 	}
 
 	response, err := c.Responses.Send(&req)
@@ -271,6 +289,7 @@ func TestClient_Responses_Function(t *testing.T) {
 }
 
 func TestClient_Responses_jsonSchema(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	req := responses.Request{
@@ -292,6 +311,9 @@ func TestClient_Responses_jsonSchema(t *testing.T) {
 			},
 		},
 		Input: "send true",
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
 	}
 
 	resp, err := c.Responses.Send(&req)
@@ -309,6 +331,7 @@ func TestClient_Responses_jsonSchema(t *testing.T) {
 }
 
 func TestClient_Embedding(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	vec, err := c.Embedding.One("Hello, world!")
@@ -318,6 +341,7 @@ func TestClient_Embedding(t *testing.T) {
 
 // TestClient_Responses_BackgroundPolling verifies background mode and Polling.
 func TestClient_Responses_BackgroundPolling(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	// Send with background mode
@@ -325,6 +349,9 @@ func TestClient_Responses_BackgroundPolling(t *testing.T) {
 		Model:      models.Default,
 		Input:      "Tell me a short joke.",
 		Background: true,
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, resp.ID)
@@ -341,6 +368,7 @@ func TestClient_Responses_BackgroundPolling(t *testing.T) {
 
 // TestClient_Responses_WebSearch checks the web_search tool usage in responses API.
 func TestClient_Responses_WebSearch(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	c.Tools().RegisterTool(tools.Tool{
@@ -349,10 +377,13 @@ func TestClient_Responses_WebSearch(t *testing.T) {
 
 	// Prepare request forcing the use of web_search tool
 	req := responses.Request{
-		Model: models.DefaultMini,
+		Model: models.Default,
 		Input: "What's the newest version of Golang? Use web_search tool to check.",
 		Tools: []string{"web_search"}, // GPT-5 cannot force tool choice for web_search
-		User:  "test-user",
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
+		User: "test-user",
 	}
 
 	resp, err := c.Responses.Send(&req)
@@ -374,6 +405,7 @@ func TestClient_Responses_WebSearch(t *testing.T) {
 }
 
 func TestClient_Responses_CustomToolAuto(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	err := c.Tools().RegisterTool(tools.Tool{
@@ -384,10 +416,13 @@ func TestClient_Responses_CustomToolAuto(t *testing.T) {
 	require.NoError(t, err)
 
 	req := responses.Request{
-		Model:        models.DefaultNano,
+		Model:        models.Default,
 		Instructions: "Play a word game with the user: use a tool to submit a word starting with the last letter of the word from user's turn",
 		Input:        "Apple",
 		Tools:        []string{"submit_word"},
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
 	}
 
 	resp, err := c.Responses.Send(&req)
@@ -403,6 +438,7 @@ func TestClient_Responses_CustomToolAuto(t *testing.T) {
 }
 
 func TestClient_Responses_CustomToolRegex(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	err := c.Tools().RegisterTool(tools.Tool{
@@ -418,10 +454,13 @@ func TestClient_Responses_CustomToolRegex(t *testing.T) {
 	require.NoError(t, err)
 
 	req := responses.Request{
-		Model:        models.DefaultNano,
+		Model:        models.Default,
 		Instructions: "Play a word game with the user: use a tool to submit a word starting with the last letter of the word from user's turn",
 		Input:        "Apple",
 		Tools:        []string{"submit_word"},
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
 	}
 
 	resp, err := c.Responses.Send(&req)
@@ -437,12 +476,16 @@ func TestClient_Responses_CustomToolRegex(t *testing.T) {
 }
 
 func TestClient_Responses_Stream(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	req := &responses.Request{
-		Model:  models.DefaultNano,
+		Model:  models.Default,
 		Input:  "Write a haiku about AI agents.",
 		Stream: true,
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
 	}
 
 	stream, err := c.Responses.Stream(t.Context(), req)
@@ -470,12 +513,16 @@ func TestClient_Responses_Stream(t *testing.T) {
 }
 
 func TestClient_Responses_Stream_ContextCancellation(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	req := &responses.Request{
-		Model:  models.DefaultNano,
+		Model:  models.Default,
 		Input:  "Write a very long detailed essay about artificial intelligence, machine learning, and the future of technology. Make it at least 2000 words.",
 		Stream: true,
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
 	}
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -506,12 +553,16 @@ func TestClient_Responses_Stream_ContextCancellation(t *testing.T) {
 }
 
 func TestClient_Responses_Stream_ContextCancellation_Range(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	req := &responses.Request{
-		Model:  models.DefaultNano,
+		Model:  models.Default,
 		Input:  "Write a very long detailed essay about artificial intelligence, machine learning, and the future of technology. Make it at least 2000 words.",
 		Stream: true,
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
 	}
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -545,12 +596,16 @@ func TestClient_Responses_Stream_ContextCancellation_Range(t *testing.T) {
 }
 
 func TestClient_Responses_Stream_CollectText(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	req := &responses.Request{
-		Model:  models.DefaultNano,
+		Model:  models.Default,
 		Input:  "Write a haiku about AI agents.",
 		Stream: true,
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
 	}
 
 	stream, err := c.Responses.Stream(t.Context(), req)
@@ -570,12 +625,16 @@ func TestClient_Responses_Stream_CollectText(t *testing.T) {
 }
 
 func TestClient_Responses_Stream_Range(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	req := &responses.Request{
-		Model:  models.DefaultNano,
+		Model:  models.Default,
 		Input:  "Write a haiku about AI agents.",
 		Stream: true,
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
 	}
 
 	stream, err := c.Responses.Stream(t.Context(), req)
@@ -604,12 +663,16 @@ func TestClient_Responses_Stream_Range(t *testing.T) {
 }
 
 func TestClient_Responses_Stream_All(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	req := &responses.Request{
-		Model:  models.DefaultNano,
+		Model:  models.Default,
 		Input:  "Write a haiku about AI agents.",
 		Stream: true,
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
 	}
 
 	stream, err := c.Responses.Stream(t.Context(), req)
@@ -636,12 +699,16 @@ func TestClient_Responses_Stream_All(t *testing.T) {
 }
 
 func TestClient_Responses_Stream_MultipleChan(t *testing.T) {
+	t.Parallel()
 	c := NewClient(testToken)
 
 	req := &responses.Request{
-		Model:  models.DefaultNano,
+		Model:  models.Default,
 		Input:  "Write a haiku about AI agents.",
 		Stream: true,
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
 	}
 
 	stream, err := c.Responses.Stream(t.Context(), req)
