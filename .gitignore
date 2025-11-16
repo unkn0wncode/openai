@@ -13,6 +13,7 @@
 
 # Hidden files
 .*
+!.github
 
 # Private configs
 !.gitignore
