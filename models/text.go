@@ -39,13 +39,11 @@ const (
 	GPT4oMiniSearchPreview           = "gpt-4o-mini-search-preview"
 	GPT4oMiniSearchPreview20250311   = "gpt-4o-mini-search-preview-2025-03-11"
 	GPT4oRealtimePreview             = "gpt-4o-realtime-preview"
-	GPT4oRealtimePreview20241001     = "gpt-4o-realtime-preview-2024-10-01"
 	GPT4oRealtimePreview20241217     = "gpt-4o-realtime-preview-2024-12-17"
 	GPT4oRealtimePreview20250603     = "gpt-4o-realtime-preview-2025-06-03"
 	GPT4oMiniRealtimePreview         = "gpt-4o-mini-realtime-preview"
 	GPT4oMiniRealtimePreview20241217 = "gpt-4o-mini-realtime-preview-2024-12-17"
 	GPT4oAudioPreview                = "gpt-4o-audio-preview"
-	GPT4oAudioPreview20241001        = "gpt-4o-audio-preview-2024-10-01"
 	GPT4oAudioPreview20241217        = "gpt-4o-audio-preview-2024-12-17"
 	GPT4oAudioPreview20250603        = "gpt-4o-audio-preview-2025-06-03"
 	GPT4oMiniAudioPreview            = "gpt-4o-mini-audio-preview"
@@ -72,6 +70,7 @@ const (
 	GPT5120251113         = "gpt-5.1-2025-11-13"
 	GPT51ChatLatest       = "gpt-5.1-chat-latest"
 	GPT51Codex            = "gpt-5.1-codex"
+	GPT51CodexMax         = "gpt-5.1-codex-max"
 	GPT51CodexMini        = "gpt-5.1-codex-mini"
 
 	// Multimodal realtime & audio
@@ -179,13 +178,11 @@ var Data = map[string]struct {
 	GPT4oMiniSearchPreview:           {0.00000015, 0.00000000, 0.00000060, 128000, 16384},
 	GPT4oMiniSearchPreview20250311:   {0.00000015, 0.00000000, 0.00000060, 128000, 16384},
 	GPT4oRealtimePreview:             {0.00000500, 0.00000250, 0.00002000, 128000, 16384},
-	GPT4oRealtimePreview20241001:     {0.00000500, 0.00000250, 0.00002000, 128000, 16384},
 	GPT4oRealtimePreview20241217:     {0.00000500, 0.00000250, 0.00002000, 128000, 16384},
 	GPT4oRealtimePreview20250603:     {0.00000500, 0.00000250, 0.00002000, 128000, 16384},
 	GPT4oMiniRealtimePreview:         {0.00000060, 0.00000030, 0.00000240, 128000, 16384},
 	GPT4oMiniRealtimePreview20241217: {0.00000060, 0.00000030, 0.00000240, 128000, 16384},
 	GPT4oAudioPreview:                {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oAudioPreview20241001:        {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
 	GPT4oAudioPreview20241217:        {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
 	GPT4oAudioPreview20250603:        {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
 	GPT4oMiniAudioPreview:            {0.00000015, 0.00000000, 0.00000060, 128000, 16384},
@@ -212,6 +209,7 @@ var Data = map[string]struct {
 	GPT5120251113:         {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
 	GPT51ChatLatest:       {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
 	GPT51Codex:            {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
+	GPT51CodexMax:         {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
 	GPT51CodexMini:        {0.00000025, 0.00000003, 0.00000200, 400000, 128000},
 
 	// Multimodal realtime & audio
