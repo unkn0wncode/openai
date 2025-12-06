@@ -103,7 +103,7 @@ func TestClient_Moderation(t *testing.T) {
 		bld := c.Moderation.NewModerationBuilder()
 		bld.SetMinConfidence(50)
 		bld.AddText("hi")
-		
+
 		res, err := bld.Execute()
 		require.NoError(t, err)
 		require.NotEmpty(t, res)
@@ -337,6 +337,122 @@ func TestClient_Embedding(t *testing.T) {
 	vec, err := c.Embedding.One("Hello, world!")
 	require.NoError(t, err)
 	require.NotEmpty(t, vec)
+}
+
+func TestClient_Responses_ConversationsLifecycle(t *testing.T) {
+	t.Parallel()
+	c := NewClient(testToken)
+
+	conv, err := c.Responses.CreateConversation(
+		map[string]string{"integration": "true"},
+		output.Message{Role: roles.User, Content: "seed"},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, conv)
+	require.NotEmpty(t, conv.ID)
+	t.Cleanup(func() {
+		require.NoError(t, conv.Delete())
+	})
+
+	var appendedIDs []string
+	var keepID string
+	var removedID string
+
+	t.Run("append items with include options", func(t *testing.T) {
+		include := &responses.ConversationItemsInclude{
+			MessageOutputTextLogprobs: true,
+		}
+		list, err := conv.AppendItems(
+			include,
+			output.Message{Role: roles.User, Content: "ping"},
+			output.Message{Role: roles.User, Content: "pong"},
+		)
+		require.NoError(t, err)
+		require.Len(t, list.Data, 2)
+		if len(list.ParsedData) == 0 {
+			require.NoError(t, list.Parse())
+		}
+		require.Len(t, list.ParsedData, 2)
+
+		for _, parsed := range list.ParsedData {
+			msg, ok := parsed.(output.Message)
+			require.True(t, ok, "expected output.Message in parsed conversation items")
+			require.NotEmpty(t, msg.ID)
+			appendedIDs = append(appendedIDs, msg.ID)
+		}
+		require.GreaterOrEqual(t, len(appendedIDs), 2)
+		keepID = appendedIDs[0]
+		removedID = appendedIDs[1]
+	})
+
+	t.Run("send response with conversation id", func(t *testing.T) {
+		_, err := c.Responses.Send(&responses.Request{
+			Model:        models.Default,
+			Input:        "Say hello back in one short sentence.",
+			Conversation: conv.ID,
+			Reasoning: &responses.ReasoningConfig{
+				Effort: "none",
+			},
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("update metadata and refetch", func(t *testing.T) {
+		conv.Metadata["integration"] = "updated"
+		conv.Metadata["status"] = "ready"
+		require.NoError(t, conv.Update())
+
+		refreshed, err := c.Responses.Conversation(conv.ID)
+		require.NoError(t, err)
+		require.Equal(t, "updated", refreshed.Metadata["integration"])
+		require.Equal(t, "ready", refreshed.Metadata["status"])
+		conv = refreshed
+	})
+
+	t.Run("delete secondary item", func(t *testing.T) {
+		require.NotEmpty(t, removedID)
+		require.NoError(t, conv.DeleteItem(removedID))
+	})
+
+	t.Run("list items with pagination and includes", func(t *testing.T) {
+		t.Parallel()
+		list, err := conv.ListItems(&responses.ConversationListOptions{
+			Limit:  5,
+			LastID: "",
+			Include: &responses.ConversationItemsInclude{
+				MessageInputImageURL:      true,
+				MessageOutputTextLogprobs: true,
+			},
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, list.Data)
+		if len(list.ParsedData) == 0 {
+			require.NoError(t, list.Parse())
+		}
+		require.NotEmpty(t, list.ParsedData)
+		for _, parsed := range list.ParsedData {
+			if msg, ok := parsed.(output.Message); ok {
+				require.NotEqual(t, removedID, msg.ID, "deleted item should not remain")
+			}
+		}
+	})
+
+	t.Run("retrieve single item", func(t *testing.T) {
+		t.Parallel()
+		require.NotEmpty(t, keepID, "no appended items to fetch")
+		item, err := conv.Item(nil, keepID)
+		require.NoError(t, err)
+		_, ok := item.(output.Message)
+		require.True(t, ok, "expected output.Message from conversation item")
+	})
+
+	t.Run("retrieve via service handle", func(t *testing.T) {
+		t.Parallel()
+		handle, err := c.Responses.Conversation(conv.ID)
+		require.NoError(t, err)
+		require.Equal(t, conv.ID, handle.ID)
+		require.Equal(t, conv.Metadata["integration"], handle.Metadata["integration"])
+	})
 }
 
 // TestClient_Responses_BackgroundPolling verifies background mode and Polling.

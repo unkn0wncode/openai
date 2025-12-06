@@ -193,15 +193,16 @@ func (c *Client) executeRequest(data *responses.Request) (*response, error) {
 // response is the response body from the Responses API.
 type response struct {
 	// Core Properties
-	ID                string `json:"id"`
-	Object            string `json:"object"`
-	CreatedAt         int    `json:"created_at"` // Unix timestamp
-	Status            string `json:"status"`     // "completed", "failed", "in_progress", or "incomplete"
-	Error             any    `json:"error"`      // Error object with code and message
-	IncompleteDetails any    `json:"incomplete_details"`
-	Instructions      any    `json:"instructions"` // string, []output.Any
-	MaxOutputTokens   int    `json:"max_output_tokens"`
-	Model             string `json:"model"`
+	ID                string                  `json:"id"`
+	Object            string                  `json:"object"`
+	CreatedAt         int                     `json:"created_at"` // Unix timestamp
+	Status            string                  `json:"status"`     // "completed", "failed", "in_progress", or "incomplete"
+	Error             any                     `json:"error"`      // Error object with code and message
+	IncompleteDetails any                     `json:"incomplete_details"`
+	Instructions      any                     `json:"instructions"` // string, []output.Any
+	Conversation      *responses.Conversation `json:"conversation"`
+	MaxOutputTokens   int                     `json:"max_output_tokens"`
+	Model             string                  `json:"model"`
 
 	// Output Content
 	Output []output.Any `json:"output"`

@@ -127,6 +127,8 @@ The `client.Responses` exposes the following methods:
 - `Poll` polls a background response by ID until completion, failure, or context cancellation.
 - `NewRequest` creates a new empty request. It is only a shorthand to make the type `responses.Request` more easily discoverable. You can use the request type directly.
 - `NewMessage` creates a new empty message. It is only a shorthand to make the type `output.Message` more easily discoverable. You can use the message type directly.
+- `CreateConversation` creates a persistent conversation container where you can manage context items and reuse it in Responses requests.
+- `Conversation` fetches a full conversation object by ID. It can be further used to manage the conversation.
 
 Other exposed types/functions in the `responses` package:
 - `Content` is an interface listing all types that can be used as content in the Responses API.
@@ -272,6 +274,39 @@ Assistant: It's normal for cats to meow. (ID_2)
 PreviousResponseID=ID_1 User: my pet is a dog
 Assistant: It's not normal for dogs to meow. (ID_3)
 ```
+
+### Persistent Conversations
+
+Conversations let you store context items (messages, tool calls, references, etc.) and reuse them across requests instead of chaining with `PreviousResponseID`:
+
+```go
+conv, _ := client.Responses.CreateConversation(
+  map[string]string{"topic": "cookbook"},
+  output.Message{
+    Role: "user",
+    Content: []any{input.InputText{Text: "Remember that I like pineapples."}},
+  },
+)
+
+conv.AppendItems(&responses.ConversationItemsInclude{
+  MessageOutputTextLogprobs: true,
+}, output.Message{Role: "user", Content: "I also like strawberries."})
+
+resp, _ := client.Responses.Send(&responses.Request{
+  Model:        models.Default,
+  Input:        "Write me a salad recipe.",
+  Conversation: conv.ID,
+})
+fmt.Println(resp.JoinedTexts())
+```
+
+A conversation object provides methods for managing the conversation:
+- `AppendItems` appends new items to the conversation.
+- `ListItems` lists items in the conversation.
+- `Item` retrieves a single item from the conversation by ID.
+- `DeleteItem` removes a single item from the conversation by ID.
+- `Update` updates the metadata of the conversation.
+- `Delete` removes the conversation from the API.
 
 ### Instructions
 

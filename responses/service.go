@@ -44,6 +44,12 @@ type Service interface {
 	// Poll continuously fetches a background response until completion or failure.
 	// ctx controls cancellation; interval is time to wait between subsequent polls.
 	Poll(ctx context.Context, responseID string, interval time.Duration) (*Response, error)
+
+	// CreateConversation creates a new persistent conversation container.
+	CreateConversation(metadata map[string]string, items ...any) (*Conversation, error)
+
+	// Conversation retrieves a conversation by ID.
+	Conversation(id string) (*Conversation, error)
 }
 
 // Content is an interface listing all types that can be used as content in Responses API.
@@ -81,6 +87,7 @@ type Request struct {
 	// Optional
 	Include              []string          `json:"include,omitempty"`                // Additional data to include in response: "file_search_call.results", "message.input_image.image_url", "computer_call_output.output.image_url"
 	Instructions         string            `json:"instructions,omitempty"`           // System message for context
+	Conversation         any               `json:"conversation,omitempty"`           // ID or a Conversation object containing an ID
 	MaxOutputTokens      int               `json:"max_output_tokens,omitempty"`      // Max tokens to generate
 	Metadata             map[string]string `json:"metadata,omitempty"`               // Key-value pairs
 	ParallelToolCalls    *bool             `json:"parallel_tool_calls,omitempty"`    // Allow parallel tool calls, default true
@@ -166,6 +173,7 @@ type Response struct {
 // Parse parses the []output.Any and places the parsed objects in ParsedOutputs.
 func (r *Response) Parse() error {
 	r.ParsedOutputs = nil
+
 	for _, o := range r.Outputs {
 		parsed, err := o.Unmarshal()
 		if err != nil {
@@ -174,6 +182,7 @@ func (r *Response) Parse() error {
 
 		r.ParsedOutputs = append(r.ParsedOutputs, parsed)
 	}
+
 	return nil
 }
 
@@ -326,6 +335,128 @@ func (r *Response) MCPApprovalRequests() []output.MCPApprovalRequest {
 		}
 	}
 	return approvalRequests
+}
+
+// Conversation represents a persisted conversation container on the server.
+// It embeds the ConversationCli interface and implements the Conversation object methods.
+type Conversation struct {
+	ConversationCli `json:"-"` // implements API methods of the Conversation object
+
+	ID        string            `json:"id"`
+	Object    string            `json:"object"`
+	CreatedAt int               `json:"created_at"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
+}
+
+// ConversationCli is a client that implements API methods of the Conversation object.
+type ConversationCli interface {
+	// Update sends the current state of the conversation to the API.
+	// Effectively saves changes in the metadata.
+	Update() error
+
+	// Delete removes the conversation from the API.
+	Delete() error
+
+	// ListItems retrieves items stored in the conversation.
+	ListItems(opts *ConversationListOptions) (*ConversationItemList, error)
+
+	// AppendItems adds new items to the conversation.
+	AppendItems(include *ConversationItemsInclude, items ...any) (*ConversationItemList, error)
+
+	// Item retrieves a single item from the conversation.
+	Item(include *ConversationItemsInclude, itemID string) (any, error)
+
+	// DeleteItem removes a single item from the conversation.
+	DeleteItem(itemID string) error
+}
+
+// ConversationListOptions configures pagination when listing conversation items.
+type ConversationListOptions struct {
+	Limit   int
+	FirstID string
+	LastID  string
+	Include *ConversationItemsInclude
+}
+
+// ConversationItemsInclude lists true/false flags for which items to include in a
+// ConversationItemList response. It prepares a slice of flags set to true for URL query values.
+type ConversationItemsInclude struct {
+	// Include the sources of the web search tool call.
+	WebSearchCallActionSources bool
+
+	// Includes the outputs of python code execution in code interpreter tool call items.
+	CodeInterpreterCallOutputs bool
+
+	// Include image urls from the computer call output.
+	ComputerCallOutputImageURL bool
+
+	// Include the search results of the file search tool call.
+	FileSearchCallResults bool
+
+	// Include image urls from the input message.
+	MessageInputImageURL bool
+
+	// Include logprobs with assistant messages.
+	MessageOutputTextLogprobs bool
+
+	// Includes an encrypted version of reasoning tokens in reasoning item outputs.
+	// This enables reasoning items to be used in multi-turn conversations when using the Responses
+	// API statelessly (like when the store parameter is set to false, or when an organization is
+	// enrolled in the zero data retention program).
+	ReasoningEncryptedContent bool
+}
+
+// Values returns a slice of strings for flags set to true.
+func (i ConversationItemsInclude) Values() []string {
+	var flags []string
+	if i.WebSearchCallActionSources {
+		flags = append(flags, "web_search_call.action.sources")
+	}
+	if i.CodeInterpreterCallOutputs {
+		flags = append(flags, "code_interpreter_call.outputs")
+	}
+	if i.ComputerCallOutputImageURL {
+		flags = append(flags, "computer_call_output.output.image_url")
+	}
+	if i.FileSearchCallResults {
+		flags = append(flags, "file_search_call.results")
+	}
+	if i.MessageInputImageURL {
+		flags = append(flags, "message.input_image.image_url")
+	}
+	if i.MessageOutputTextLogprobs {
+		flags = append(flags, "message.output_text.logprobs")
+	}
+	if i.ReasoningEncryptedContent {
+		flags = append(flags, "reasoning.encrypted_content")
+	}
+	return flags
+}
+
+// ConversationItemList is the paginated response returned when listing conversation items.
+type ConversationItemList struct {
+	Object  string       `json:"object"` // always "list"
+	Data    []output.Any `json:"data"`
+	FirstID string       `json:"first_id"`
+	LastID  string       `json:"last_id"`
+	HasMore bool         `json:"has_more"`
+
+	ParsedData []any `json:"-"` // parsed data from the Data field
+}
+
+// Parse parses the []output.Any and places the parsed objects in ParsedData.
+func (l *ConversationItemList) Parse() error {
+	l.ParsedData = nil
+
+	for _, o := range l.Data {
+		parsed, err := o.Unmarshal()
+		if err != nil {
+			return err
+		}
+		l.ParsedData = append(l.ParsedData, parsed)
+	}
+
+	return nil
 }
 
 // ShellCalls returns a slice of ShellCall objects from the response.

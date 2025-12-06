@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/unkn0wncode/openai/content/input"
 	openai "github.com/unkn0wncode/openai/internal"
 )
 
@@ -45,6 +46,14 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[Text](a)
 	case "output_text":
 		return unmarshalToType[OutputText](a)
+	case "input_text":
+		return unmarshalToType[input.InputText](a)
+	case "input_image":
+		return unmarshalToType[input.InputImage](a)
+	case "input_file":
+		return unmarshalToType[input.InputFile](a)
+	case "item_reference":
+		return unmarshalToType[input.ItemReference](a)
 	case "image_url":
 		return unmarshalToType[ImageURL](a)
 	case "image_file":
