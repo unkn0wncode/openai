@@ -51,6 +51,8 @@ const (
 	GPT4oTranscribe                  = "gpt-4o-transcribe"
 	GPT4oTranscribeDiarize           = "gpt-4o-transcribe-diarize"
 	GPT4oMiniTranscribe              = "gpt-4o-mini-transcribe"
+	GPT4oMiniTranscribe20250320      = "gpt-4o-mini-transcribe-2025-03-20"
+	GPT4oMiniTranscribe20251215      = "gpt-4o-mini-transcribe-2025-12-15"
 	GPT4oMiniTTS                     = "gpt-4o-mini-tts"
 
 	// GPT-5 family
@@ -83,10 +85,12 @@ const (
 	GPTRealtime20250828     = "gpt-realtime-2025-08-28"
 	GPTRealtimeMini         = "gpt-realtime-mini"
 	GPTRealtimeMini20251006 = "gpt-realtime-mini-2025-10-06"
+	GPTRealtimeMini20251215 = "gpt-realtime-mini-2025-12-15"
 	GPTAudio                = "gpt-audio"
 	GPTAudio20250828        = "gpt-audio-2025-08-28"
 	GPTAudioMini            = "gpt-audio-mini"
 	GPTAudioMini20251006    = "gpt-audio-mini-2025-10-06"
+	GPTAudioMini20251215    = "gpt-audio-mini-2025-12-15"
 
 	// O-series
 	GPTO1                         = "o1"
@@ -195,6 +199,8 @@ var Data = map[string]struct {
 	GPT4oTranscribe:                  {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
 	GPT4oTranscribeDiarize:           {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
 	GPT4oMiniTranscribe:              {0.00000125, 0.00000000, 0.00000500, 128000, 16384},
+	GPT4oMiniTranscribe20250320:      {0.00000125, 0.00000000, 0.00000500, 128000, 16384},
+	GPT4oMiniTranscribe20251215:      {0.00000125, 0.00000000, 0.00000500, 128000, 16384},
 	GPT4oMiniTTS:                     {0.00000060, 0.00000000, 0.00001200, 128000, 16384},
 
 	// GPT-5 family
@@ -227,10 +233,12 @@ var Data = map[string]struct {
 	GPTRealtime20250828:     {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
 	GPTRealtimeMini:         {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
 	GPTRealtimeMini20251006: {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
+	GPTRealtimeMini20251215: {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
 	GPTAudio:                {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
 	GPTAudio20250828:        {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
 	GPTAudioMini:            {0.00000060, 0.00000000, 0.00000240, 128000, 16384},
 	GPTAudioMini20251006:    {0.00000060, 0.00000000, 0.00000240, 128000, 16384},
+	GPTAudioMini20251215:    {0.00000060, 0.00000000, 0.00000240, 128000, 16384},
 
 	// O-series
 	GPTO1:                         {0.00001500, 0.00000750, 0.00006000, 200000, 100000},

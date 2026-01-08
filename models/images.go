@@ -2,11 +2,13 @@
 package models
 
 const (
-	DefaultImage  = GPTImage1
-	GPTImage1     = "gpt-image-1"
-	GPTImage1Mini = "gpt-image-1-mini"
-	DALLE2        = "dall-e-2"
-	DALLE3        = "dall-e-3"
+	DefaultImage       = GPTImage1
+	GPTImage1          = "gpt-image-1"
+	GPTImage15         = "gpt-image-1.5"
+	GPTImage1Mini      = "gpt-image-1-mini"
+	ChatGPTImageLatest = "chatgpt-image-latest"
+	DALLE2             = "dall-e-2"
+	DALLE3             = "dall-e-3"
 )
 
 // ImageData contains pricing and limits for image generation models.
@@ -34,6 +36,23 @@ type PricePerImage map[string]map[string]float64
 // PricePerImageData contains pricing of generated images for image generation models.
 // For newer models, same pricing can be calculated based on token usage data.
 var PricePerImageData = map[string]PricePerImage{
+	ChatGPTImageLatest: {
+		"low": {
+			"1024x1024": 0.009,
+			"1024x1536": 0.013,
+			"1536x1024": 0.013,
+		},
+		"medium": {
+			"1024x1024": 0.034,
+			"1024x1536": 0.05,
+			"1536x1024": 0.05,
+		},
+		"high": {
+			"1024x1024": 0.133,
+			"1024x1536": 0.2,
+			"1536x1024": 0.2,
+		},
+	},
 	GPTImage1: {
 		"low": {
 			"1024x1024": 0.011,
@@ -49,6 +68,23 @@ var PricePerImageData = map[string]PricePerImage{
 			"1024x1024": 0.167,
 			"1024x1536": 0.25,
 			"1536x1024": 0.25,
+		},
+	},
+	GPTImage15: {
+		"low": {
+			"1024x1024": 0.009,
+			"1024x1536": 0.013,
+			"1536x1024": 0.013,
+		},
+		"medium": {
+			"1024x1024": 0.034,
+			"1024x1536": 0.05,
+			"1536x1024": 0.05,
+		},
+		"high": {
+			"1024x1024": 0.133,
+			"1024x1536": 0.2,
+			"1536x1024": 0.2,
 		},
 	},
 	GPTImage1Mini: {
