@@ -79,6 +79,7 @@ const (
 	GPT52ChatLatest       = "gpt-5.2-chat-latest"
 	GPT52Pro              = "gpt-5.2-pro"
 	GPT52Pro20251211      = "gpt-5.2-pro-2025-12-11"
+	GPT52Codex            = "gpt-5.2-codex"
 
 	// Multimodal realtime & audio
 	GPTRealtime             = "gpt-realtime"
@@ -227,6 +228,7 @@ var Data = map[string]struct {
 	GPT52ChatLatest:       {0.00000175, 0.00000018, 0.00001400, 128000, 16384},
 	GPT52Pro:              {0.00002100, 0.00000000, 0.00016800, 400000, 128000},
 	GPT52Pro20251211:      {0.00002100, 0.00000000, 0.00016800, 400000, 128000},
+	GPT52Codex:            {0.00000175, 0.00000018, 0.00001400, 400000, 128000},
 
 	// Multimodal realtime & audio
 	GPTRealtime:             {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
