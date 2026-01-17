@@ -1,5 +1,11 @@
 # OpenAI Package
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/unkn0wncode/openai.svg)](https://pkg.go.dev/github.com/unkn0wncode/openai)
+[![Go Report Card](https://goreportcard.com/badge/github.com/unkn0wncode/openai)](https://goreportcard.com/report/github.com/unkn0wncode/openai)
+[![CI](https://github.com/unkn0wncode/openai/actions/workflows/check-models.yml/badge.svg)](https://github.com/unkn0wncode/openai/actions/workflows/check-models.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Latest Release](https://img.shields.io/github/v/release/unkn0wncode/openai)](https://github.com/unkn0wncode/openai/releases/latest)
+
 `github.com/unkn0wncode/openai` is a Golang package that wraps the functionality of multiple OpenAI APIs.
 
 ## The OpenAI Client
