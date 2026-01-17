@@ -14,7 +14,7 @@ import (
 type Service interface {
 	// Send sends a request to the Chat API.
 	Send(req Request) (string, error)
-	
+
 	// NewRequest creates a new empty request.
 	NewRequest() *Request
 

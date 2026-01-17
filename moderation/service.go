@@ -1,3 +1,4 @@
+// Package moderation provides a wrapper for the OpenAI Moderation API.
 package moderation
 
 // Service defines methods to operate on moderation API.

@@ -102,7 +102,7 @@ Currently implemented APIs:
 - Responses
 - Chat (Legacy)
 - Moderation
-- Assistants (Beta v2)
+- Assistants (deprecated)
 - Embeddings
 - Completions (Legacy)
 
@@ -388,7 +388,7 @@ for _, res := range results {
 }
 ```
 
-## Assistants API (Beta v2)
+## Assistants API (deprecated)
 
 The Assistants API service accessible through `Client.Assistants` provides methods to manage assistants:
 - `CreateAssistant` creates a new assistant.

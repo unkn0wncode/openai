@@ -146,7 +146,11 @@ func trimMessages(data chat.Request) []chat.Message {
 	}
 
 	messages := data.Messages
-	for len(data.Messages) > minMessages && countTokens(data) > contextTokenLimit(data.Model)-data.MaxTokens {
+	maxTokens := data.MaxCompletionTokens
+	if maxTokens == 0 {
+		maxTokens = data.MaxTokens
+	}
+	for len(data.Messages) > minMessages && countTokens(data) > contextTokenLimit(data.Model)-maxTokens {
 		messages = nil
 		if hasSystemPrompt {
 			messages = append(messages, data.Messages[0])
@@ -262,12 +266,6 @@ func (c *Client) handleBadRequest(resp *http.Response, model string, duration ti
 func (c *Client) enableLogTripper() {
 	c.Config.Log.Debug("Enable LogTripper")
 	c.Config.EnableLogTripper()
-}
-
-// disableLogTripper disables LogTripper for the API requests and logs that it's disabled.
-func (c *Client) disableLogTripper() {
-	c.Config.Log.Debug("Disable LogTripper")
-	c.Config.DisableLogTripper()
 }
 
 // checkFirst checks if API response is valid,

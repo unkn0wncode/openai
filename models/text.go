@@ -1,4 +1,4 @@
-// Package models / text.go contains list and properties of OpenAI text generation models.
+// Package models contains constants and pricing data for all OpenAI models.
 package models
 
 const (

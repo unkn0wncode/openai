@@ -1,3 +1,4 @@
+// Package assistants provides a wrapper for the OpenAI Assistants API (deprecated).
 package assistants
 
 import (
@@ -51,13 +52,13 @@ type Service interface {
 // These types may appear in `Message.Content` and `InputMessage.Content` fields.
 type Content interface {
 	string |
-	input.Text |
-	input.ImageFile |
-	input.ImageURL |
-	output.Text |
-	output.ImageFile |
-	output.ImageURL |
-	output.Refusal
+		input.Text |
+		input.ImageFile |
+		input.ImageURL |
+		output.Text |
+		output.ImageFile |
+		output.ImageURL |
+		output.Refusal
 }
 
 // Assistant is a live handle on a server-side assistant.
