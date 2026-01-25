@@ -317,6 +317,7 @@ type executableFunctionCall struct {
 	CallID    string
 	Arguments json.RawMessage
 	F         func(params json.RawMessage) (string, error)
+	CallLimit int
 }
 
 // executableCustomToolCall is an intermediate representation of a custom tool call that can be executed.
@@ -327,9 +328,26 @@ type executableCustomToolCall struct {
 	F      func(input string) (string, error)
 }
 
+// sendContext tracks per-Send state across follow-up requests.
+type sendContext struct {
+	callCounts   map[string]int
+	blockedTools map[string]struct{}
+}
+
+// newSendContext initializes per-Send tracking state.
+func newSendContext() *sendContext {
+	return &sendContext{
+		callCounts:   map[string]int{},
+		blockedTools: map[string]struct{}{},
+	}
+}
+
 // Send sends a request to the Responses API with custom data.
 // Returns the AI reply, request ID, and any error.
 func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
+	return c.send(req, newSendContext())
+}
+func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Response, error) {
 	respData, err := c.executeRequest(req)
 	if err != nil {
 		return nil, err
@@ -377,10 +395,14 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 			}
 
 			// Get the tool or function from the registered function calls
-			var F func(params json.RawMessage) (string, error)
+			var (
+				F         func(params json.RawMessage) (string, error)
+				callLimit int
+			)
 			if t, ok := c.Tools.GetTool(o.Name); ok {
 				if t.Function.F != nil {
 					F = t.Function.F
+					callLimit = t.Function.CallLimit
 				} else {
 					returnableCalls = append(returnableCalls, o)
 					continue
@@ -388,6 +410,7 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 			} else if f, ok := c.Tools.GetFunction(o.Name); ok {
 				if f.F != nil {
 					F = f.F
+					callLimit = f.CallLimit
 				} else {
 					returnableCalls = append(returnableCalls, o)
 					continue
@@ -401,6 +424,7 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 				CallID:    o.CallID,
 				Arguments: []byte(o.Arguments),
 				F:         F,
+				CallLimit: callLimit,
 			})
 		case output.CustomToolCall:
 			if req.ReturnToolCalls {
@@ -475,6 +499,17 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 				return nil, fmt.Errorf("failed to prepare function_call_output: %w", err)
 			}
 			toolOutputs = append(toolOutputs, anyOut)
+
+			if call.CallLimit > 0 {
+				sc.callCounts[call.Name]++
+				if sc.callCounts[call.Name] >= call.CallLimit {
+					c.Config.Log.Warn(fmt.Sprintf(
+						"Function '%s' has reached its CallLimit (%d) times, excluding from further tool calls",
+						call.Name, sc.callCounts[call.Name],
+					))
+					sc.blockedTools[call.Name] = struct{}{}
+				}
+			}
 		}
 		// custom tool calls
 		for _, call := range executableCustomCalls {
@@ -503,8 +538,12 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 		followUpReq := req.Clone()
 		followUpReq.Input = toolOutputs
 		followUpReq.PreviousResponseID = resp.ID
+		followUpReq.Tools = filterBlockedTools(followUpReq.Tools, sc.blockedTools)
+		if len(sc.blockedTools) > 0 {
+			followUpReq.ToolChoice = nil
+		}
 
-		followupResp, err := c.Send(followUpReq)
+		followupResp, err := c.send(followUpReq, sc)
 		if err != nil {
 			return nil, err
 		}
@@ -552,6 +591,22 @@ func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 
 	// This should be unreachable
 	return nil, fmt.Errorf("logic error: unreachable code, stack: %s", string(debug.Stack()))
+}
+
+// filterBlockedTools removes blocked tool names from the provided list.
+func filterBlockedTools(tools []string, blocked map[string]struct{}) []string {
+	if len(tools) == 0 || len(blocked) == 0 {
+		return tools
+	}
+
+	filtered := make([]string, 0, len(tools))
+	for _, name := range tools {
+		if _, isBlocked := blocked[name]; isBlocked {
+			continue
+		}
+		filtered = append(filtered, name)
+	}
+	return filtered
 }
 
 // NewMessage creates a new empty message.
