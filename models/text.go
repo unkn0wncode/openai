@@ -116,7 +116,6 @@ const (
 	// Tooling / moderation
 	ComputerUsePreview         = "computer-use-preview"
 	ComputerUsePreview20250311 = "computer-use-preview-2025-03-11"
-	CodexMiniLatest            = "codex-mini-latest"
 
 	// Completion models
 	Curie           = "text-curie-001"
@@ -263,7 +262,6 @@ var Data = map[string]struct {
 	// Tooling & moderation
 	ComputerUsePreview:         {0.00000300, 0.00000000, 0.00001200, 128000, 16384},
 	ComputerUsePreview20250311: {0.00000300, 0.00000000, 0.00001200, 128000, 16384},
-	CodexMiniLatest:            {0.00000150, 0.00000038, 0.00000600, 200000, 100000},
 	OmniMod:                    {0.00000000, 0.00000000, 0.00000000, 8192, 4096},
 	OmniMod20240926:            {0.00000000, 0.00000000, 0.00000000, 8192, 4096},
 
