@@ -487,9 +487,10 @@ func TestClient_Responses_WebSearch(t *testing.T) {
 	t.Parallel()
 	c := NewClient(testToken)
 
-	c.Tools().RegisterTool(tools.Tool{
+	err := c.Tools().RegisterTool(tools.Tool{
 		Type: "web_search",
 	})
+	require.NoError(t, err)
 
 	// Prepare request forcing the use of web_search tool
 	req := responses.Request{

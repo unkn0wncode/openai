@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// LogStack prints whole stack starting from where it was called to a given log
+// LogStack prints whole stack starting from where it was called to a given log.
 func LogStack(logger *log.Logger) {
 	level := 1
 	for {
@@ -28,6 +28,7 @@ func LogStack(logger *log.Logger) {
 			break
 		}
 		caller := callerFunc.Name()
+		//nolint:errcheck // error intentionally ignored because it can't be logged if logger fails and the function is not failable
 		logger.Output(level+1, caller)
 		level++
 	}

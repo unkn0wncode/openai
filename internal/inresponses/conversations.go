@@ -305,7 +305,7 @@ func (c conversationCli) ensureReady() error {
 	switch {
 	case c.Config == nil:
 		return errors.New("responses: config is nil")
-	case c.Config.HTTPClient == nil:
+	case c.HTTPClient == nil:
 		return errors.New("responses: http client is nil")
 	case c.data == nil:
 		return errors.New("responses: conversation is nil")
@@ -319,7 +319,7 @@ func (c conversationCli) ensureReady() error {
 // baseURL builds a URL relevant to Config's BaseAPI address, including "conversations" and a
 // conversation ID.
 func (c conversationCli) baseURL() string {
-	return c.Config.BaseAPI + "v1/conversations/" + c.data.ID
+	return c.BaseAPI + "v1/conversations/" + c.data.ID
 }
 
 // do performs an API call to the conversation's base URL with a given method and suffix.
@@ -342,9 +342,9 @@ func (c conversationCli) doAbsolute(method, fullURL string, body []byte) (*http.
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	c.Config.AddHeaders(req)
+	c.AddHeaders(req)
 
-	resp, err := c.Config.HTTPClient.Do(req)
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}

@@ -63,7 +63,7 @@ func (c *Client) marshalRequest(data *responses.Request) ([]byte, error) {
 	for _, name := range data.Tools {
 		// if given tool is builtin, add it by type
 		if slices.Contains(builtinTools, name) {
-			for _, t := range c.Config.Tools.Tools {
+			for _, t := range c.Tools.Tools {
 				if t.Type == name {
 					toolList = append(toolList, t)
 					break
@@ -73,13 +73,13 @@ func (c *Client) marshalRequest(data *responses.Request) ([]byte, error) {
 		}
 
 		// try to get tool by name, if not found try to get function by name
-		t, ok := c.Config.Tools.GetTool(name)
+		t, ok := c.Tools.GetTool(name)
 		if ok {
 			toolList = append(toolList, t)
 			continue
 		}
 
-		f, ok := c.Config.Tools.GetFunction(name)
+		f, ok := c.Tools.GetFunction(name)
 		if ok {
 			toolList = append(toolList, tools.Tool{
 				Type:        "function",
@@ -175,7 +175,7 @@ func (c *Client) executeRequest(data *responses.Request) (*response, error) {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	c.Config.Log.Debug(
+	c.Log.Debug(
 		fmt.Sprintf(
 			"Consumed OpenAI Responses tokens: %d + %d = %d ($%f)",
 			res.Usage.InputTokens, res.Usage.OutputTokens,
@@ -301,7 +301,7 @@ func (data *response) checkResponseData() (*responses.Response, error) {
 func (c *Client) cost(resp *response) float64 {
 	pricing, ok := models.Data[resp.Model]
 	if !ok {
-		c.Config.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", resp.Model))
+		c.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", resp.Model))
 		return 0
 	}
 	total := 0.0
@@ -372,7 +372,7 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 
 	// log refusals as warnings
 	for _, refusal := range resp.Refusals() {
-		c.Config.Log.Warn(fmt.Sprintf("got refusal: %s", refusal))
+		c.Log.Warn(fmt.Sprintf("got refusal: %s", refusal))
 	}
 
 	// First pass: analyze outputs and categorize them
@@ -503,7 +503,7 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 			if call.CallLimit > 0 {
 				sc.callCounts[call.Name]++
 				if sc.callCounts[call.Name] >= call.CallLimit {
-					c.Config.Log.Warn(fmt.Sprintf(
+					c.Log.Warn(fmt.Sprintf(
 						"Function '%s' has reached its CallLimit (%d) times, excluding from further tool calls",
 						call.Name, sc.callCounts[call.Name],
 					))
@@ -717,7 +717,7 @@ func (c *Client) streamEvents(ctx context.Context, data *responses.Request) (<-c
 		eventCount := 0
 		defer func() {
 			duration := time.Since(before)
-			c.Config.Log.Debug(
+			c.Log.Debug(
 				fmt.Sprintf("Stream finished after %s, got %d events",
 					duration, eventCount),
 			)

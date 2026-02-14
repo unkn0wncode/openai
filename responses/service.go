@@ -191,7 +191,8 @@ func (r *Response) Parse() error {
 // have errors checked, use Response.Parse() first.
 func (r *Response) Texts() []string {
 	if r.ParsedOutputs == nil {
-		r.Parse() // ignored error check here
+		//nolint:errcheck // error intentionally ignored because there's no logger for it and it's not critical
+		r.Parse()
 	}
 
 	var texts []string
@@ -244,7 +245,8 @@ func (r *Response) LastText() string {
 // FunctionCalls returns a slice of FunctionCall objects from the response.
 func (r *Response) FunctionCalls() []output.FunctionCall {
 	if r.ParsedOutputs == nil {
-		r.Parse() // ignored error check here
+		//nolint:errcheck // error intentionally ignored because there's no logger for it and it's not critical
+		r.Parse()
 	}
 
 	var functionCalls []output.FunctionCall
@@ -259,7 +261,8 @@ func (r *Response) FunctionCalls() []output.FunctionCall {
 // CustomToolCalls returns a slice of CustomToolCall objects from the response.
 func (r *Response) CustomToolCalls() []output.CustomToolCall {
 	if r.ParsedOutputs == nil {
-		r.Parse() // ignored error check here
+		//nolint:errcheck // error intentionally ignored because there's no logger for it and it's not critical
+		r.Parse()
 	}
 
 	var customFunctionCalls []output.CustomToolCall
@@ -274,7 +277,8 @@ func (r *Response) CustomToolCalls() []output.CustomToolCall {
 // Refusals returns a slice of Refusal objects from the response.
 func (r *Response) Refusals() []string {
 	if r.ParsedOutputs == nil {
-		r.Parse() // ignored error check here
+		//nolint:errcheck // error intentionally ignored because there's no logger for it and it's not critical
+		r.Parse()
 	}
 	var refusals []string
 	for _, o := range r.ParsedOutputs {
@@ -296,6 +300,7 @@ func (r *Response) Refusals() []string {
 // Reasonings returns a slice of Reasoning objects from the response.
 func (r *Response) Reasonings() []output.Reasoning {
 	if r.ParsedOutputs == nil {
+		//nolint:errcheck // error intentionally ignored because there's no logger for it and it's not critical
 		r.Parse()
 	}
 	var reasonings []output.Reasoning
@@ -326,7 +331,8 @@ func (r *Response) JoinedReasoningSummaries() string {
 // MCPApprovalRequests returns a slice of MCPApprovalRequest objects from the response.
 func (r *Response) MCPApprovalRequests() []output.MCPApprovalRequest {
 	if r.ParsedOutputs == nil {
-		r.Parse() // ignored error check here
+		//nolint:errcheck // error intentionally ignored because there's no logger for it and it's not critical
+		r.Parse()
 	}
 	var approvalRequests []output.MCPApprovalRequest
 	for _, o := range r.ParsedOutputs {
@@ -462,7 +468,8 @@ func (l *ConversationItemList) Parse() error {
 // ShellCalls returns a slice of ShellCall objects from the response.
 func (r *Response) ShellCalls() []output.ShellCall {
 	if r.ParsedOutputs == nil {
-		r.Parse() // ignored error check here
+		//nolint:errcheck // error intentionally ignored because there's no logger for it and it's not critical
+		r.Parse()
 	}
 	var shellCalls []output.ShellCall
 	for _, o := range r.ParsedOutputs {
@@ -476,7 +483,8 @@ func (r *Response) ShellCalls() []output.ShellCall {
 // ApplyPatchCalls returns a slice of ApplyPatchCall objects from the response.
 func (r *Response) ApplyPatchCalls() []output.ApplyPatchCall {
 	if r.ParsedOutputs == nil {
-		r.Parse() // ignored error check here
+		//nolint:errcheck // error intentionally ignored because there's no logger for it and it's not critical
+		r.Parse()
 	}
 	var applyPatchCalls []output.ApplyPatchCall
 	for _, o := range r.ParsedOutputs {
