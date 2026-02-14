@@ -176,8 +176,8 @@ type Tool struct {
 	// Display dimensions for computer_use_preview type
 	DisplayWidth  int `json:"display_width,omitempty"`
 	DisplayHeight int `json:"display_height,omitempty"`
-	// Environment for computer_use_preview type
-	Environment string `json:"environment,omitempty"`
+	// Environment for computer_use_preview (string) type ot shell (object, see docs) type
+	Environment any `json:"environment,omitempty"`
 
 	// fields for mcp
 
@@ -286,8 +286,7 @@ func (r *Registry) RegisterTool(tool Tool) error {
 			CallLimit:    tool.Function.CallLimit,
 		}
 
-		r.CreateFunction(fc)
-		return nil
+		return r.CreateFunction(fc)
 
 	case "custom":
 		// Custom tools require name; description is optional per API
