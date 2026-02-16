@@ -609,7 +609,7 @@ func TestClient_Responses_Stream(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 
-	outputText := ""
+	var outputText strings.Builder
 	eventCount := 0
 	for stream.Next() {
 		eventCount++
@@ -617,7 +617,7 @@ func TestClient_Responses_Stream(t *testing.T) {
 
 		switch e := event.(type) {
 		case streaming.ResponseOutputTextDelta:
-			outputText += e.Delta
+			outputText.WriteString(e.Delta)
 			t.Logf("text delta: %s", e.Delta)
 		case streaming.ResponseOutputTextDone:
 			t.Logf("streamed text: %s", e.Text)
@@ -626,7 +626,7 @@ func TestClient_Responses_Stream(t *testing.T) {
 
 	require.NoError(t, stream.Err())
 	require.NotZero(t, eventCount)
-	require.NotEmpty(t, outputText)
+	require.NotEmpty(t, outputText.String())
 }
 
 func TestClient_Responses_Stream_ContextCancellation(t *testing.T) {
@@ -758,14 +758,14 @@ func TestClient_Responses_Stream_Range(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 
-	outputText := ""
+	var outputText strings.Builder
 	eventCount := 0
 	for event := range stream.Chan() {
 		eventCount++
 
 		switch e := event.(type) {
 		case streaming.ResponseOutputTextDelta:
-			outputText += e.Delta
+			outputText.WriteString(e.Delta)
 			t.Logf("text delta: %s", e.Delta)
 		case streaming.ResponseOutputTextDone:
 			t.Logf("streamed text: %s", e.Text)
@@ -776,7 +776,7 @@ func TestClient_Responses_Stream_Range(t *testing.T) {
 
 	require.NoError(t, stream.Err())
 	require.NotZero(t, eventCount)
-	require.NotEmpty(t, outputText)
+	require.NotEmpty(t, outputText.String())
 }
 
 func TestClient_Responses_Stream_All(t *testing.T) {
@@ -840,16 +840,16 @@ func TestClient_Responses_Stream_MultipleChan(t *testing.T) {
 	require.Equal(t, ch1, ch3, "Chan() should return same channel on multiple calls")
 
 	eventCount := 0
-	var outputText string
+	var outputText strings.Builder
 	for event := range ch1 {
 		eventCount++
 		if delta, ok := event.(streaming.ResponseOutputTextDelta); ok {
-			outputText += delta.Delta
+			outputText.WriteString(delta.Delta)
 		}
 	}
 
 	require.NoError(t, stream.Err())
 	require.NotZero(t, eventCount)
-	require.NotEmpty(t, outputText)
+	require.NotEmpty(t, outputText.String())
 	t.Logf("Multiple Chan() calls work correctly, got %d events", eventCount)
 }

@@ -156,7 +156,7 @@ type Message struct {
 
 	// FunctionCall can only be present if Role is "assistant".
 	// Deprecated: use ToolCalls instead.
-	FunctionCall openai.FunctionCallData `json:"function_call,omitempty"`
+	FunctionCall openai.FunctionCallData `json:"function_call"`
 
 	// ToolCallID is required for "tool" role and then must contain ID found in ToolCall.
 	ToolCallID string `json:"tool_call_id,omitempty"`
@@ -192,7 +192,7 @@ func (data Message) MarshalJSON() ([]byte, error) {
 		type ContentElement struct {
 			Type  string       `json:"type"`
 			Text  string       `json:"text,omitempty"`
-			Image ImageElement `json:"image_url,omitempty"`
+			Image ImageElement `json:"image_url"`
 		}
 		var content []ContentElement
 		if data.Content != "" {
