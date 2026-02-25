@@ -146,7 +146,7 @@ func (a *Any) Unmarshal() (any, error) {
 	case "response.custom_tool_call_input.done":
 		return unmarshalToType[ResponseCustomToolCallInputDone](a)
 	case "error":
-		return unmarshalToType[Error](a)
+		return unmarshalErrorEvent(a)
 	default:
 		return nil, fmt.Errorf("unsupported event type: %s", a.Type)
 	}
@@ -159,6 +159,23 @@ func unmarshalToType[T any](a interface{ UnmarshalToTarget(any) error }) (T, err
 		return t, err
 	}
 	return t, nil
+}
+
+// unmarshalErrorEvent handles both flat SSE-style error payloads and nested
+// WebSocket-mode payloads that include an "error" object.
+func unmarshalErrorEvent(a interface{ UnmarshalToTarget(any) error }) (any, error) {
+	var probe struct {
+		Error json.RawMessage `json:"error"`
+	}
+	if err := a.UnmarshalToTarget(&probe); err != nil {
+		return nil, err
+	}
+
+	if len(probe.Error) > 0 && string(probe.Error) != "null" {
+		return unmarshalToType[WSError](a)
+	}
+
+	return unmarshalToType[Error](a)
 }
 
 // types containing repeating fields for embedding
@@ -380,6 +397,16 @@ type (
 	ResponseCustomToolCallInputDone struct { // response.custom_tool_call_input.done
 		OutputItemReference
 		Input string `json:"input"`
+	}
+	WSError struct { // error (WebSocket mode)
+		BaseEvent
+		Status int `json:"status"`
+		Error  struct {
+			Type    string  `json:"type,omitempty"`
+			Code    string  `json:"code"`
+			Message string  `json:"message"`
+			Param   *string `json:"param,omitempty"`
+		} `json:"error"`
 	}
 	Error struct { // error
 		BaseEvent

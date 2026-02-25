@@ -35,6 +35,9 @@ type Service interface {
 	// Stream sends a request with parameter "stream":true and returns a streaming iterator.
 	Stream(ctx context.Context, req *Request) (*streaming.StreamIterator, error)
 
+	// WebSocket opens a persistent WebSocket connection for response.create events.
+	WebSocket(ctx context.Context) (WSConn, error)
+
 	// NewMessage creates a new empty message.
 	NewMessage() *output.Message
 
@@ -108,6 +111,7 @@ type Request struct {
 	Truncation           string            `json:"truncation,omitempty"`             // "auto" or "disabled"
 	User                 string            `json:"user,omitempty"`                   // Deprecated: use SafetyIdentifier and PromptCacheKey instead
 	Background           bool              `json:"background,omitempty"`             // if true, the API returns immediately with only a response ID
+	Generate             *bool             `json:"generate,omitempty"`               // if false, warm up request state without generating model output
 
 	// names of tools/functions to include, will be marshaled as their full structs from tools registry
 	Tools []string `json:"-"`

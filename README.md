@@ -45,6 +45,7 @@ The following settings are available in `Client.Config()`:
 - `BaseAPI` is the base URL for the OpenAI API.
 - `Token` is the API key to make requests with.
 - `HTTPClient` is the HTTP client used to make API requests. It is a wrapper around `http.Client`.
+- `WebSocketDialer` is the `gorilla/websocket` dialer used for WebSocket connections. If nil, one is derived from `HTTPClient` settings when needed.
 - `Log` is the logger (based on `log/slog` package).
 
 The `Client.Config().HTTPClient` contains a `LogTripper` that you can enable for debugging:
@@ -130,6 +131,7 @@ fmt.Println(resp.JoinedTexts())
 The `client.Responses` exposes the following methods:
 - `Send` sends a given request to the API and returns response data focusing on outputs. It may run a sequence of requests if the response contains tool calls that can be handled automatically (by using tools and sending tool outputs to API) and then will return all outputs at once, except for already handled tool calls.
 - `Stream` sends a given request to the API and returns a stream of events. It can be used to read the response as it's being generated. See the Streaming section for details.
+- `WebSocket` opens a WebSocket connection for streaming responses repeatedly over a single connection. See the [WebSocket](#websocket) section for details.
 - `Poll` polls a background response by ID until completion, failure, or context cancellation.
 - `NewRequest` creates a new empty request. It is only a shorthand to make the type `responses.Request` more easily discoverable. You can use the request type directly.
 - `NewMessage` creates a new empty message. It is only a shorthand to make the type `output.Message` more easily discoverable. You can use the message type directly.
@@ -325,6 +327,34 @@ You can set `responses.Request.Stream` to `true` and use `responses.Response.Str
 In normal flow, you'll get a sequence of events with types from the `responses/streaming` package. If any error occurs during streaming, it will be sent to the same stream, and then the stream will be closed. Only streaming event types and errors can be sent in the stream. Successful termination of the stream is indicated by the stream closing with no error, `io.EOF` is ignored and not sent.
 
 Some event types have fields than may contain multiple different types of data. Such fields are left as `json.RawMessage` and mostly can be parsed further using types from the `output` package, but this is not done automatically.
+
+### WebSocket
+According to OpenAI, responses with 20+ tool calls can be up to 40% faster over WebSocket.
+
+`client.Responses.WebSocket` opens a WebSocket connection that you can send multiple requests over without a new HTTP connection for each:
+
+```go
+ws, _ := client.Responses.WebSocket(context.Background())
+defer ws.Close()
+
+stream, _ := ws.Send(ctx, &responses.Request{
+	Model: models.Default,
+	Input: "Hello!",
+})
+
+for stream.Next() {
+	if delta, ok := stream.Event().(streaming.ResponseOutputTextDelta); ok {
+		fmt.Print(delta.Delta)
+	}
+}
+```
+
+The `WSConn` interface exposes:
+- `Send` sends a `response.create` event and returns a streaming iterator for the server's reply. Requests on the same connection are queued and processed sequentially by the server.
+- `Warmup` sends a request with `generate=false`, returning a response ID for use as `PreviousResponseID` in a subsequent `Send`.
+- `Close` closes the WebSocket connection.
+
+`Send` returns the same `StreamIterator` and event types as the SSE-based `Stream` method. The context passed to `WebSocket` is only used for the initial dial.
 
 ## Chat API (Legacy)
 

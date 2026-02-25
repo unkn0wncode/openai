@@ -8,6 +8,8 @@ import (
 	"sync"
 
 	"github.com/unkn0wncode/openai/tools"
+
+	"github.com/gorilla/websocket"
 )
 
 // Config contains configuration options for the OpenAI client.
@@ -19,8 +21,11 @@ type Config struct {
 	BaseAPI    string
 	Token      string
 	HTTPClient *HTTPClient
-	Log        *slog.Logger
-	Tools      *tools.Registry
+	// WebSocketDialer is used by Responses WebSocket mode.
+	// If nil, a dialer is derived from HTTPClient settings when possible.
+	WebSocketDialer *websocket.Dialer
+	Log             *slog.Logger
+	Tools           *tools.Registry
 }
 
 // NewConfig creates a default configuration with the provided token.

@@ -853,3 +853,173 @@ func TestClient_Responses_Stream_MultipleChan(t *testing.T) {
 	require.NotEmpty(t, outputText.String())
 	t.Logf("Multiple Chan() calls work correctly, got %d events", eventCount)
 }
+
+func newWebSocketTestConn(t *testing.T, c *Client) responses.WSConn {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+	defer cancel()
+
+	ws, err := c.Responses.WebSocket(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, ws)
+	return ws
+}
+
+func TestClient_Responses_WebSocket_Send(t *testing.T) {
+	t.Parallel()
+	c := NewClient(testToken)
+	ws := newWebSocketTestConn(t, c)
+	defer ws.Close()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	defer cancel()
+
+	req := &responses.Request{
+		Model: models.Default,
+		Input: "Write a haiku about Go.",
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
+	}
+
+	stream, err := ws.Send(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	var outputText strings.Builder
+	completed := false
+	for stream.Next() {
+		switch e := stream.Event().(type) {
+		case streaming.ResponseOutputTextDelta:
+			outputText.WriteString(e.Delta)
+		case streaming.ResponseCompleted:
+			completed = true
+		}
+	}
+
+	require.NoError(t, stream.Err())
+	require.True(t, completed, "expected response.completed event")
+	require.NotEmpty(t, outputText.String())
+}
+
+func TestClient_Responses_WebSocket_WarmupAndContinue(t *testing.T) {
+	t.Parallel()
+	c := NewClient(testToken)
+	ws := newWebSocketTestConn(t, c)
+	defer ws.Close()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	defer cancel()
+
+	warmupID, err := ws.Warmup(ctx, &responses.Request{
+		Model: models.Default,
+		Input: "Prepare tools and state for the next turn.",
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, warmupID)
+
+	stream, err := ws.Send(ctx, &responses.Request{
+		Model:              models.Default,
+		PreviousResponseID: warmupID,
+		Input:              "Now answer in exactly one short sentence about warmup.",
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	completed := false
+	for stream.Next() {
+		if _, ok := stream.Event().(streaming.ResponseCompleted); ok {
+			completed = true
+		}
+	}
+
+	require.NoError(t, stream.Err())
+	require.True(t, completed, "expected response.completed event")
+}
+
+func TestClient_Responses_WebSocket_ContextCancellation(t *testing.T) {
+	t.Parallel()
+	c := NewClient(testToken)
+	ws := newWebSocketTestConn(t, c)
+	defer ws.Close()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	stream, err := ws.Send(ctx, &responses.Request{
+		Model:           models.Default,
+		Input:           "Write 10 points about Go.",
+		MaxOutputTokens: 180,
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	seenEvent := false
+	for stream.Next() {
+		seenEvent = true
+		cancel()
+	}
+
+	require.True(t, seenEvent, "expected at least one event before cancellation")
+	require.Equal(t, context.Canceled, stream.Err())
+
+	// In WebSocket mode, multiple response.create events can be sent on one connection
+	// and are processed sequentially by the service.
+	nextCtx, nextCancel := context.WithTimeout(t.Context(), 90*time.Second)
+	defer nextCancel()
+
+	nextStream, err := ws.Send(nextCtx, &responses.Request{
+		Model:           models.Default,
+		Input:           "Give one short line proving this websocket still works.",
+		MaxOutputTokens: 40,
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, nextStream)
+
+	completed := false
+	for nextStream.Next() {
+		if _, ok := nextStream.Event().(streaming.ResponseCompleted); ok {
+			completed = true
+		}
+	}
+	require.NoError(t, nextStream.Err())
+	require.True(t, completed, "expected queued second turn to complete")
+}
+
+func TestClient_Responses_WebSocket_CloseDuringTurn(t *testing.T) {
+	t.Parallel()
+	c := NewClient(testToken)
+	ws := newWebSocketTestConn(t, c)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	defer cancel()
+
+	stream, err := ws.Send(ctx, &responses.Request{
+		Model: models.Default,
+		Input: "Write a long answer about Go and include many sections.",
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	require.NoError(t, ws.Close())
+
+	for stream.Next() {
+	}
+	require.Error(t, stream.Err())
+	require.ErrorContains(t, stream.Err(), "websocket")
+}

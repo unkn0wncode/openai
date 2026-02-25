@@ -3,6 +3,7 @@ module github.com/unkn0wncode/openai
 go 1.24.2
 
 require (
+	github.com/gorilla/websocket v1.5.3
 	github.com/pkoukk/tiktoken-go v0.1.7
 	github.com/playwright-community/playwright-go v0.5101.0
 	github.com/stretchr/testify v1.10.0
