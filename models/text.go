@@ -83,6 +83,7 @@ const (
 
 	// Multimodal realtime & audio
 	GPTRealtime             = "gpt-realtime"
+	GPTRealtime15           = "gpt-realtime-1.5"
 	GPTRealtime20250828     = "gpt-realtime-2025-08-28"
 	GPTRealtimeMini         = "gpt-realtime-mini"
 	GPTRealtimeMini20251006 = "gpt-realtime-mini-2025-10-06"
@@ -231,6 +232,7 @@ var Data = map[string]struct {
 
 	// Multimodal realtime & audio
 	GPTRealtime:             {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
+	GPTRealtime15:           {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
 	GPTRealtime20250828:     {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
 	GPTRealtimeMini:         {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
 	GPTRealtimeMini20251006: {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
