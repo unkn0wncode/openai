@@ -89,6 +89,7 @@ const (
 	GPTRealtimeMini20251006 = "gpt-realtime-mini-2025-10-06"
 	GPTRealtimeMini20251215 = "gpt-realtime-mini-2025-12-15"
 	GPTAudio                = "gpt-audio"
+	GPTAudio15              = "gpt-audio-1.5"
 	GPTAudio20250828        = "gpt-audio-2025-08-28"
 	GPTAudioMini            = "gpt-audio-mini"
 	GPTAudioMini20251006    = "gpt-audio-mini-2025-10-06"
@@ -238,6 +239,7 @@ var Data = map[string]struct {
 	GPTRealtimeMini20251006: {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
 	GPTRealtimeMini20251215: {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
 	GPTAudio:                {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
+	GPTAudio15:              {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
 	GPTAudio20250828:        {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
 	GPTAudioMini:            {0.00000060, 0.00000000, 0.00000240, 128000, 16384},
 	GPTAudioMini20251006:    {0.00000060, 0.00000000, 0.00000240, 128000, 16384},
