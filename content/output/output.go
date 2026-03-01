@@ -80,6 +80,8 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[CustomToolCallOutput](a)
 	case "reasoning":
 		return unmarshalToType[Reasoning](a)
+	case "compaction":
+		return unmarshalToType[Compaction](a)
 	case "apply_patch_call":
 		return unmarshalToType[ApplyPatchCall](a)
 	case "apply_patch_call_output":
@@ -747,6 +749,22 @@ type Reasoning struct {
 	ID      string             `json:"id"`
 	Status  string             `json:"status"`  // "in_progress", "completed", "incomplete"
 	Summary []ReasoningSummary `json:"summary"` // required even when empty
+}
+
+// Compaction is an opaque compaction item emitted by the Responses API.
+// It can be passed back to the API when manually managing stateless context.
+type Compaction struct {
+	Type             string `json:"type"` // "compaction"
+	ID               string `json:"id,omitempty"`
+	EncryptedContent string `json:"encrypted_content"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "compaction", discarding any prior value.
+func (c Compaction) MarshalJSON() ([]byte, error) {
+	c.Type = "compaction"
+	type alias Compaction
+	return openai.Marshal(alias(c))
 }
 
 // ReasoningSummary describes a summary of the reasoning.

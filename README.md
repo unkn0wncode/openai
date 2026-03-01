@@ -155,6 +155,7 @@ Other exposed types/functions in the `responses` package:
 There are a few concepts in the Responses API that may need further explanation:
 - Input/output types, such as in `responses.Request.Input` and `output.Message.Content` fields.
 - `responses.Request.PreviousResponseID` field that can be filled with `responses.Response.ID` for chaining requests with automatically managed context.
+- `responses.Request.ContextManagement` field for automatic server-side compaction.
 - `responses.Request.Instructions` field that replaces system messages previously used in the Chat API.
 - Prompt caching configuration via `responses.Request.PromptCacheKey` and `responses.Request.PromptCacheRetention` (for GPT-5.1+ you can set `"24h"` to enable extended caching).
 - Our additional fields in the `responses.Request` type, such as `responses.Request.IntermediateMessageHandler`.
@@ -213,6 +214,7 @@ According to the docs, the following types are allowed in `responses.Request.Inp
   - `output.CustomToolCall`
   - `output.CustomToolCallOutput`
   - `output.Reasoning`
+  - `output.Compaction`
   - `output.MCPListTools`
   - `output.MCPApprovalRequest`
   - `output.MCPApprovalResponse`
@@ -242,6 +244,7 @@ Possible output types in the `responses.Response.ParsedOutputs` slice are:
 - `output.WebSearchCall`
 - `output.ComputerCall`
 - `output.Reasoning`
+- `output.Compaction`
 - `output.MCPListTools`
 - `output.MCPApprovalRequest`
 - `output.MCPApprovalResponse`
@@ -282,6 +285,28 @@ Assistant: It's normal for cats to meow. (ID_2)
 PreviousResponseID=ID_1 User: my pet is a dog
 Assistant: It's not normal for dogs to meow. (ID_3)
 ```
+
+### Server-side compaction
+
+You can enable automatic server-side compaction with `responses.Request.ContextManagement`.
+Include a `responses.ContextConfig`, where:
+- `Type` has only one supported value as of now: `"compaction"` (filled automatically if left empty). It allows to pass other values in case if more options are added in the future.
+- `CompactThreshold` is the token threshold that triggers automatic compaction (minimum `1000`).
+
+```go
+req := &responses.Request{
+  Model: models.Default,
+  Input: "Long context here...",
+  ContextManagement: []responses.ContextConfig{
+    {CompactThreshold: 200_000}, // Type defaults to "compaction"
+  },
+}
+resp, _ := client.Responses.Send(req)
+```
+
+When compaction triggers, the API returns an `output.Compaction` item containing opaque `EncryptedContent`.
+You can drop previous input items before compaction and only include new ones, starting with the compaction item.
+Or, if you're chaining with `PreviousResponseID`, just continue sending only new user inputs.
 
 ### Persistent Conversations
 

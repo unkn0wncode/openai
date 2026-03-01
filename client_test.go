@@ -236,6 +236,61 @@ func TestClient_Responses_dialogue(t *testing.T) {
 	t.Logf("resp: %v", resp.Texts())
 }
 
+func TestClient_Responses_ContextCompaction(t *testing.T) {
+	t.Parallel()
+	c := NewClient(testToken)
+
+	const compactThreshold = 1000
+	longMessage := "Reply with one short word. "
+	longMessage += strings.Repeat("context ", 700) // empyrically tested minimum that exceeds threshold
+
+	firstReq := &responses.Request{
+		Model:             models.Default,
+		Input:             longMessage,
+		ContextManagement: []responses.ContextConfig{{Type: "compaction", CompactThreshold: compactThreshold}},
+		MaxOutputTokens:   32,
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
+	}
+
+	firstResp, err := c.Responses.Send(firstReq)
+	require.NoError(t, err)
+	require.NotNil(t, firstResp)
+	require.NotEmpty(t, firstResp.ID)
+	require.NotEmpty(t, firstResp.ParsedOutputs)
+	var compactionOutputs []output.Compaction
+	for _, parsed := range firstResp.ParsedOutputs {
+		if compact, ok := parsed.(output.Compaction); ok {
+			compactionOutputs = append(compactionOutputs, compact)
+		}
+	}
+	require.NotEmpty(t, compactionOutputs, "expected at least one compaction item in output when threshold is crossed")
+	require.NotEmpty(t, compactionOutputs[0].EncryptedContent)
+
+	secondReq := &responses.Request{
+		Model:              models.Default,
+		PreviousResponseID: firstResp.ID,
+		Input:              "Send a short follow-up sentence.",
+		ContextManagement:  []responses.ContextConfig{{Type: "compaction", CompactThreshold: compactThreshold}},
+		MaxOutputTokens:    32,
+		Reasoning: &responses.ReasoningConfig{
+			Effort: "none",
+		},
+	}
+
+	secondResp, err := c.Responses.Send(secondReq)
+	require.NoError(t, err)
+	require.NotNil(t, secondResp)
+	require.NotEmpty(t, secondResp.ID)
+	require.NotEqual(t, firstResp.ID, secondResp.ID)
+	require.NotEmpty(t, secondResp.ParsedOutputs)
+	require.NotEmpty(t, secondResp.Texts())
+
+	t.Logf("compaction threshold: %d, compaction items: %d, first response id: %s, second response id: %s", compactThreshold, len(compactionOutputs), firstResp.ID, secondResp.ID)
+	t.Logf("follow-up texts: %v", secondResp.Texts())
+}
+
 func TestClient_Responses_Function(t *testing.T) {
 	t.Parallel()
 	c := NewClient(testToken)

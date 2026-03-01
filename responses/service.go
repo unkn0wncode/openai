@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/unkn0wncode/openai/content/input"
 	"github.com/unkn0wncode/openai/content/output"
+	openai "github.com/unkn0wncode/openai/internal"
 	"github.com/unkn0wncode/openai/responses/streaming"
 )
 
@@ -74,6 +76,7 @@ type Content interface {
 		output.CustomToolCall |
 		output.CustomToolCallOutput |
 		output.Reasoning |
+		output.Compaction |
 		output.ApplyPatchCall |
 		output.ApplyPatchCallOutput |
 		output.ShellCall |
@@ -91,6 +94,7 @@ type Request struct {
 	Include              []string          `json:"include,omitempty"`                // Additional data to include in response: "file_search_call.results", "message.input_image.image_url", "computer_call_output.output.image_url"
 	Instructions         string            `json:"instructions,omitempty"`           // System message for context
 	Conversation         any               `json:"conversation,omitempty"`           // ID or a Conversation object containing an ID
+	ContextManagement    []ContextConfig   `json:"context_management,omitempty"`     // Compaction configuration
 	MaxOutputTokens      int               `json:"max_output_tokens,omitempty"`      // Max tokens to generate
 	Metadata             map[string]string `json:"metadata,omitempty"`               // Key-value pairs
 	ParallelToolCalls    *bool             `json:"parallel_tool_calls,omitempty"`    // Allow parallel tool calls, default true
@@ -142,6 +146,10 @@ func (data *Request) Clone() *Request {
 	if data.Tools != nil {
 		clone.Tools = make([]string, len(data.Tools))
 		copy(clone.Tools, data.Tools)
+	}
+
+	if data.ContextManagement != nil {
+		clone.ContextManagement = slices.Clone(data.ContextManagement)
 	}
 
 	// Copy any other reference types as needed
@@ -552,4 +560,24 @@ func ForceToolChoice(toolType string, name string) json.RawMessage {
 // This is a backward-compatible wrapper around ForceToolChoice.
 func ForceFunction(name string) json.RawMessage {
 	return ForceToolChoice("function", name)
+}
+
+// ContextConfig represents configuration options for context management.
+type ContextConfig struct {
+	// The context management entry type. Currently only "compaction" is supported.
+	Type string `json:"type"`
+
+	// Token threshold at which compaction should be triggered for this entry.
+	// Minimum 1000.
+	CompactThreshold int `json:"compact_threshold,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// Fills the "type" field with "compaction" if empty.
+func (c ContextConfig) MarshalJSON() ([]byte, error) {
+	if c.Type == "" {
+		c.Type = "compaction"
+	}
+	type alias ContextConfig
+	return openai.Marshal(alias(c))
 }
