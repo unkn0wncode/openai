@@ -5,7 +5,7 @@ const (
 	Default     = Latest
 	DefaultMini = GPT5Mini
 	DefaultNano = GPT5Nano
-	Latest      = GPT52
+	Latest      = GPT54
 
 	// GPT35Turbo-3.5 family
 	GPT35Turbo = "gpt-3.5-turbo"
@@ -80,6 +80,11 @@ const (
 	GPT52Pro20251211      = "gpt-5.2-pro-2025-12-11"
 	GPT52Codex            = "gpt-5.2-codex"
 	GPT53Codex            = "gpt-5.3-codex"
+	GPT53ChatLatest       = "gpt-5.3-chat-latest"
+	GPT54                 = "gpt-5.4"
+	GPT5420260305         = "gpt-5.4-2026-03-05"
+	GPT54Pro              = "gpt-5.4-pro"
+	GPT54Pro20260305      = "gpt-5.4-pro-2026-03-05"
 
 	// Multimodal realtime & audio
 	GPTRealtime             = "gpt-realtime"
@@ -230,6 +235,11 @@ var Data = map[string]struct {
 	GPT52Pro20251211:      {0.00002100, 0.00000000, 0.00016800, 400000, 128000},
 	GPT52Codex:            {0.00000175, 0.00000018, 0.00001400, 400000, 128000},
 	GPT53Codex:            {0.00000175, 0.00000018, 0.00001400, 400000, 128000},
+	GPT53ChatLatest:       {0.00000175, 0.00000018, 0.00001400, 128000, 16384},
+	GPT54:                 {0.00000250, 0.00000025, 0.00001500, 1050000, 128000},
+	GPT5420260305:         {0.00000250, 0.00000025, 0.00001500, 1050000, 128000},
+	GPT54Pro:              {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
+	GPT54Pro20260305:      {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
 
 	// Multimodal realtime & audio
 	GPTRealtime:             {0.00000400, 0.00000040, 0.00001600, 128000, 16384},

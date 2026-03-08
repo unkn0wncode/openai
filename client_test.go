@@ -245,7 +245,7 @@ func TestClient_Responses_ContextCompaction(t *testing.T) {
 	longMessage += strings.Repeat("context ", 700) // empyrically tested minimum that exceeds threshold
 
 	firstReq := &responses.Request{
-		Model:             models.Default,
+		Model:             models.GPT52,
 		Input:             longMessage,
 		ContextManagement: []responses.ContextConfig{{Type: "compaction", CompactThreshold: compactThreshold}},
 		MaxOutputTokens:   32,
