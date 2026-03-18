@@ -3,8 +3,8 @@ package models
 
 const (
 	Default     = Latest
-	DefaultMini = GPT5Mini
-	DefaultNano = GPT5Nano
+	DefaultMini = GPT54Mini
+	DefaultNano = GPT54Nano
 	Latest      = GPT54
 
 	// GPT35Turbo-3.5 family
@@ -83,6 +83,10 @@ const (
 	GPT53ChatLatest       = "gpt-5.3-chat-latest"
 	GPT54                 = "gpt-5.4"
 	GPT5420260305         = "gpt-5.4-2026-03-05"
+	GPT54Mini             = "gpt-5.4-mini"
+	GPT54Mini20260317     = "gpt-5.4-mini-2026-03-17"
+	GPT54Nano             = "gpt-5.4-nano"
+	GPT54Nano20260317     = "gpt-5.4-nano-2026-03-17"
 	GPT54Pro              = "gpt-5.4-pro"
 	GPT54Pro20260305      = "gpt-5.4-pro-2026-03-05"
 
@@ -238,6 +242,10 @@ var Data = map[string]struct {
 	GPT53ChatLatest:       {0.00000175, 0.00000018, 0.00001400, 128000, 16384},
 	GPT54:                 {0.00000250, 0.00000025, 0.00001500, 1050000, 128000},
 	GPT5420260305:         {0.00000250, 0.00000025, 0.00001500, 1050000, 128000},
+	GPT54Mini:             {0.00000075, 0.00000008, 0.00000450, 400000, 128000},
+	GPT54Mini20260317:     {0.00000075, 0.00000008, 0.00000450, 400000, 128000},
+	GPT54Nano:             {0.00000020, 0.00000002, 0.00000125, 400000, 128000},
+	GPT54Nano20260317:     {0.00000020, 0.00000002, 0.00000125, 400000, 128000},
 	GPT54Pro:              {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
 	GPT54Pro20260305:      {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
 
