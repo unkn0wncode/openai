@@ -219,7 +219,9 @@ func (r *Response) Texts() []string {
 				continue
 			}
 
-			for _, content := range msg.Content.([]any) { // this type assertion is safe because all other cases are checked, mostly during unmarshalling
+			// this type assertion is safe because all other cases are checked, mostly during unmarshalling
+			// a check without comma ok is better than a continue because it will surface an error as a panic
+			for _, content := range msg.Content.([]any) {
 				if text, ok := content.(output.OutputText); ok {
 					texts = append(texts, text.String())
 				}
@@ -299,6 +301,8 @@ func (r *Response) Refusals() []string {
 				continue
 			}
 
+			// this type assertion is safe because all other cases are checked, mostly during unmarshalling
+			// a check without comma ok is better than a continue because it will surface an error as a panic
 			for _, content := range ms.Content.([]any) {
 				if refusal, ok := content.(output.Refusal); ok {
 					refusals = append(refusals, refusal.String())

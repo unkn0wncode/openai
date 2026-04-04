@@ -18,7 +18,7 @@ func main() {
 	client := openai.NewClient(token)
 
 	req := completion.Request{
-		Model:     models.GPTInstruct,
+		Model:     models.GPT35TurboInstruct,
 		Prompt:    "Once upon a time",
 		MaxTokens: 1024,
 	}

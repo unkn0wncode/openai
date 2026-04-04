@@ -131,7 +131,7 @@ func TestClient_Completion(t *testing.T) {
 	c := NewClient(testToken)
 
 	req := completion.Request{
-		Model:     models.GPTInstruct,
+		Model:     models.GPT35TurboInstruct,
 		Prompt:    "hi, how are you?",
 		MaxTokens: 1024,
 	}
@@ -152,7 +152,7 @@ func TestClient_Assistants(t *testing.T) {
 	// Create a new assistant
 	assistant, err := c.Assistants.CreateAssistant(assistants.CreateParams{
 		Name:  "Test Assistant",
-		Model: models.GPT4QuasarNano, // GPT-5 does not support assistants
+		Model: models.GPT41Nano, // GPT-5 does not support assistants
 	})
 	require.NoError(t, err)
 	require.NotNil(t, assistant)

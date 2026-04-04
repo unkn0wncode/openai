@@ -51,7 +51,7 @@ var _ responses.Service = (*Client)(nil)
 // marshalRequest marshals the request into a JSON object, including tools by name.
 func (c *Client) marshalRequest(data *responses.Request) ([]byte, error) {
 	if data == nil {
-		return nil, fmt.Errorf("request is nil")
+		return nil, errors.New("request is nil")
 	}
 
 	if len(data.Tools) == 0 {

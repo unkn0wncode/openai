@@ -21,7 +21,7 @@ func main() {
 
 	assistant, err := client.Assistants.CreateAssistant(assistants.CreateParams{
 		Name:  "Example Assistant",
-		Model: models.GPT4QuasarNano, // GPT-5 does not support assistants
+		Model: models.GPT41Nano, // GPT-5 does not support assistants
 	})
 	if err != nil {
 		panic(err)

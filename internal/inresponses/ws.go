@@ -37,7 +37,7 @@ type wsTurn struct {
 
 func newWSTurn() *wsTurn {
 	return &wsTurn{
-		events:       make(chan any, 64),
+		events:       make(chan any),
 		consumerDone: make(chan struct{}),
 		finished:     make(chan struct{}),
 	}

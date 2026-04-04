@@ -12,7 +12,7 @@ import (
 
 // Registry holds user-defined tools that AI can request to use.
 type Registry struct {
-	sync.RWMutex
+	mu            sync.RWMutex
 	FunctionCalls map[string]FunctionCall
 	Tools         map[string]Tool
 }
@@ -67,8 +67,8 @@ type FunctionCall struct {
 // To allow AI to call a function in a particular request, add the function name
 // to the request's "functions" field.
 func (r *Registry) CreateFunction(fc FunctionCall) error {
-	r.Lock()
-	defer r.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	if fc.Name == "" || fc.ParamsSchema == nil || fc.Description == "" {
 		return fmt.Errorf("function '%s' is missing required field(s)", fc.Name)
@@ -84,8 +84,8 @@ func (r *Registry) CreateFunction(fc FunctionCall) error {
 
 // DeleteFunction deletes a function from the registry.
 func (r *Registry) DeleteFunction(name string) error {
-	r.Lock()
-	defer r.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	if _, ok := r.FunctionCalls[name]; !ok {
 		return fmt.Errorf("function '%s' is not found in registry", name)
@@ -97,8 +97,8 @@ func (r *Registry) DeleteFunction(name string) error {
 
 // CountFunctions returns the number of registered functions.
 func (r *Registry) CountFunctions() int {
-	r.RLock()
-	defer r.RUnlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	return len(r.FunctionCalls)
 }
@@ -106,8 +106,8 @@ func (r *Registry) CountFunctions() int {
 // GetFunction returns a registered function by its name.
 // Returns false if the function is not registered.
 func (r *Registry) GetFunction(name string) (FunctionCall, bool) {
-	r.RLock()
-	defer r.RUnlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	fc, ok := r.FunctionCalls[name]
 	return fc, ok
@@ -330,18 +330,18 @@ func (r *Registry) RegisterTool(tool Tool) error {
 		return fmt.Errorf("unsupported tool type: %s", tool.Type)
 	}
 
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	// Check for duplicate tool names
-	if _, ok := r.Tools[tool.Name]; ok {
-		return fmt.Errorf("tool '%s' is already registered, names must be unique", tool.Name)
-	}
-
-	r.Lock()
-	defer r.Unlock()
-
 	name := tool.Name
 	if name == "" {
 		name = tool.Type
 	}
+	if _, ok := r.Tools[name]; ok {
+		return fmt.Errorf("tool '%s' is already registered, names must be unique", name)
+	}
+
 	r.Tools[name] = tool
 
 	return nil
@@ -349,8 +349,8 @@ func (r *Registry) RegisterTool(tool Tool) error {
 
 // DeleteTool deletes a tool from the registry.
 func (r *Registry) DeleteTool(name string) error {
-	r.Lock()
-	defer r.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	if _, ok := r.Tools[name]; !ok {
 		return fmt.Errorf("tool '%s' is not found in registry", name)
@@ -362,16 +362,16 @@ func (r *Registry) DeleteTool(name string) error {
 
 // CountTools returns the number of registered tools.
 func (r *Registry) CountTools() int {
-	r.RLock()
-	defer r.RUnlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	return len(r.Tools)
 }
 
 // GetTool returns a registered tool by its name.
 func (r *Registry) GetTool(name string) (Tool, bool) {
-	r.RLock()
-	defer r.RUnlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	tool, ok := r.Tools[name]
 	return tool, ok

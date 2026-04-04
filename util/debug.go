@@ -16,15 +16,12 @@ import (
 func LogStack(logger *log.Logger) {
 	level := 1
 	for {
-		// fmt.Println("LogStack level", level)
 		pc, _, _, ok := runtime.Caller(level)
 		if !ok {
-			// fmt.Println("Break: no pc")
 			break
 		}
 		callerFunc := runtime.FuncForPC(pc)
 		if callerFunc == nil {
-			// fmt.Println("Break: nill caller")
 			break
 		}
 		caller := callerFunc.Name()

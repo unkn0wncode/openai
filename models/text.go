@@ -1,38 +1,49 @@
 // Package models contains constants and pricing data for all OpenAI models.
 package models
 
+// Constant names are derived from the model ID:
+//
+//	GPT41          = "gpt-4.1"            // collapse dotted versions
+//	GPT4o          = "gpt-4o"             // keep literal family tokens
+//	O4Mini         = "o4-mini"            // o-series has no GPT prefix
+//	GPT4o20241120  = "gpt-4o-2024-11-20"  // dates appended as YYYYMMDD
+//	GPT41Mini      = "gpt-4.1-mini"       // suffixes stay PascalCase
+//
+// No marketing names (Quasar, Omni, etc). If there's no constant, use the
+// model ID string directly.
 const (
-	Default     = Latest
+	Default     = GPT54
 	DefaultMini = GPT54Mini
 	DefaultNano = GPT54Nano
-	Latest      = GPT54
 
-	// GPT35Turbo-3.5 family
-	GPT35Turbo = "gpt-3.5-turbo"
-	GPTSnap    = "gpt-3.5-turbo-0125"
-	GPT31106   = "gpt-3.5-turbo-1106"
+	// GPT-3.5 family
+	GPT35Turbo             = "gpt-3.5-turbo"
+	GPT35Turbo0125         = "gpt-3.5-turbo-0125"
+	GPT35Turbo1106         = "gpt-3.5-turbo-1106"
+	GPT35TurboInstruct     = "gpt-3.5-turbo-instruct"
+	GPT35TurboInstruct0914 = "gpt-3.5-turbo-instruct-0914"
 
 	// GPT-4 family
-	GPT4Turbo0125     = "gpt-4-0125-preview"
+	GPT40125Preview   = "gpt-4-0125-preview"
 	GPT4TurboPreview  = "gpt-4-turbo-preview"
 	GPT4Turbo         = "gpt-4-turbo"
 	GPT4Turbo20240409 = "gpt-4-turbo-2024-04-09"
 
-	GPT4Quasar             = "gpt-4.1"
-	GPT4Quasar20250414     = "gpt-4.1-2025-04-14"
-	GPT4QuasarMini         = "gpt-4.1-mini"
-	GPT4QuasarMini20250414 = "gpt-4.1-mini-2025-04-14"
-	GPT4QuasarNano         = "gpt-4.1-nano"
-	GPT4QuasarNano20250414 = "gpt-4.1-nano-2025-04-14"
+	// GPT-4.1 family
+	GPT41             = "gpt-4.1"
+	GPT4120250414     = "gpt-4.1-2025-04-14"
+	GPT41Mini         = "gpt-4.1-mini"
+	GPT41Mini20250414 = "gpt-4.1-mini-2025-04-14"
+	GPT41Nano         = "gpt-4.1-nano"
+	GPT41Nano20250414 = "gpt-4.1-nano-2025-04-14"
 
 	// GPT-4o family
-	GPT4Omni          = "gpt-4o"
-	GPT4o20240513     = "gpt-4o-2024-05-13"
-	GPT4o20240806     = "gpt-4o-2024-08-06"
-	GPT4o20241120     = "gpt-4o-2024-11-20"
-	GPT4oMini         = "gpt-4o-mini"
-	GPT4oMini20240718 = "gpt-4o-mini-2024-07-18"
-
+	GPT4o                            = "gpt-4o"
+	GPT4o20240513                    = "gpt-4o-2024-05-13"
+	GPT4o20240806                    = "gpt-4o-2024-08-06"
+	GPT4o20241120                    = "gpt-4o-2024-11-20"
+	GPT4oMini                        = "gpt-4o-mini"
+	GPT4oMini20240718                = "gpt-4o-mini-2024-07-18"
 	GPT4oSearchPreview               = "gpt-4o-search-preview"
 	GPT4oSearchPreview20250311       = "gpt-4o-search-preview-2025-03-11"
 	GPT4oMiniSearchPreview           = "gpt-4o-mini-search-preview"
@@ -74,7 +85,7 @@ const (
 	GPT51CodexMax         = "gpt-5.1-codex-max"
 	GPT51CodexMini        = "gpt-5.1-codex-mini"
 	GPT52                 = "gpt-5.2"
-	GPT5220251113         = "gpt-5.2-2025-12-11"
+	GPT5220251211         = "gpt-5.2-2025-12-11"
 	GPT52ChatLatest       = "gpt-5.2-chat-latest"
 	GPT52Pro              = "gpt-5.2-pro"
 	GPT52Pro20251211      = "gpt-5.2-pro-2025-12-11"
@@ -105,44 +116,42 @@ const (
 	GPTAudioMini20251215    = "gpt-audio-mini-2025-12-15"
 
 	// O-series
-	GPTO1                         = "o1"
-	GPTO120241217                 = "o1-2024-12-17"
-	GPTO1Mini                     = "o1-mini"
-	GPTO1Mini20240912             = "o1-mini-2024-09-12"
-	GPTO1Pro                      = "o1-pro"
-	GPTO1Pro20250319              = "o1-pro-2025-03-19"
-	GPTO3                         = "o3"
-	GPTO320250416                 = "o3-2025-04-16"
-	GPTO3Mini                     = "o3-mini"
-	GPTO3Mini20250131             = "o3-mini-2025-01-31"
-	GPTO3Pro                      = "o3-pro"
-	GPTO3Pro20250610              = "o3-pro-2025-06-10"
-	GPTO3DeepResearch             = "o3-deep-research"
-	GPTO3DeepResearch20250626     = "o3-deep-research-2025-06-26"
-	GPTO4Mini                     = "o4-mini"
-	GPTO4Mini20250416             = "o4-mini-2025-04-16"
-	GPTO4MiniDeepResearch         = "o4-mini-deep-research"
-	GPTO4MiniDeepResearch20250626 = "o4-mini-deep-research-2025-06-26"
+	O1                         = "o1"
+	O120241217                 = "o1-2024-12-17"
+	O1Mini                     = "o1-mini"
+	O1Mini20240912             = "o1-mini-2024-09-12"
+	O1Pro                      = "o1-pro"
+	O1Pro20250319              = "o1-pro-2025-03-19"
+	O3                         = "o3"
+	O320250416                 = "o3-2025-04-16"
+	O3Mini                     = "o3-mini"
+	O3Mini20250131             = "o3-mini-2025-01-31"
+	O3Pro                      = "o3-pro"
+	O3Pro20250610              = "o3-pro-2025-06-10"
+	O3DeepResearch             = "o3-deep-research"
+	O3DeepResearch20250626     = "o3-deep-research-2025-06-26"
+	O4Mini                     = "o4-mini"
+	O4Mini20250416             = "o4-mini-2025-04-16"
+	O4MiniDeepResearch         = "o4-mini-deep-research"
+	O4MiniDeepResearch20250626 = "o4-mini-deep-research-2025-06-26"
 
-	// Tooling / moderation
+	// Tooling
 	ComputerUsePreview         = "computer-use-preview"
 	ComputerUsePreview20250311 = "computer-use-preview-2025-03-11"
 
 	// Completion models
-	Curie           = "text-curie-001"
-	Davinci3        = "davinci-002"
-	Davinci         = "davinci"
-	DavinciInstruct = "davinci-instruct-beta"
-	GPTInstruct     = "gpt-3.5-turbo-instruct"
-	GPTInstruct0914 = "gpt-3.5-turbo-instruct-0914"
-	Babbage002      = "babbage-002"
+	TextCurie001        = "text-curie-001"
+	Davinci002          = "davinci-002"
+	Davinci             = "davinci"
+	DavinciInstructBeta = "davinci-instruct-beta"
+	Babbage002          = "babbage-002"
 
-	// Moderation defaults
-	DefaultModeration = OmniMod
-	OmniMod           = "omni-moderation-latest"
-	OmniMod20240926   = "omni-moderation-2024-09-26"
-	ModTextLatest     = "text-moderation-latest"
-	ModTextStable     = "text-moderation-stable"
+	// Moderation
+	DefaultModeration      = OmniModeration
+	OmniModeration         = "omni-moderation-latest"
+	OmniModeration20240926 = "omni-moderation-2024-09-26"
+	TextModerationLatest   = "text-moderation-latest"
+	TextModerationStable   = "text-moderation-stable"
 )
 
 //go:generate go run ../internal/cmd/getmodels
@@ -164,29 +173,31 @@ var Data = map[string]struct {
 	"": {0.00000000, 0.00000000, 0.00000000, 4096, 4096},
 
 	// GPT-3.5 family
-	GPT35Turbo:      {0.00000050, 0.00000000, 0.00000150, 16385, 4096},
-	GPTSnap:         {0.00000050, 0.00000050, 0.00000150, 16348, 4096},
-	GPT31106:        {0.00000100, 0.00000100, 0.00000200, 16348, 4096},
-	GPTInstruct:     {0.00000150, 0.00000000, 0.00000200, 16348, 4096},
-	GPTInstruct0914: {0.00000150, 0.00000000, 0.00000200, 16348, 4096},
+	GPT35Turbo:             {0.00000050, 0.00000000, 0.00000150, 16385, 4096},
+	GPT35Turbo0125:         {0.00000050, 0.00000050, 0.00000150, 16348, 4096},
+	GPT35Turbo1106:         {0.00000100, 0.00000100, 0.00000200, 16348, 4096},
+	GPT35TurboInstruct:     {0.00000150, 0.00000000, 0.00000200, 16348, 4096},
+	GPT35TurboInstruct0914: {0.00000150, 0.00000000, 0.00000200, 16348, 4096},
 
 	// GPT-4 family
-	"gpt-4":                {0.00003000, 0.00000000, 0.00006000, 8192, 8192},
-	GPT4Turbo0125:          {0.00001000, 0.00001000, 0.00003000, 128000, 4096},
-	GPT4TurboPreview:       {0.00001000, 0.00001000, 0.00003000, 128000, 4096},
-	GPT4Turbo:              {0.00001000, 0.00000000, 0.00003000, 128000, 4096},
-	GPT4Turbo20240409:      {0.00001000, 0.00001000, 0.00003000, 128000, 4096},
-	"gpt-4-0613":           {0.00003000, 0.00003000, 0.00006000, 8192, 8192},
-	"gpt-4-1106-preview":   {0.00001000, 0.00000000, 0.00003000, 128000, 4096},
-	GPT4Quasar:             {0.00000200, 0.00000050, 0.00000800, 1047576, 32768},
-	GPT4Quasar20250414:     {0.00000200, 0.00000050, 0.00000800, 1000000, 32768},
-	GPT4QuasarMini:         {0.00000040, 0.00000010, 0.00000160, 1047576, 32768},
-	GPT4QuasarMini20250414: {0.00000040, 0.00000010, 0.00000160, 1000000, 32768},
-	GPT4QuasarNano:         {0.00000010, 0.00000003, 0.00000040, 1047576, 32768},
-	GPT4QuasarNano20250414: {0.00000010, 0.00000003, 0.00000040, 1000000, 32768},
+	"gpt-4":              {0.00003000, 0.00000000, 0.00006000, 8192, 8192},
+	GPT40125Preview:      {0.00001000, 0.00001000, 0.00003000, 128000, 4096},
+	GPT4TurboPreview:     {0.00001000, 0.00001000, 0.00003000, 128000, 4096},
+	GPT4Turbo:            {0.00001000, 0.00000000, 0.00003000, 128000, 4096},
+	GPT4Turbo20240409:    {0.00001000, 0.00001000, 0.00003000, 128000, 4096},
+	"gpt-4-0613":         {0.00003000, 0.00003000, 0.00006000, 8192, 8192},
+	"gpt-4-1106-preview": {0.00001000, 0.00000000, 0.00003000, 128000, 4096},
+
+	// GPT-4.1 family
+	GPT41:             {0.00000200, 0.00000050, 0.00000800, 1047576, 32768},
+	GPT4120250414:     {0.00000200, 0.00000050, 0.00000800, 1000000, 32768},
+	GPT41Mini:         {0.00000040, 0.00000010, 0.00000160, 1047576, 32768},
+	GPT41Mini20250414: {0.00000040, 0.00000010, 0.00000160, 1000000, 32768},
+	GPT41Nano:         {0.00000010, 0.00000003, 0.00000040, 1047576, 32768},
+	GPT41Nano20250414: {0.00000010, 0.00000003, 0.00000040, 1000000, 32768},
 
 	// GPT-4o family
-	GPT4Omni:                         {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
+	GPT4o:                            {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
 	GPT4o20240513:                    {0.00000500, 0.00000000, 0.00001500, 128000, 4096},
 	GPT4o20240806:                    {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
 	GPT4o20241120:                    {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
@@ -233,7 +244,7 @@ var Data = map[string]struct {
 	GPT51CodexMax:         {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
 	GPT51CodexMini:        {0.00000025, 0.00000003, 0.00000200, 400000, 128000},
 	GPT52:                 {0.00000175, 0.00000018, 0.00001400, 400000, 128000},
-	GPT5220251113:         {0.00000175, 0.00000018, 0.00001400, 400000, 128000},
+	GPT5220251211:         {0.00000175, 0.00000018, 0.00001400, 400000, 128000},
 	GPT52ChatLatest:       {0.00000175, 0.00000018, 0.00001400, 128000, 16384},
 	GPT52Pro:              {0.00002100, 0.00000000, 0.00016800, 400000, 128000},
 	GPT52Pro20251211:      {0.00002100, 0.00000000, 0.00016800, 400000, 128000},
@@ -264,34 +275,34 @@ var Data = map[string]struct {
 	GPTAudioMini20251215:    {0.00000060, 0.00000000, 0.00000240, 128000, 16384},
 
 	// O-series
-	GPTO1:                         {0.00001500, 0.00000750, 0.00006000, 200000, 100000},
-	GPTO120241217:                 {0.00001500, 0.00000750, 0.00006000, 200000, 100000},
-	GPTO1Pro:                      {0.00015000, 0.00000000, 0.00060000, 200000, 100000},
-	GPTO1Pro20250319:              {0.00015000, 0.00000000, 0.00060000, 200000, 100000},
-	GPTO3:                         {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
-	GPTO320250416:                 {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
-	GPTO3Mini:                     {0.00000110, 0.00000055, 0.00000440, 200000, 100000},
-	GPTO3Mini20250131:             {0.00000110, 0.00000055, 0.00000440, 200000, 100000},
-	GPTO3Pro:                      {0.00002000, 0.00000000, 0.00008000, 200000, 100000},
-	GPTO3Pro20250610:              {0.00002000, 0.00000000, 0.00008000, 200000, 100000},
-	GPTO3DeepResearch:             {0.00001000, 0.00000250, 0.00004000, 200000, 100000},
-	GPTO3DeepResearch20250626:     {0.00001000, 0.00000250, 0.00004000, 200000, 100000},
-	GPTO4Mini:                     {0.00000110, 0.00000028, 0.00000440, 200000, 100000},
-	GPTO4Mini20250416:             {0.00000110, 0.00000028, 0.00000440, 200000, 100000},
-	GPTO4MiniDeepResearch:         {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
-	GPTO4MiniDeepResearch20250626: {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
+	O1:                         {0.00001500, 0.00000750, 0.00006000, 200000, 100000},
+	O120241217:                 {0.00001500, 0.00000750, 0.00006000, 200000, 100000},
+	O1Pro:                      {0.00015000, 0.00000000, 0.00060000, 200000, 100000},
+	O1Pro20250319:              {0.00015000, 0.00000000, 0.00060000, 200000, 100000},
+	O3:                         {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
+	O320250416:                 {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
+	O3Mini:                     {0.00000110, 0.00000055, 0.00000440, 200000, 100000},
+	O3Mini20250131:             {0.00000110, 0.00000055, 0.00000440, 200000, 100000},
+	O3Pro:                      {0.00002000, 0.00000000, 0.00008000, 200000, 100000},
+	O3Pro20250610:              {0.00002000, 0.00000000, 0.00008000, 200000, 100000},
+	O3DeepResearch:             {0.00001000, 0.00000250, 0.00004000, 200000, 100000},
+	O3DeepResearch20250626:     {0.00001000, 0.00000250, 0.00004000, 200000, 100000},
+	O4Mini:                     {0.00000110, 0.00000028, 0.00000440, 200000, 100000},
+	O4Mini20250416:             {0.00000110, 0.00000028, 0.00000440, 200000, 100000},
+	O4MiniDeepResearch:         {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
+	O4MiniDeepResearch20250626: {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
 
 	// Tooling & moderation
 	ComputerUsePreview:         {0.00000300, 0.00000000, 0.00001200, 128000, 16384},
 	ComputerUsePreview20250311: {0.00000300, 0.00000000, 0.00001200, 128000, 16384},
-	OmniMod:                    {0.00000000, 0.00000000, 0.00000000, 8192, 4096},
-	OmniMod20240926:            {0.00000000, 0.00000000, 0.00000000, 8192, 4096},
+	OmniModeration:             {0.00000000, 0.00000000, 0.00000000, 8192, 4096},
+	OmniModeration20240926:     {0.00000000, 0.00000000, 0.00000000, 8192, 4096},
 
 	// Completion models
-	Davinci3:   {0.00000200, 0.00000000, 0.00000200, 16384, 4096},
+	Davinci002: {0.00000200, 0.00000000, 0.00000200, 16384, 4096},
 	Babbage002: {0.00000040, 0.00000000, 0.00000040, 16384, 4096},
 
 	// Embedding models
-	ThreeLarge: {0.00000013, 0.00000000, 0.00000000, 8191, 3072},
-	ThreeSmall: {0.00000002, 0.00000000, 0.00000000, 8191, 1536},
+	TextEmbedding3Large: {0.00000013, 0.00000000, 0.00000000, 8191, 3072},
+	TextEmbedding3Small: {0.00000002, 0.00000000, 0.00000000, 8191, 1536},
 }
