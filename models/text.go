@@ -39,32 +39,22 @@ const (
 	GPT41Nano20250414 = "gpt-4.1-nano-2025-04-14"
 
 	// GPT-4o family
-	GPT4o                            = "gpt-4o"
-	GPT4o20240513                    = "gpt-4o-2024-05-13"
-	GPT4o20240806                    = "gpt-4o-2024-08-06"
-	GPT4o20241120                    = "gpt-4o-2024-11-20"
-	GPT4oMini                        = "gpt-4o-mini"
-	GPT4oMini20240718                = "gpt-4o-mini-2024-07-18"
-	GPT4oSearchPreview               = "gpt-4o-search-preview"
-	GPT4oSearchPreview20250311       = "gpt-4o-search-preview-2025-03-11"
-	GPT4oMiniSearchPreview           = "gpt-4o-mini-search-preview"
-	GPT4oMiniSearchPreview20250311   = "gpt-4o-mini-search-preview-2025-03-11"
-	GPT4oRealtimePreview             = "gpt-4o-realtime-preview"
-	GPT4oRealtimePreview20241217     = "gpt-4o-realtime-preview-2024-12-17"
-	GPT4oRealtimePreview20250603     = "gpt-4o-realtime-preview-2025-06-03"
-	GPT4oMiniRealtimePreview         = "gpt-4o-mini-realtime-preview"
-	GPT4oMiniRealtimePreview20241217 = "gpt-4o-mini-realtime-preview-2024-12-17"
-	GPT4oAudioPreview                = "gpt-4o-audio-preview"
-	GPT4oAudioPreview20241217        = "gpt-4o-audio-preview-2024-12-17"
-	GPT4oAudioPreview20250603        = "gpt-4o-audio-preview-2025-06-03"
-	GPT4oMiniAudioPreview            = "gpt-4o-mini-audio-preview"
-	GPT4oMiniAudioPreview20241217    = "gpt-4o-mini-audio-preview-2024-12-17"
-	GPT4oTranscribe                  = "gpt-4o-transcribe"
-	GPT4oTranscribeDiarize           = "gpt-4o-transcribe-diarize"
-	GPT4oMiniTranscribe              = "gpt-4o-mini-transcribe"
-	GPT4oMiniTranscribe20250320      = "gpt-4o-mini-transcribe-2025-03-20"
-	GPT4oMiniTranscribe20251215      = "gpt-4o-mini-transcribe-2025-12-15"
-	GPT4oMiniTTS                     = "gpt-4o-mini-tts"
+	GPT4o                          = "gpt-4o"
+	GPT4o20240513                  = "gpt-4o-2024-05-13"
+	GPT4o20240806                  = "gpt-4o-2024-08-06"
+	GPT4o20241120                  = "gpt-4o-2024-11-20"
+	GPT4oMini                      = "gpt-4o-mini"
+	GPT4oMini20240718              = "gpt-4o-mini-2024-07-18"
+	GPT4oSearchPreview             = "gpt-4o-search-preview"
+	GPT4oSearchPreview20250311     = "gpt-4o-search-preview-2025-03-11"
+	GPT4oMiniSearchPreview         = "gpt-4o-mini-search-preview"
+	GPT4oMiniSearchPreview20250311 = "gpt-4o-mini-search-preview-2025-03-11"
+	GPT4oTranscribe                = "gpt-4o-transcribe"
+	GPT4oTranscribeDiarize         = "gpt-4o-transcribe-diarize"
+	GPT4oMiniTranscribe            = "gpt-4o-mini-transcribe"
+	GPT4oMiniTranscribe20250320    = "gpt-4o-mini-transcribe-2025-03-20"
+	GPT4oMiniTranscribe20251215    = "gpt-4o-mini-transcribe-2025-12-15"
+	GPT4oMiniTTS                   = "gpt-4o-mini-tts"
 
 	// GPT-5 family
 	GPT5                  = "gpt-5"
@@ -203,32 +193,22 @@ var Data = map[string]struct {
 	GPT41Nano20250414: {0.00000010, 0.00000003, 0.00000040, 1000000, 32768},
 
 	// GPT-4o family
-	GPT4o:                            {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
-	GPT4o20240513:                    {0.00000500, 0.00000000, 0.00001500, 128000, 4096},
-	GPT4o20240806:                    {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
-	GPT4o20241120:                    {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
-	GPT4oMini:                        {0.00000015, 0.00000008, 0.00000060, 128000, 16384},
-	GPT4oMini20240718:                {0.00000015, 0.00000008, 0.00000060, 128000, 16348},
-	GPT4oSearchPreview:               {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oSearchPreview20250311:       {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oMiniSearchPreview:           {0.00000015, 0.00000000, 0.00000060, 128000, 16384},
-	GPT4oMiniSearchPreview20250311:   {0.00000015, 0.00000000, 0.00000060, 128000, 16384},
-	GPT4oRealtimePreview:             {0.00000500, 0.00000250, 0.00002000, 128000, 16384},
-	GPT4oRealtimePreview20241217:     {0.00000500, 0.00000250, 0.00002000, 128000, 16384},
-	GPT4oRealtimePreview20250603:     {0.00000500, 0.00000250, 0.00002000, 128000, 16384},
-	GPT4oMiniRealtimePreview:         {0.00000060, 0.00000030, 0.00000240, 128000, 16384},
-	GPT4oMiniRealtimePreview20241217: {0.00000060, 0.00000030, 0.00000240, 128000, 16384},
-	GPT4oAudioPreview:                {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oAudioPreview20241217:        {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oAudioPreview20250603:        {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oMiniAudioPreview:            {0.00000015, 0.00000000, 0.00000060, 128000, 16384},
-	GPT4oMiniAudioPreview20241217:    {0.00000015, 0.00000000, 0.00000060, 128000, 16384},
-	GPT4oTranscribe:                  {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oTranscribeDiarize:           {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oMiniTranscribe:              {0.00000125, 0.00000000, 0.00000500, 128000, 16384},
-	GPT4oMiniTranscribe20250320:      {0.00000125, 0.00000000, 0.00000500, 128000, 16384},
-	GPT4oMiniTranscribe20251215:      {0.00000125, 0.00000000, 0.00000500, 128000, 16384},
-	GPT4oMiniTTS:                     {0.00000060, 0.00000000, 0.00001200, 128000, 16384},
+	GPT4o:                          {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
+	GPT4o20240513:                  {0.00000500, 0.00000000, 0.00001500, 128000, 4096},
+	GPT4o20240806:                  {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
+	GPT4o20241120:                  {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
+	GPT4oMini:                      {0.00000015, 0.00000008, 0.00000060, 128000, 16384},
+	GPT4oMini20240718:              {0.00000015, 0.00000008, 0.00000060, 128000, 16348},
+	GPT4oSearchPreview:             {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
+	GPT4oSearchPreview20250311:     {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
+	GPT4oMiniSearchPreview:         {0.00000015, 0.00000000, 0.00000060, 128000, 16384},
+	GPT4oMiniSearchPreview20250311: {0.00000015, 0.00000000, 0.00000060, 128000, 16384},
+	GPT4oTranscribe:                {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
+	GPT4oTranscribeDiarize:         {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
+	GPT4oMiniTranscribe:            {0.00000125, 0.00000000, 0.00000500, 128000, 16384},
+	GPT4oMiniTranscribe20250320:    {0.00000125, 0.00000000, 0.00000500, 128000, 16384},
+	GPT4oMiniTranscribe20251215:    {0.00000125, 0.00000000, 0.00000500, 128000, 16384},
+	GPT4oMiniTTS:                   {0.00000060, 0.00000000, 0.00001200, 128000, 16384},
 
 	// GPT-5 family
 	GPT5:                  {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
