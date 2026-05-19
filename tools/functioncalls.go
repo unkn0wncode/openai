@@ -166,9 +166,11 @@ type Tool struct {
 	VectorStoreIDs []string `json:"vector_store_ids,omitempty"`
 	// Max number of results for file_search type
 	MaxNumResults int `json:"max_num_results,omitempty"`
-	// Filters for selecting files, see documentation:
-	// https://platform.openai.com/docs/guides/tools-file-search#metadata-filtering
-	// https://platform.openai.com/docs/guides/retrieval#attribute-filtering
+	// Filters for the tool.
+	//   - For file_search, see documentation:
+	//     https://platform.openai.com/docs/guides/tools-file-search#metadata-filtering
+	//     https://platform.openai.com/docs/guides/retrieval#attribute-filtering
+	//   - For web_search, use WebSearchFilters to limit results to specific domains.
 	Filters any `json:"filters,omitempty"`
 
 	// fields for computer_use_preview
@@ -194,14 +196,22 @@ type Tool struct {
 	// Either "always", or "never", or MCPApprovalList.
 	RequireApproval any `json:"require_approval,omitempty"`
 
-	// Web search preview
-
 	// High level guidance for the amount of context window space to use for the search.
 	// One of low, medium, or high. medium is the default.
 	SearchContextSize string `json:"search_context_size,omitempty"`
 
 	// User location object
 	UserLocation *UserLocation `json:"user_location,omitempty"`
+
+	// Controls how much web search result content the tool can return.
+	// One of "default" or "unlimited". Only valid for the "web_search" tool with
+	// GPT-5+ reasoning models.
+	ReturnTokenBudget string `json:"return_token_budget,omitempty"`
+
+	// Controls whether the web search tool fetches live content or uses only
+	// cached/indexed results. Default is true (live access). Set to false for
+	// offline/cache-only mode.
+	ExternalWebAccess *bool `json:"external_web_access,omitempty"`
 
 	// fields for code_interpreter
 
@@ -219,6 +229,14 @@ type CustomToolFormat struct {
 	Type       string `json:"type"`
 	Syntax     string `json:"syntax,omitempty"`
 	Definition string `json:"definition,omitempty"`
+}
+
+// WebSearchFilters limits web_search results to specific domains.
+// Up to 100 entries each. Format domains without http/https prefix
+// (e.g. "openai.com" - subdomains are included).
+type WebSearchFilters struct {
+	AllowedDomains []string `json:"allowed_domains,omitempty"`
+	BlockedDomains []string `json:"blocked_domains,omitempty"`
 }
 
 // UserLocation represents a user's location.
