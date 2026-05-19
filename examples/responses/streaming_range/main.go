@@ -33,13 +33,12 @@ func main() {
 		panic(err)
 	}
 
-	for event := range stream.Chan() {
+	for event, err := range stream.Seq() {
+		if err != nil {
+			panic(err)
+		}
 		if delta, ok := event.(streaming.ResponseOutputTextDelta); ok {
 			fmt.Print(delta.Delta)
 		}
-	}
-
-	if err := stream.Err(); err != nil {
-		panic(err)
 	}
 }

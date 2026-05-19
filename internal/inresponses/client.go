@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/unkn0wncode/openai/content/output"
@@ -669,64 +670,123 @@ func (c *Client) Poll(ctx context.Context, id string, interval time.Duration) (*
 	}
 }
 
-// streamEvents sends a request with parameter "stream":true and returns a stream of events as a channel.
-func (c *Client) streamEvents(ctx context.Context, data *responses.Request) (<-chan any, error) {
+// sseStream is the streaming.Source backing an SSE /v1/responses request.
+// The reader goroutine is the only event writer.
+type sseStream struct {
+	events   chan any
+	done     chan struct{}
+	once     sync.Once
+	err      error
+	cancel   context.CancelFunc
+	body     io.Closer
+	bodyOnce sync.Once
+}
+
+var _ streaming.Source = (*sseStream)(nil)
+
+func (h *sseStream) Events() <-chan any { return h.events }
+
+func (h *sseStream) Done() <-chan struct{} { return h.done }
+
+func (h *sseStream) Err() error {
+	<-h.done
+	return h.err
+}
+
+func (h *sseStream) Close() {
+	h.finish(nil)
+	h.cancel()
+	h.closeBody()
+}
+
+func (h *sseStream) closeBody() {
+	h.bodyOnce.Do(func() {
+		_ = h.body.Close()
+	})
+}
+
+func (h *sseStream) finish(err error) {
+	h.once.Do(func() {
+		h.err = err
+		close(h.done)
+	})
+}
+
+// streamEvents sends a request with "stream":true and returns a streaming.Source
+// backed by the SSE response body.
+func (c *Client) streamEvents(ctx context.Context, data *responses.Request) (streaming.Source, error) {
 	if data == nil {
 		return nil, fmt.Errorf("request is nil")
 	}
+	data = data.Clone()
 
 	if data.Model == "" {
 		data.Model = models.Default
 	}
 
-	// Check if we have input
 	if data.Input == nil {
 		return nil, fmt.Errorf("input is required")
 	}
 
-	if !data.Stream {
-		return nil, fmt.Errorf("request has no 'stream' parameter but was invoked with Stream method, use Send method instead")
-	}
+	data.Stream = true
 
 	b, err := c.marshalRequest(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseAPI+"v1/responses", bytes.NewBuffer(b))
+	streamCtx, cancel := context.WithCancel(ctx)
+	req, err := http.NewRequestWithContext(streamCtx, http.MethodPost, c.BaseAPI+"v1/responses", bytes.NewBuffer(b))
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	c.AddHeaders(req)
 
-	var resp *http.Response
 	before := time.Now()
-	resp, err = c.HTTPClient.Do(req)
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-
-	// Use 64KB buffer for better performance with streaming responses
-	reader := bufio.NewReaderSize(resp.Body, 64*1024)
-
-	stream := make(chan any)
-	go func() {
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		defer cancel()
 		defer resp.Body.Close()
-		defer close(stream)
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("stream request failed with status %s and failed to read body: %w", resp.Status, err)
+		}
+		return nil, fmt.Errorf("stream request failed with status %s, body: %s", resp.Status, string(body))
+	}
+
+	src := &sseStream{
+		events: make(chan any),
+		done:   make(chan struct{}),
+		cancel: cancel,
+		body:   resp.Body,
+	}
+
+	go func() {
+		defer cancel()
+		defer src.closeBody()
 
 		eventCount := 0
 		defer func() {
-			duration := time.Since(before)
 			c.Log.Debug(
 				fmt.Sprintf("Stream finished after %s, got %d events",
-					duration, eventCount),
+					time.Since(before), eventCount),
 			)
 		}()
 
+		reader := bufio.NewReader(resp.Body)
+
 		for {
 			select {
-			case <-ctx.Done():
-				stream <- ctx.Err()
+			case <-streamCtx.Done():
+				src.finish(streamCtx.Err())
+				return
+			case <-src.done:
 				return
 			default:
 			}
@@ -735,49 +795,56 @@ func (c *Client) streamEvents(ctx context.Context, data *responses.Request) (<-c
 			switch {
 			case err == nil:
 			case errors.Is(err, io.EOF):
+				src.finish(nil)
 				return
 			default:
-				stream <- err
+				src.finish(err)
 				return
 			}
 
-			// check what we got
+			line := bytes.TrimRight(chunk, "\r\n")
 			switch {
-			case len(chunk) == 0, string(chunk) == "\n":
+			case len(line) == 0:
 				// separator between events, skip
 				continue
-			case bytes.HasPrefix(chunk, []byte("event: ")):
+			case bytes.HasPrefix(line, []byte("event: ")):
 				// event header with event type, skip
 				continue
-			case bytes.HasPrefix(chunk, []byte("data: ")):
+			case bytes.HasPrefix(line, []byte("data: ")):
 				// event data, handle
+				chunk = line
 			default:
-				// unexpected payload, return error
-				stream <- fmt.Errorf("unexpected payload: %s", string(chunk))
+				src.finish(fmt.Errorf("unexpected payload: %s", string(chunk)))
 				return
 			}
 
-			// trim prefix and unmarshal data
 			eventCount++
 			chunk = chunk[len("data: "):]
 			event, err := streaming.Unmarshal(chunk)
 			if err != nil {
-				stream <- fmt.Errorf("failed to unmarshal event data: %w", err)
+				src.finish(fmt.Errorf("failed to unmarshal event data: %w", err))
 				return
 			}
 
-			stream <- event
+			select {
+			case src.events <- event:
+			case <-streamCtx.Done():
+				src.finish(streamCtx.Err())
+				return
+			case <-src.done:
+				return
+			}
 		}
 	}()
 
-	return stream, nil
+	return src, nil
 }
 
 // Stream sends a request with parameter "stream":true and returns a streaming iterator.
 func (c *Client) Stream(ctx context.Context, req *responses.Request) (*streaming.StreamIterator, error) {
-	eventChan, err := c.streamEvents(ctx, req)
+	src, err := c.streamEvents(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return streaming.NewStreamIterator(ctx, eventChan), nil
+	return streaming.NewStreamIterator(ctx, src), nil
 }

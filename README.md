@@ -347,9 +347,9 @@ Because the conversation context is managed automatically, it is possible for "s
 
 ### Streaming
 
-You can set `responses.Request.Stream` to `true` and use `responses.Response.Stream(req)` to get a stream of `any` events.
+Use `client.Responses.Stream(ctx, req)` to get a stream of `any` events. The SDK sets `stream=true` in the request body and does not mutate the original request.
 
-In normal flow, you'll get a sequence of events with types from the `responses/streaming` package. If any error occurs during streaming, it will be sent to the same stream, and then the stream will be closed. Only streaming event types and errors can be sent in the stream. Successful termination of the stream is indicated by the stream closing with no error, `io.EOF` is ignored and not sent.
+In normal flow, you'll get a sequence of events with types from the `responses/streaming` package. Transport, decoding, and protocol error events stop iteration and are available through `stream.Err()`; `stream.Seq()` yields them as a final `(nil, err)` pair. Response status events such as `response.failed` are still delivered as events, and `io.EOF` is ignored.
 
 Some event types have fields than may contain multiple different types of data. Such fields are left as `json.RawMessage` and mostly can be parsed further using types from the `output` package, but this is not done automatically.
 
@@ -372,6 +372,10 @@ for stream.Next() {
 		fmt.Print(delta.Delta)
 	}
 }
+
+if err := stream.Err(); err != nil {
+	panic(err)
+}
 ```
 
 The `WSConn` interface exposes:
@@ -380,6 +384,12 @@ The `WSConn` interface exposes:
 - `Close` closes the WebSocket connection.
 
 `Send` returns the same `StreamIterator` and event types as the SSE-based `Stream` method. The context passed to `WebSocket` is only used for the initial dial.
+
+A few usage notes:
+- Use `stream.Seq()` if you want to range over events. It cleans up the request stream when the loop exits.
+- If you use `Next`/`Event` and stop early, call `stream.Close()`.
+- For WebSocket streams, read each stream returned by `ws.Send` to the end, or call `stream.Close()` when you stop early. Leaving a stream unread can prevent later responses on the same WebSocket connection from being delivered.
+- Keep the `ws` open while you want to reuse the connection. Call `ws.Close()` when you're done with it.
 
 ## Chat API (Legacy)
 

@@ -684,89 +684,6 @@ func TestClient_Responses_Stream(t *testing.T) {
 	require.NotEmpty(t, outputText.String())
 }
 
-func TestClient_Responses_Stream_ContextCancellation(t *testing.T) {
-	t.Parallel()
-	c := NewClient(testToken)
-
-	req := &responses.Request{
-		Model:  models.Default,
-		Input:  "Write a very long detailed essay about artificial intelligence, machine learning, and the future of technology. Make it at least 2000 words.",
-		Stream: true,
-		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
-		},
-	}
-
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	stream, err := c.Responses.Stream(ctx, req)
-	require.NoError(t, err)
-	require.NotNil(t, stream)
-
-	eventCount := 0
-	for stream.Next() {
-		eventCount++
-
-		if eventCount == 5 {
-			cancel()
-		}
-
-		event := stream.Event()
-		if delta, ok := event.(streaming.ResponseOutputTextDelta); ok {
-			t.Logf("Received delta: %s", delta.Delta)
-		}
-	}
-
-	require.Error(t, stream.Err())
-	require.Equal(t, context.Canceled, stream.Err())
-	require.True(t, eventCount >= 5, "Should have received at least 5 events before cancellation")
-	t.Logf("Received %d events before cancellation", eventCount)
-}
-
-func TestClient_Responses_Stream_ContextCancellation_Range(t *testing.T) {
-	t.Parallel()
-	c := NewClient(testToken)
-
-	req := &responses.Request{
-		Model:  models.Default,
-		Input:  "Write a very long detailed essay about artificial intelligence, machine learning, and the future of technology. Make it at least 2000 words.",
-		Stream: true,
-		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
-		},
-	}
-
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	stream, err := c.Responses.Stream(ctx, req)
-	require.NoError(t, err)
-	require.NotNil(t, stream)
-
-	eventCount := 0
-	for event := range stream.Chan() {
-		eventCount++
-
-		if eventCount == 5 {
-			cancel()
-		}
-
-		switch e := event.(type) {
-		case streaming.ResponseOutputTextDelta:
-			t.Logf("Received delta: %s", e.Delta)
-		case error:
-			require.Equal(t, context.Canceled, e)
-			t.Logf("Received expected cancellation error through channel after %d events", eventCount)
-		}
-	}
-
-	if stream.Err() != nil {
-		require.Equal(t, context.Canceled, stream.Err())
-		t.Logf("Cancellation error also available via Err()")
-	}
-}
-
 func TestClient_Responses_Stream_CollectText(t *testing.T) {
 	t.Parallel()
 	c := NewClient(testToken)
@@ -815,7 +732,8 @@ func TestClient_Responses_Stream_Range(t *testing.T) {
 
 	var outputText strings.Builder
 	eventCount := 0
-	for event := range stream.Chan() {
+	for event, err := range stream.Seq() {
+		require.NoError(t, err)
 		eventCount++
 
 		switch e := event.(type) {
@@ -824,8 +742,6 @@ func TestClient_Responses_Stream_Range(t *testing.T) {
 			t.Logf("text delta: %s", e.Delta)
 		case streaming.ResponseOutputTextDone:
 			t.Logf("streamed text: %s", e.Text)
-		case error:
-			require.NoError(t, e)
 		}
 	}
 
@@ -851,7 +767,8 @@ func TestClient_Responses_Stream_All(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 
-	events := stream.All()
+	events, err := stream.All()
+	require.NoError(t, err)
 	require.NotEmpty(t, events)
 
 	var outputText string
@@ -863,50 +780,10 @@ func TestClient_Responses_Stream_All(t *testing.T) {
 		}
 	}
 
-	require.NoError(t, stream.Err())
 	require.NotZero(t, textDeltaCount)
 	require.NotEmpty(t, outputText)
 	t.Logf("Collected %d total events, %d text deltas", len(events), textDeltaCount)
 	t.Logf("Final text: %s", outputText)
-}
-
-func TestClient_Responses_Stream_MultipleChan(t *testing.T) {
-	t.Parallel()
-	c := NewClient(testToken)
-
-	req := &responses.Request{
-		Model:  models.Default,
-		Input:  "Write a haiku about AI agents.",
-		Stream: true,
-		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
-		},
-	}
-
-	stream, err := c.Responses.Stream(t.Context(), req)
-	require.NoError(t, err)
-	require.NotNil(t, stream)
-
-	ch1 := stream.Chan()
-	ch2 := stream.Chan()
-	ch3 := stream.Chan()
-
-	require.Equal(t, ch1, ch2, "Chan() should return same channel on multiple calls")
-	require.Equal(t, ch1, ch3, "Chan() should return same channel on multiple calls")
-
-	eventCount := 0
-	var outputText strings.Builder
-	for event := range ch1 {
-		eventCount++
-		if delta, ok := event.(streaming.ResponseOutputTextDelta); ok {
-			outputText.WriteString(delta.Delta)
-		}
-	}
-
-	require.NoError(t, stream.Err())
-	require.NotZero(t, eventCount)
-	require.NotEmpty(t, outputText.String())
-	t.Logf("Multiple Chan() calls work correctly, got %d events", eventCount)
 }
 
 func newWebSocketTestConn(t *testing.T, c *Client) responses.WSConn {

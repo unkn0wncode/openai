@@ -27,48 +27,54 @@ type wsClient struct {
 	turns   []*wsTurn
 }
 
+// wsTurn tracks one response.create turn.
 type wsTurn struct {
-	events       chan any
-	consumerDone chan struct{}
-	finished     chan struct{}
-	consumerOnce sync.Once
-	finishOnce   sync.Once
+	events chan any
+	done   chan struct{}
+	once   sync.Once
+	err    error
 }
 
 func newWSTurn() *wsTurn {
 	return &wsTurn{
-		events:       make(chan any),
-		consumerDone: make(chan struct{}),
-		finished:     make(chan struct{}),
+		// Buffer one event so Send can return before the caller starts consuming.
+		// Later events wait until the caller reads or closes the stream.
+		events: make(chan any, 1),
+		done:   make(chan struct{}),
 	}
 }
 
-func (t *wsTurn) send(event any) bool {
+var _ streaming.Source = (*wsTurn)(nil)
+
+func (t *wsTurn) Events() <-chan any { return t.events }
+
+func (t *wsTurn) Done() <-chan struct{} { return t.done }
+
+func (t *wsTurn) Err() error {
+	<-t.done
+	return t.err
+}
+
+func (t *wsTurn) Close() { t.finish(nil) }
+
+func (t *wsTurn) deliver(event any) bool {
 	select {
-	case <-t.consumerDone:
+	case <-t.done:
+		return false
+	default:
+	}
+	select {
+	case <-t.done:
 		return false
 	case t.events <- event:
 		return true
 	}
 }
 
-func (t *wsTurn) stopConsumer(err error) {
-	t.consumerOnce.Do(func() {
-		if err != nil {
-			select {
-			case t.events <- err:
-			default:
-			}
-		}
-		close(t.consumerDone)
-	})
-}
-
-func (t *wsTurn) complete(err error) {
-	t.finishOnce.Do(func() {
-		t.stopConsumer(err)
-		close(t.finished)
-		close(t.events)
+func (t *wsTurn) finish(err error) {
+	t.once.Do(func() {
+		t.err = err
+		close(t.done)
 	})
 }
 
@@ -186,22 +192,9 @@ func (w *wsClient) pushEvent(event any) {
 		return
 	}
 
-	turn.send(event)
-	if isTerminalEvent(event) {
+	turn.deliver(event)
+	if streaming.IsTerminalEvent(event) {
 		w.finishTurn(nil)
-	}
-}
-
-func isTerminalEvent(event any) bool {
-	switch event.(type) {
-	case streaming.ResponseCompleted,
-		streaming.ResponseFailed,
-		streaming.ResponseIncomplete,
-		streaming.Error,
-		streaming.WSError:
-		return true
-	default:
-		return false
 	}
 }
 
@@ -216,11 +209,15 @@ func (w *wsClient) getHeadTurn() *wsTurn {
 
 func (w *wsClient) finishTurn(err error) {
 	w.mu.Lock()
+	if len(w.turns) == 0 {
+		w.mu.Unlock()
+		return
+	}
 	turn := w.turns[0]
 	w.turns = w.turns[1:]
 	w.mu.Unlock()
 
-	turn.complete(err)
+	turn.finish(err)
 }
 
 func (w *wsClient) finishAllTurns(err error) {
@@ -230,11 +227,11 @@ func (w *wsClient) finishAllTurns(err error) {
 	w.mu.Unlock()
 
 	for _, turn := range turns {
-		turn.complete(err)
+		turn.finish(err)
 	}
 }
 
-// failAllTurns atomically marks the websocket closed before draining all pending turns,
+// failAllTurns synchronously marks the websocket closed before draining all pending turns,
 // preventing new turns from being queued in between.
 func (w *wsClient) failAllTurns(err error) {
 	w.mu.Lock()
@@ -251,6 +248,10 @@ func (w *wsClient) failAllTurns(err error) {
 func (w *wsClient) Send(ctx context.Context, req *responses.Request) (*streaming.StreamIterator, error) {
 	if req == nil {
 		return nil, fmt.Errorf("request is nil")
+	}
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	data := req.Clone()
@@ -283,6 +284,11 @@ func (w *wsClient) Send(ctx context.Context, req *responses.Request) (*streaming
 
 	w.logPayload("send", eventBytes)
 
+	// writeMu keeps queue-append order and wire-write order aligned under
+	// concurrent Send calls.
+	w.writeMu.Lock()
+	defer w.writeMu.Unlock()
+
 	w.mu.Lock()
 	if w.closed {
 		w.mu.Unlock()
@@ -291,25 +297,22 @@ func (w *wsClient) Send(ctx context.Context, req *responses.Request) (*streaming
 	w.turns = append(w.turns, turn)
 	w.mu.Unlock()
 
-	w.writeMu.Lock()
-	writeErr := w.conn.WriteMessage(websocket.TextMessage, eventBytes)
-	w.writeMu.Unlock()
-	if writeErr != nil {
-		w.failAllTurns(fmt.Errorf("websocket write failed: %w", writeErr))
-		return nil, fmt.Errorf("failed to send websocket payload: %w", writeErr)
+	if err := w.conn.WriteMessage(websocket.TextMessage, eventBytes); err != nil {
+		w.failAllTurns(fmt.Errorf("websocket write failed: %w", err))
+		return nil, fmt.Errorf("failed to send websocket payload: %w", err)
 	}
 
 	if done := ctx.Done(); done != nil {
 		go func() {
 			select {
 			case <-done:
-				turn.stopConsumer(ctx.Err())
-			case <-turn.finished:
+				turn.finish(ctx.Err())
+			case <-turn.done:
 			}
 		}()
 	}
 
-	return streaming.NewStreamIterator(ctx, turn.events), nil
+	return streaming.NewStreamIterator(ctx, turn), nil
 }
 
 // Warmup sends a response.create with generate=false and returns the response ID
@@ -350,7 +353,13 @@ func (w *wsClient) Close() error {
 	}
 	w.closed = true
 	conn := w.conn
+	turns := w.turns
+	w.turns = nil
 	w.mu.Unlock()
 
-	return conn.Close()
+	err := conn.Close()
+	for _, turn := range turns {
+		turn.finish(errors.Join(errors.New("websocket connection closed"), err))
+	}
+	return err
 }
