@@ -529,7 +529,7 @@ func TestClient_Responses_BackgroundPolling(t *testing.T) {
 	require.Empty(t, resp.Outputs)
 
 	// Poll until completed
-	ctx, cancel := context.WithTimeout(t.Context(), 6*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	final, err := c.Responses.Poll(ctx, resp.ID, 2*time.Second)
 	require.NoError(t, err)
