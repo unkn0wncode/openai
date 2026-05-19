@@ -2,10 +2,12 @@
 package models
 
 const (
-	DefaultImage       = GPTImage1
+	DefaultImage       = GPTImage2
 	GPTImage1          = "gpt-image-1"
 	GPTImage15         = "gpt-image-1.5"
 	GPTImage1Mini      = "gpt-image-1-mini"
+	GPTImage2          = "gpt-image-2"
+	GPTImage220260421  = "gpt-image-2-2026-04-21"
 	ChatGPTImageLatest = "chatgpt-image-latest"
 	DALLE2             = "dall-e-2"
 	DALLE3             = "dall-e-3"
@@ -23,18 +25,20 @@ var ImageData = map[string]struct {
 	LimitInImageSize int // in bytes
 	LimitOutImages   int
 }{
-	GPTImage1:     {0.00000500, 0.00001000, 0.00004000, PricePerImageData[GPTImage1], 32000, 16, 25 * 1024 * 1024, 10},
-	GPTImage1Mini: {0.00000200, 0.00000250, 0.00000800, PricePerImageData[GPTImage1Mini], 32000, 16, 25 * 1024 * 1024, 10},
-	DALLE2:        {0.00000000, 0.00000000, 0.00000000, PricePerImageData[DALLE2], 1000, 1, 4 * 1024 * 1024, 1},
-	DALLE3:        {0.00000000, 0.00000000, 0.00000000, PricePerImageData[DALLE3], 4000, 1, 4 * 1024 * 1024, 1},
+	GPTImage1:         {0.00000500, 0.00001000, 0.00004000, PricePerImageData[GPTImage1], 32000, 16, 25 * 1024 * 1024, 10},
+	GPTImage1Mini:     {0.00000200, 0.00000250, 0.00000800, PricePerImageData[GPTImage1Mini], 32000, 16, 25 * 1024 * 1024, 10},
+	GPTImage2:         {0.00000500, 0.00000800, 0.00003000, PricePerImageData[GPTImage2], 32000, 16, 25 * 1024 * 1024, 10},
+	GPTImage220260421: {0.00000500, 0.00000800, 0.00003000, PricePerImageData[GPTImage220260421], 32000, 16, 25 * 1024 * 1024, 10},
+	DALLE2:            {0.00000000, 0.00000000, 0.00000000, PricePerImageData[DALLE2], 1000, 1, 4 * 1024 * 1024, 1},
+	DALLE3:            {0.00000000, 0.00000000, 0.00000000, PricePerImageData[DALLE3], 4000, 1, 4 * 1024 * 1024, 1},
 }
 
-// PricePerImageData contains pricing in USD per generated image depending on
-// (1) quality and (2) size.
+// PricePerImage maps quality and size to price per generated image in USD.
 type PricePerImage map[string]map[string]float64
 
 // PricePerImageData contains pricing of generated images for image generation models.
-// For newer models, same pricing can be calculated based on token usage data.
+// GPT Image 2 per-image prices are calculator-derived estimates as of 2026-05-18;
+// token prices in ImageData are the authoritative billing rates.
 var PricePerImageData = map[string]PricePerImage{
 	ChatGPTImageLatest: {
 		"low": {
@@ -102,6 +106,40 @@ var PricePerImageData = map[string]PricePerImage{
 			"1024x1024": 0.036,
 			"1024x1536": 0.052,
 			"1536x1024": 0.052,
+		},
+	},
+	GPTImage2: {
+		"low": {
+			"1024x1024": 0.006,
+			"1024x1536": 0.005,
+			"1536x1024": 0.005,
+		},
+		"medium": {
+			"1024x1024": 0.053,
+			"1024x1536": 0.041,
+			"1536x1024": 0.041,
+		},
+		"high": {
+			"1024x1024": 0.211,
+			"1024x1536": 0.165,
+			"1536x1024": 0.165,
+		},
+	},
+	GPTImage220260421: {
+		"low": {
+			"1024x1024": 0.006,
+			"1024x1536": 0.005,
+			"1536x1024": 0.005,
+		},
+		"medium": {
+			"1024x1024": 0.053,
+			"1024x1536": 0.041,
+			"1536x1024": 0.041,
+		},
+		"high": {
+			"1024x1024": 0.211,
+			"1024x1536": 0.165,
+			"1536x1024": 0.165,
 		},
 	},
 	DALLE2: {

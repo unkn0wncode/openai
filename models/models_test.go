@@ -16,6 +16,11 @@ import (
 
 var testToken string
 
+var docsOnlyModels = map[string]struct{}{
+	DALLE2: {},
+	DALLE3: {},
+}
+
 // TestMain prepares the test environment by reading the API token from the .env file.
 func TestMain(m *testing.M) {
 	if data, err := os.ReadFile(".env"); err == nil {
@@ -95,6 +100,9 @@ func TestModelsList(t *testing.T) {
 	for model := range DataTTS {
 		packageModels = append(packageModels, model)
 	}
+	for model := range DataRealtimeDuration {
+		packageModels = append(packageModels, model)
+	}
 
 	// find mismatches:
 	// 1. models in the package but not in the API are "deleted"
@@ -103,6 +111,9 @@ func TestModelsList(t *testing.T) {
 	for _, model := range packageModels {
 		if model == "" {
 			// skip default model placeholder
+			continue
+		}
+		if _, ok := docsOnlyModels[model]; ok {
 			continue
 		}
 		t.Run("is_deleted:"+model, func(t *testing.T) {

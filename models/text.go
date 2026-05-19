@@ -12,9 +12,12 @@ package models
 // No marketing names (Quasar, Omni, etc). If there's no constant, use the
 // model ID string directly.
 const (
-	Default     = GPT54
+	Default     = GPT55
 	DefaultMini = GPT54Mini
 	DefaultNano = GPT54Nano
+
+	// Chat aliases
+	ChatLatest = "chat-latest"
 
 	// GPT-3.5 family
 	GPT35Turbo             = "gpt-3.5-turbo"
@@ -98,10 +101,15 @@ const (
 	GPT54Nano20260317     = "gpt-5.4-nano-2026-03-17"
 	GPT54Pro              = "gpt-5.4-pro"
 	GPT54Pro20260305      = "gpt-5.4-pro-2026-03-05"
+	GPT55                 = "gpt-5.5"
+	GPT5520260423         = "gpt-5.5-2026-04-23"
+	GPT55Pro              = "gpt-5.5-pro"
+	GPT55Pro20260423      = "gpt-5.5-pro-2026-04-23"
 
 	// Multimodal realtime & audio
 	GPTRealtime             = "gpt-realtime"
 	GPTRealtime15           = "gpt-realtime-1.5"
+	GPTRealtime2            = "gpt-realtime-2"
 	GPTRealtime20250828     = "gpt-realtime-2025-08-28"
 	GPTRealtimeMini         = "gpt-realtime-mini"
 	GPTRealtimeMini20251006 = "gpt-realtime-mini-2025-10-06"
@@ -157,7 +165,7 @@ const (
 // CODE BELOW THIS LINE IS GENERATED. ONLY EDIT IF YOU KNOW HOW.
 
 // Data contains price per 1 token for each model, separately for input and output, and token limits.
-// Note that pricing page https://openai.com/pricing lists price per 1k tokens and here it's per 1 token.
+// Note that pricing page https://openai.com/pricing lists price per 1M tokens and here it's per 1 token.
 // The "" denotes default values.
 var Data = map[string]struct {
 	PriceIn       float64
@@ -169,6 +177,9 @@ var Data = map[string]struct {
 	// Zeroes in the end of prices are added to align it and make it easier to read.
 	// Can be read as "0.00000450 = 4.5 micro dollars per token = $4.50 per 1M tokens".
 	"": {0.00000000, 0.00000000, 0.00000000, 4096, 4096},
+
+	// Chat aliases
+	ChatLatest: {0.00000500, 0.00000050, 0.00003000, 400000, 128000},
 
 	// GPT-3.5 family
 	GPT35Turbo:             {0.00000050, 0.00000000, 0.00000150, 16385, 4096},
@@ -254,10 +265,17 @@ var Data = map[string]struct {
 	GPT54Nano20260317:     {0.00000020, 0.00000002, 0.00000125, 400000, 128000},
 	GPT54Pro:              {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
 	GPT54Pro20260305:      {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
+	// GPT-5.5 prices are the standard short-context rates; official pricing
+	// applies higher rates to sessions with more than 272K input tokens.
+	GPT55:            {0.00000500, 0.00000050, 0.00003000, 1050000, 128000},
+	GPT5520260423:    {0.00000500, 0.00000050, 0.00003000, 1050000, 128000},
+	GPT55Pro:         {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
+	GPT55Pro20260423: {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
 
 	// Multimodal realtime & audio
 	GPTRealtime:             {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
 	GPTRealtime15:           {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
+	GPTRealtime2:            {0.00000400, 0.00000040, 0.00002400, 128000, 32000},
 	GPTRealtime20250828:     {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
 	GPTRealtimeMini:         {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
 	GPTRealtimeMini20251006: {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
