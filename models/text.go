@@ -100,6 +100,8 @@ const (
 	GPTRealtime             = "gpt-realtime"
 	GPTRealtime15           = "gpt-realtime-1.5"
 	GPTRealtime2            = "gpt-realtime-2"
+	GPTRealtime21           = "gpt-realtime-2.1"
+	GPTRealtime21Mini       = "gpt-realtime-2.1-mini"
 	GPTRealtime20250828     = "gpt-realtime-2025-08-28"
 	GPTRealtimeMini         = "gpt-realtime-mini"
 	GPTRealtimeMini20251006 = "gpt-realtime-mini-2025-10-06"
@@ -253,9 +255,11 @@ var Data = map[string]struct {
 	GPT55Pro20260423: {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
 
 	// Multimodal realtime & audio
-	GPTRealtime:             {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
-	GPTRealtime15:           {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
-	GPTRealtime2:            {0.00000400, 0.00000040, 0.00002400, 128000, 32000},
+	GPTRealtime:   {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
+	GPTRealtime15: {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
+	GPTRealtime2:  {0.00000400, 0.00000040, 0.00002400, 128000, 32000},
+	GPTRealtime21: {0.00000400, 0.00000040, 0.00002400, 128000, 32000},
+	GPTRealtime21Mini:       {0.00000060, 0.00000006, 0.00000240, 0, 0}, // official docs do not provide context/output limits
 	GPTRealtime20250828:     {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
 	GPTRealtimeMini:         {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
 	GPTRealtimeMini20251006: {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
