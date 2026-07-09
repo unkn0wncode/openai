@@ -12,9 +12,9 @@ package models
 // No marketing names (Quasar, Omni, etc). If there's no constant, use the
 // model ID string directly.
 const (
-	Default     = GPT55
-	DefaultMini = GPT54Mini
-	DefaultNano = GPT54Nano
+	Default     = GPT56Sol
+	DefaultMini = GPT56Terra
+	DefaultNano = GPT56Luna
 
 	// Chat aliases
 	ChatLatest = "chat-latest"
@@ -95,6 +95,9 @@ const (
 	GPT5520260423         = "gpt-5.5-2026-04-23"
 	GPT55Pro              = "gpt-5.5-pro"
 	GPT55Pro20260423      = "gpt-5.5-pro-2026-04-23"
+	GPT56Sol              = "gpt-5.6-sol"
+	GPT56Terra            = "gpt-5.6-terra"
+	GPT56Luna             = "gpt-5.6-luna"
 
 	// Multimodal realtime & audio
 	GPTRealtime             = "gpt-realtime"
@@ -253,12 +256,17 @@ var Data = map[string]struct {
 	GPT5520260423:    {0.00000500, 0.00000050, 0.00003000, 1050000, 128000},
 	GPT55Pro:         {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
 	GPT55Pro20260423: {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
+	// GPT-5.6 prices are the standard short-context rates; official pricing
+	// applies higher rates to sessions with more than 272K input tokens.
+	GPT56Sol:   {0.00000500, 0.00000050, 0.00003000, 1050000, 128000},
+	GPT56Terra: {0.00000250, 0.00000025, 0.00001500, 1050000, 128000},
+	GPT56Luna:  {0.00000100, 0.00000010, 0.00000600, 1050000, 128000},
 
 	// Multimodal realtime & audio
-	GPTRealtime:   {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
-	GPTRealtime15: {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
-	GPTRealtime2:  {0.00000400, 0.00000040, 0.00002400, 128000, 32000},
-	GPTRealtime21: {0.00000400, 0.00000040, 0.00002400, 128000, 32000},
+	GPTRealtime:             {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
+	GPTRealtime15:           {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
+	GPTRealtime2:            {0.00000400, 0.00000040, 0.00002400, 128000, 32000},
+	GPTRealtime21:           {0.00000400, 0.00000040, 0.00002400, 128000, 32000},
 	GPTRealtime21Mini:       {0.00000060, 0.00000006, 0.00000240, 0, 0}, // official docs do not provide context/output limits
 	GPTRealtime20250828:     {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
 	GPTRealtimeMini:         {0.00000060, 0.00000006, 0.00000240, 128000, 16384},

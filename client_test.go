@@ -47,6 +47,7 @@ func TestClient_Chat_hi(t *testing.T) {
 	c := NewClient(testToken)
 
 	req := chat.Request{
+		Model: models.GPT55, // lock model for chat tests since it's discontinued
 		Messages: []chat.Message{
 			{Role: roles.User, Content: "hi"},
 		},
@@ -79,7 +80,7 @@ func TestClient_Chat_Function(t *testing.T) {
 
 	// Prepare request with forced function call
 	req := chat.Request{
-		Model:      models.Default,
+		Model:      models.GPT55, // lock model for chat tests since it's discontinued
 		Messages:   []chat.Message{{Role: roles.User, Content: "call test function"}},
 		Functions:  []string{"test_function"},
 		ToolChoice: tools.ToolChoiceOption("test_function"),

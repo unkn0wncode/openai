@@ -20,7 +20,7 @@ func main() {
 	req := completion.Request{
 		Model:     models.GPT35TurboInstruct,
 		Prompt:    "Once upon a time",
-		MaxTokens: 1024,
+		MaxTokens: 512,
 	}
 
 	resp, err := client.Completion.Send(req)
