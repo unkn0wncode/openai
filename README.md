@@ -86,7 +86,7 @@ Mind that the same tool/function can be used across multiple APIs, as long as yo
 
 ## Resources shared across APIs
 
-- `openai/models` package contains data of all available models across all APIs. You can still just write any model as a literal string if it's not there. When you don't specify a model in a request, a default model appropriate for the API will be chosen. There's pricing and limits data there that can be used in logging.
+- `openai/models` package contains data for available models across all APIs. You can still use a model ID literal if it is not listed. When a request omits its model, the API-specific default is used. `models.Data` contains token prices and limits; `models.Data[model].Cost(usage)` calculates Responses API cost, including cached input, cache writes, and long-context rates.
 - `openai/roles` package contains constants for roles that can be used in messages. Some models may be sensitive to the choice between the older "system" and the newer "developer" roles.
 - `openai/tools` package contains types for tools/functions that can be used in requests in multiple APIs. You declare a tool/function, add it to the client, and then list its name in the `Functions`/`Tools` field of a request.
 - `openai/content/input` and `openai/content/output` packages contain all types that can be sent to the API or received from it. Some types can be used for both input and output, such are placed in the output package. Note that there are types that are present in both packages and have the same name, but their implementations differ slightly.
@@ -146,6 +146,7 @@ Other exposed types/functions in the `responses` package:
 - A few more types for request fields.
 - `Response` wraps the API response and exposes the following:
   - `Response.ID` field contains the response ID that can be used to chain requests.
+  - `Response.Usage` contains usage token counts from the API response. When automatic tool handling sends follow-up requests, this usage belongs to the final response.
   - `Response.<ContentType>()` methods return a slice of outputs of a specific type extracted from the response. For example, `Texts()` returns string of all text outputs, usually just one.
   - `Response.Outputs` contains all received outputs as `[]output.Any`. `Any` contains parsed `type` field and raw data.
   - `Response.ParsedOutputs` contains all received outputs fully parsed in an `[]any` slice. The `.Parse()` method for populating it is called automatically before the response is returned so you don't need to call it.
@@ -352,6 +353,8 @@ Use `client.Responses.Stream(ctx, req)` to get a stream of `any` events. The SDK
 In normal flow, you'll get a sequence of events with types from the `responses/streaming` package. Transport, decoding, and protocol error events stop iteration and are available through `stream.Err()`; `stream.Seq()` yields them as a final `(nil, err)` pair. Response status events such as `response.failed` are still delivered as events, and `io.EOF` is ignored.
 
 Some event types have fields than may contain multiple different types of data. Such fields are left as `json.RawMessage` and mostly can be parsed further using types from the `output` package, but this is not done automatically.
+
+Completed SSE and WebSocket response events carry usage when provided. The client logs token counts and calculated cost at `Debug` level for non-streaming responses and completed streams with usage. For manual streaming cost calculation, convert `streaming.ResponseUsage` to `responses.Usage` and pass it to `models.Data[model].Cost(usage)`.
 
 ### WebSocket
 According to OpenAI, responses with 20+ tool calls can be up to 40% faster over WebSocket.

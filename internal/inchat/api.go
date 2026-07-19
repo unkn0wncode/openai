@@ -61,17 +61,24 @@ func (rfs ResponseFormatStr) MarshalJSON() ([]byte, error) {
 	return openai.Marshal(rf)
 }
 
+// responseUsage contains token usage returned by Chat Completions.
+type responseUsage struct {
+	Prompt              int `json:"prompt_tokens"`
+	Completion          int `json:"completion_tokens"`
+	Total               int `json:"total_tokens"`
+	PromptTokensDetails struct {
+		CachedTokens     int `json:"cached_tokens"`
+		CacheWriteTokens int `json:"cache_write_tokens"`
+	} `json:"prompt_tokens_details"`
+}
+
 // response is the response body for the Chat Completion API.
 type response struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Created int    `json:"created"` // Unix timestamp
-	Model   string `json:"model"`
-	Usage   struct {
-		Prompt     int `json:"prompt_tokens"`
-		Completion int `json:"completion_tokens"`
-		Total      int `json:"total_tokens"`
-	} `json:"usage"`
+	ID      string        `json:"id"`
+	Object  string        `json:"object"`
+	Created int           `json:"created"` // Unix timestamp
+	Model   string        `json:"model"`
+	Usage   responseUsage `json:"usage"`
 	Choices []struct {
 		Message      chat.Message `json:"message"`
 		FinishReason string       `json:"finish_reason"` // stop/length/content_filter/null
@@ -83,6 +90,32 @@ type response struct {
 		Param   string `json:"param"`
 		Code    string `json:"code"`
 	} `json:"error"`
+}
+
+// calculateCost returns the Chat Completions cost and whether its model price is known.
+func calculateCost(model string, usage responseUsage) (float64, bool) {
+	pricing, ok := models.Data[model]
+	if !ok {
+		return 0, false
+	}
+
+	priceIn := pricing.PriceIn
+	priceCachedIn := pricing.PriceCachedIn
+	priceCacheWrite := pricing.PriceCacheWrite
+	priceOut := pricing.PriceOut
+	if pricing.LongContextThreshold != 0 && usage.Prompt > pricing.LongContextThreshold {
+		priceIn = pricing.LongContextPriceIn
+		priceCachedIn = pricing.LongContextPriceCachedIn
+		priceCacheWrite = pricing.LongContextPriceCacheWrite
+		priceOut = pricing.LongContextPriceOut
+	}
+
+	details := usage.PromptTokensDetails
+	uncachedInput := usage.Prompt - details.CachedTokens - details.CacheWriteTokens
+	return float64(uncachedInput)*priceIn +
+		float64(details.CachedTokens)*priceCachedIn +
+		float64(details.CacheWriteTokens)*priceCacheWrite +
+		float64(usage.Completion)*priceOut, true
 }
 
 // countTokens returns the number of tokens in the request.
@@ -327,12 +360,12 @@ func (c *Client) checkFirst(resp *response) (string, error) {
 // cost returns the resulting cost of the completed request in USD.
 // Returns zero if pricing for the model is not known.
 func (c *Client) cost(resp *response) float64 {
-	pricing, ok := models.Data[resp.Model]
+	total, ok := calculateCost(resp.Model, resp.Usage)
 	if !ok {
 		c.Config.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", resp.Model))
 		return 0
 	}
-	return float64(resp.Usage.Prompt)*pricing.PriceIn + float64(resp.Usage.Completion)*pricing.PriceOut
+	return total
 }
 
 // marshalRequest builds request body including function calls based on registered tools

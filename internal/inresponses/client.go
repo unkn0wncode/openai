@@ -180,7 +180,7 @@ func (c *Client) executeRequest(data *responses.Request) (*response, error) {
 		fmt.Sprintf(
 			"Consumed OpenAI Responses tokens: %d + %d = %d ($%f)",
 			res.Usage.InputTokens, res.Usage.OutputTokens,
-			res.Usage.TotalTokens, c.cost(&res),
+			res.Usage.TotalTokens, c.cost(res.Model, res.Usage),
 		),
 		slog.Any("responseID", res.ID),
 		slog.Any("model", res.Model),
@@ -228,17 +228,7 @@ type response struct {
 	Truncation string          `json:"truncation"`
 
 	// Usage Information
-	Usage struct {
-		InputTokens        int `json:"input_tokens"`
-		InputTokensDetails struct {
-			CachedTokens int `json:"cached_tokens"`
-		} `json:"input_tokens_details"`
-		OutputTokens        int `json:"output_tokens"`
-		OutputTokensDetails struct {
-			ReasoningTokens int `json:"reasoning_tokens"`
-		} `json:"output_tokens_details"`
-		TotalTokens int `json:"total_tokens"`
-	} `json:"usage"`
+	Usage responses.Usage `json:"usage"`
 
 	// Other Properties
 	User     string         `json:"user"`
@@ -263,6 +253,7 @@ func (data *response) checkResponseData() (*responses.Response, error) {
 	resp := &responses.Response{
 		ID:      data.ID,
 		Outputs: data.Output,
+		Usage:   data.Usage,
 	}
 	err := resp.Parse()
 	if err != nil {
@@ -299,17 +290,34 @@ func (data *response) checkResponseData() (*responses.Response, error) {
 
 // cost returns the resulting cost of the completed request in USD.
 // Returns zero if pricing for the model is not known.
-func (c *Client) cost(resp *response) float64 {
-	pricing, ok := models.Data[resp.Model]
+func (c *Client) cost(model string, usage responses.Usage) float64 {
+	pricing, ok := models.Data[model]
 	if !ok {
-		c.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", resp.Model))
+		c.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", model))
 		return 0
 	}
-	total := 0.0
-	total += float64(resp.Usage.InputTokens-resp.Usage.InputTokensDetails.CachedTokens) * pricing.PriceIn
-	total += float64(resp.Usage.InputTokensDetails.CachedTokens) * pricing.PriceCachedIn
-	total += float64(resp.Usage.OutputTokens) * pricing.PriceOut
-	return total
+	return pricing.Cost(usage)
+}
+
+// logStreamingCost logs token usage and cost from a completed streaming response.
+func (c *Client) logStreamingCost(event any) {
+	completed, ok := event.(streaming.ResponseCompleted)
+	if !ok || completed.Response.Usage == nil {
+		return
+	}
+
+	resp := completed.Response
+	usage := responses.Usage(*resp.Usage)
+	c.Log.Debug(
+		fmt.Sprintf(
+			"Consumed OpenAI Responses tokens: %d + %d = %d ($%f)",
+			usage.InputTokens, usage.OutputTokens,
+			usage.TotalTokens, c.cost(resp.Model, usage),
+		),
+		slog.Any("responseID", resp.ID),
+		slog.Any("model", resp.Model),
+		slog.Any("metadata", resp.Metadata),
+	)
 }
 
 // executableFunctionCall is an intermediate representation of a function call that can be executed.
@@ -348,6 +356,7 @@ func newSendContext() *sendContext {
 func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
 	return c.send(req, newSendContext())
 }
+
 func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Response, error) {
 	respData, err := c.executeRequest(req)
 	if err != nil {
@@ -582,6 +591,7 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 		resp.Outputs = combinedOutputs
 		resp.ParsedOutputs = combinedParsedOutputs
 		resp.ID = followupResp.ID
+		resp.Usage = followupResp.Usage
 
 		return resp, nil
 
@@ -825,6 +835,7 @@ func (c *Client) streamEvents(ctx context.Context, data *responses.Request) (str
 				src.finish(fmt.Errorf("failed to unmarshal event data: %w", err))
 				return
 			}
+			c.logStreamingCost(event)
 
 			select {
 			case src.events <- event:

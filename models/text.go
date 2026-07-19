@@ -1,6 +1,8 @@
 // Package models contains constants and pricing data for all OpenAI models.
 package models
 
+import "github.com/unkn0wncode/openai/responses"
+
 // Constant names are derived from the model ID:
 //
 //	GPT41          = "gpt-4.1"            // collapse dotted versions
@@ -155,159 +157,219 @@ const (
 	TextModerationStable   = "text-moderation-stable"
 )
 
-//go:generate go run ../internal/cmd/getmodels
+// pricing contains token prices and limits for one model.
+type pricing struct {
+	PriceIn                    float64
+	PriceCachedIn              float64
+	PriceCacheWrite            float64
+	PriceOut                   float64
+	LongContextThreshold       int
+	LongContextPriceIn         float64
+	LongContextPriceCachedIn   float64
+	LongContextPriceCacheWrite float64
+	LongContextPriceOut        float64
+	LimitContext               int
+	LimitOutput                int
+}
 
-// CODE BELOW THIS LINE IS GENERATED. ONLY EDIT IF YOU KNOW HOW.
+// newModelData returns pricing data whose cache-write price equals its input price.
+func newModelData(priceIn, priceCachedIn, priceOut float64, limitContext, limitOutput int) pricing {
+	return pricing{
+		PriceIn:         priceIn,
+		PriceCachedIn:   priceCachedIn,
+		PriceCacheWrite: priceIn,
+		PriceOut:        priceOut,
+		LimitContext:    limitContext,
+		LimitOutput:     limitOutput,
+	}
+}
 
-// Data contains price per 1 token for each model, separately for input and output, and token limits.
+// newCacheWriteModelData returns pricing data with a distinct cache-write price.
+func newCacheWriteModelData(
+	priceIn, priceCachedIn, priceCacheWrite, priceOut float64,
+	limitContext, limitOutput int,
+) pricing {
+	data := newModelData(priceIn, priceCachedIn, priceOut, limitContext, limitOutput)
+	data.PriceCacheWrite = priceCacheWrite
+	return data
+}
+
+// newTieredModelData returns pricing data with separate long-context prices.
+func newTieredModelData(
+	priceIn, priceCachedIn, priceCacheWrite, priceOut float64,
+	longContextThreshold int,
+	longContextPriceIn, longContextPriceCachedIn, longContextPriceCacheWrite, longContextPriceOut float64,
+	limitContext, limitOutput int,
+) pricing {
+	data := newCacheWriteModelData(priceIn, priceCachedIn, priceCacheWrite, priceOut, limitContext, limitOutput)
+	data.LongContextThreshold = longContextThreshold
+	data.LongContextPriceIn = longContextPriceIn
+	data.LongContextPriceCachedIn = longContextPriceCachedIn
+	data.LongContextPriceCacheWrite = longContextPriceCacheWrite
+	data.LongContextPriceOut = longContextPriceOut
+	return data
+}
+
+// Cost returns the Responses API request cost in USD.
+func (data pricing) Cost(usage responses.Usage) float64 {
+	priceIn := data.PriceIn
+	priceCachedIn := data.PriceCachedIn
+	priceCacheWrite := data.PriceCacheWrite
+	priceOut := data.PriceOut
+	if data.LongContextThreshold != 0 && usage.InputTokens > data.LongContextThreshold {
+		priceIn = data.LongContextPriceIn
+		priceCachedIn = data.LongContextPriceCachedIn
+		priceCacheWrite = data.LongContextPriceCacheWrite
+		priceOut = data.LongContextPriceOut
+	}
+
+	details := usage.InputTokensDetails
+	uncachedInput := usage.InputTokens - details.CachedTokens - details.CacheWriteTokens
+	return float64(uncachedInput)*priceIn +
+		float64(details.CachedTokens)*priceCachedIn +
+		float64(details.CacheWriteTokens)*priceCacheWrite +
+		float64(usage.OutputTokens)*priceOut
+}
+
+// Data contains token prices and limits for each model.
 // Note that pricing page https://openai.com/pricing lists price per 1M tokens and here it's per 1 token.
 // The "" denotes default values.
-var Data = map[string]struct {
-	PriceIn       float64
-	PriceCachedIn float64
-	PriceOut      float64
-	LimitContext  int
-	LimitOutput   int
-}{
+var Data = map[string]pricing{
 	// Zeroes in the end of prices are added to align it and make it easier to read.
 	// Can be read as "0.00000450 = 4.5 micro dollars per token = $4.50 per 1M tokens".
-	"": {0.00000000, 0.00000000, 0.00000000, 4096, 4096},
+	"": newModelData(0.00000000, 0.00000000, 0.00000000, 4096, 4096),
 
 	// Chat aliases
-	ChatLatest: {0.00000500, 0.00000050, 0.00003000, 400000, 128000},
+	ChatLatest: newModelData(0.00000500, 0.00000050, 0.00003000, 400000, 128000),
 
 	// GPT-3.5 family
-	GPT35Turbo:             {0.00000050, 0.00000000, 0.00000150, 16385, 4096},
-	GPT35Turbo0125:         {0.00000050, 0.00000050, 0.00000150, 16348, 4096},
-	GPT35Turbo1106:         {0.00000100, 0.00000100, 0.00000200, 16348, 4096},
-	GPT35TurboInstruct:     {0.00000150, 0.00000000, 0.00000200, 16348, 4096},
-	GPT35TurboInstruct0914: {0.00000150, 0.00000000, 0.00000200, 16348, 4096},
+	GPT35Turbo:             newModelData(0.00000050, 0.00000000, 0.00000150, 16385, 4096),
+	GPT35Turbo0125:         newModelData(0.00000050, 0.00000050, 0.00000150, 16348, 4096),
+	GPT35Turbo1106:         newModelData(0.00000100, 0.00000100, 0.00000200, 16348, 4096),
+	GPT35TurboInstruct:     newModelData(0.00000150, 0.00000000, 0.00000200, 16348, 4096),
+	GPT35TurboInstruct0914: newModelData(0.00000150, 0.00000000, 0.00000200, 16348, 4096),
 
 	// GPT-4 family
-	"gpt-4":           {0.00003000, 0.00000000, 0.00006000, 8192, 8192},
-	GPT4Turbo:         {0.00001000, 0.00000000, 0.00003000, 128000, 4096},
-	GPT4Turbo20240409: {0.00001000, 0.00001000, 0.00003000, 128000, 4096},
-	"gpt-4-0613":      {0.00003000, 0.00003000, 0.00006000, 8192, 8192},
+	"gpt-4":           newModelData(0.00003000, 0.00000000, 0.00006000, 8192, 8192),
+	GPT4Turbo:         newModelData(0.00001000, 0.00000000, 0.00003000, 128000, 4096),
+	GPT4Turbo20240409: newModelData(0.00001000, 0.00001000, 0.00003000, 128000, 4096),
+	"gpt-4-0613":      newModelData(0.00003000, 0.00003000, 0.00006000, 8192, 8192),
 
 	// GPT-4.1 family
-	GPT41:             {0.00000200, 0.00000050, 0.00000800, 1047576, 32768},
-	GPT4120250414:     {0.00000200, 0.00000050, 0.00000800, 1000000, 32768},
-	GPT41Mini:         {0.00000040, 0.00000010, 0.00000160, 1047576, 32768},
-	GPT41Mini20250414: {0.00000040, 0.00000010, 0.00000160, 1000000, 32768},
-	GPT41Nano:         {0.00000010, 0.00000003, 0.00000040, 1047576, 32768},
-	GPT41Nano20250414: {0.00000010, 0.00000003, 0.00000040, 1000000, 32768},
+	GPT41:             newModelData(0.00000200, 0.00000050, 0.00000800, 1047576, 32768),
+	GPT4120250414:     newModelData(0.00000200, 0.00000050, 0.00000800, 1000000, 32768),
+	GPT41Mini:         newModelData(0.00000040, 0.00000010, 0.00000160, 1047576, 32768),
+	GPT41Mini20250414: newModelData(0.00000040, 0.00000010, 0.00000160, 1000000, 32768),
+	GPT41Nano:         newModelData(0.00000010, 0.00000003, 0.00000040, 1047576, 32768),
+	GPT41Nano20250414: newModelData(0.00000010, 0.00000003, 0.00000040, 1000000, 32768),
 
 	// GPT-4o family
-	GPT4o:                          {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
-	GPT4o20240513:                  {0.00000500, 0.00000000, 0.00001500, 128000, 4096},
-	GPT4o20240806:                  {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
-	GPT4o20241120:                  {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
-	GPT4oMini:                      {0.00000015, 0.00000008, 0.00000060, 128000, 16384},
-	GPT4oMini20240718:              {0.00000015, 0.00000008, 0.00000060, 128000, 16348},
-	GPT4oSearchPreview:             {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oSearchPreview20250311:     {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oMiniSearchPreview:         {0.00000015, 0.00000000, 0.00000060, 128000, 16384},
-	GPT4oMiniSearchPreview20250311: {0.00000015, 0.00000000, 0.00000060, 128000, 16384},
-	GPT4oTranscribe:                {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oTranscribeDiarize:         {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oMiniTranscribe:            {0.00000125, 0.00000000, 0.00000500, 128000, 16384},
-	GPT4oMiniTranscribe20250320:    {0.00000125, 0.00000000, 0.00000500, 128000, 16384},
-	GPT4oMiniTranscribe20251215:    {0.00000125, 0.00000000, 0.00000500, 128000, 16384},
-	GPT4oMiniTTS:                   {0.00000060, 0.00000000, 0.00001200, 128000, 16384},
+	GPT4o:                          newModelData(0.00000250, 0.00000125, 0.00001000, 128000, 16384),
+	GPT4o20240513:                  newModelData(0.00000500, 0.00000000, 0.00001500, 128000, 4096),
+	GPT4o20240806:                  newModelData(0.00000250, 0.00000125, 0.00001000, 128000, 16384),
+	GPT4o20241120:                  newModelData(0.00000250, 0.00000125, 0.00001000, 128000, 16384),
+	GPT4oMini:                      newModelData(0.00000015, 0.00000008, 0.00000060, 128000, 16384),
+	GPT4oMini20240718:              newModelData(0.00000015, 0.00000008, 0.00000060, 128000, 16348),
+	GPT4oSearchPreview:             newModelData(0.00000250, 0.00000000, 0.00001000, 128000, 16384),
+	GPT4oSearchPreview20250311:     newModelData(0.00000250, 0.00000000, 0.00001000, 128000, 16384),
+	GPT4oMiniSearchPreview:         newModelData(0.00000015, 0.00000000, 0.00000060, 128000, 16384),
+	GPT4oMiniSearchPreview20250311: newModelData(0.00000015, 0.00000000, 0.00000060, 128000, 16384),
+	GPT4oTranscribe:                newModelData(0.00000250, 0.00000000, 0.00001000, 128000, 16384),
+	GPT4oTranscribeDiarize:         newModelData(0.00000250, 0.00000000, 0.00001000, 128000, 16384),
+	GPT4oMiniTranscribe:            newModelData(0.00000125, 0.00000000, 0.00000500, 128000, 16384),
+	GPT4oMiniTranscribe20250320:    newModelData(0.00000125, 0.00000000, 0.00000500, 128000, 16384),
+	GPT4oMiniTranscribe20251215:    newModelData(0.00000125, 0.00000000, 0.00000500, 128000, 16384),
+	GPT4oMiniTTS:                   newModelData(0.00000060, 0.00000000, 0.00001200, 128000, 16384),
 
 	// GPT-5 family
-	GPT5:                  {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT520250807:          {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT5Mini:              {0.00000025, 0.00000003, 0.00000200, 400000, 128000},
-	GPT5Mini20250807:      {0.00000025, 0.00000003, 0.00000200, 400000, 128000},
-	GPT5Nano:              {0.00000005, 0.00000001, 0.00000040, 400000, 128000},
-	GPT5Nano20250807:      {0.00000005, 0.00000001, 0.00000040, 400000, 128000},
-	GPT5ChatLatest:        {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT5Codex:             {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT5Pro:               {0.00001500, 0.00000000, 0.00012000, 400000, 272000},
-	GPT5Pro20251006:       {0.00001500, 0.00000000, 0.00012000, 400000, 272000},
-	GPT5SearchAPI:         {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT5SearchAPI20251014: {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT51:                 {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT5120251113:         {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT51ChatLatest:       {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT51Codex:            {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT51CodexMax:         {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT51CodexMini:        {0.00000025, 0.00000003, 0.00000200, 400000, 128000},
-	GPT52:                 {0.00000175, 0.00000018, 0.00001400, 400000, 128000},
-	GPT5220251211:         {0.00000175, 0.00000018, 0.00001400, 400000, 128000},
-	GPT52ChatLatest:       {0.00000175, 0.00000018, 0.00001400, 128000, 16384},
-	GPT52Pro:              {0.00002100, 0.00000000, 0.00016800, 400000, 128000},
-	GPT52Pro20251211:      {0.00002100, 0.00000000, 0.00016800, 400000, 128000},
-	GPT52Codex:            {0.00000175, 0.00000018, 0.00001400, 400000, 128000},
-	GPT53Codex:            {0.00000175, 0.00000018, 0.00001400, 400000, 128000},
-	GPT53ChatLatest:       {0.00000175, 0.00000018, 0.00001400, 128000, 16384},
-	GPT54:                 {0.00000250, 0.00000025, 0.00001500, 1050000, 128000},
-	GPT5420260305:         {0.00000250, 0.00000025, 0.00001500, 1050000, 128000},
-	GPT54Mini:             {0.00000075, 0.00000008, 0.00000450, 400000, 128000},
-	GPT54Mini20260317:     {0.00000075, 0.00000008, 0.00000450, 400000, 128000},
-	GPT54Nano:             {0.00000020, 0.00000002, 0.00000125, 400000, 128000},
-	GPT54Nano20260317:     {0.00000020, 0.00000002, 0.00000125, 400000, 128000},
-	GPT54Pro:              {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
-	GPT54Pro20260305:      {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
-	// GPT-5.5 prices are the standard short-context rates; official pricing
-	// applies higher rates to sessions with more than 272K input tokens.
-	GPT55:            {0.00000500, 0.00000050, 0.00003000, 1050000, 128000},
-	GPT5520260423:    {0.00000500, 0.00000050, 0.00003000, 1050000, 128000},
-	GPT55Pro:         {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
-	GPT55Pro20260423: {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
-	// GPT-5.6 prices are the standard short-context rates; official pricing
-	// applies higher rates to sessions with more than 272K input tokens.
-	GPT56Sol:   {0.00000500, 0.00000050, 0.00003000, 1050000, 128000},
-	GPT56Terra: {0.00000250, 0.00000025, 0.00001500, 1050000, 128000},
-	GPT56Luna:  {0.00000100, 0.00000010, 0.00000600, 1050000, 128000},
+	GPT5:                  newModelData(0.00000125, 0.00000013, 0.00001000, 400000, 128000),
+	GPT520250807:          newModelData(0.00000125, 0.00000013, 0.00001000, 400000, 128000),
+	GPT5Mini:              newModelData(0.00000025, 0.00000003, 0.00000200, 400000, 128000),
+	GPT5Mini20250807:      newModelData(0.00000025, 0.00000003, 0.00000200, 400000, 128000),
+	GPT5Nano:              newModelData(0.00000005, 0.00000001, 0.00000040, 400000, 128000),
+	GPT5Nano20250807:      newModelData(0.00000005, 0.00000001, 0.00000040, 400000, 128000),
+	GPT5ChatLatest:        newModelData(0.00000125, 0.00000013, 0.00001000, 400000, 128000),
+	GPT5Codex:             newModelData(0.00000125, 0.00000013, 0.00001000, 400000, 128000),
+	GPT5Pro:               newModelData(0.00001500, 0.00000000, 0.00012000, 400000, 272000),
+	GPT5Pro20251006:       newModelData(0.00001500, 0.00000000, 0.00012000, 400000, 272000),
+	GPT5SearchAPI:         newModelData(0.00000125, 0.00000013, 0.00001000, 400000, 128000),
+	GPT5SearchAPI20251014: newModelData(0.00000125, 0.00000013, 0.00001000, 400000, 128000),
+	GPT51:                 newModelData(0.00000125, 0.00000013, 0.00001000, 400000, 128000),
+	GPT5120251113:         newModelData(0.00000125, 0.00000013, 0.00001000, 400000, 128000),
+	GPT51ChatLatest:       newModelData(0.00000125, 0.00000013, 0.00001000, 400000, 128000),
+	GPT51Codex:            newModelData(0.00000125, 0.00000013, 0.00001000, 400000, 128000),
+	GPT51CodexMax:         newModelData(0.00000125, 0.00000013, 0.00001000, 400000, 128000),
+	GPT51CodexMini:        newModelData(0.00000025, 0.00000003, 0.00000200, 400000, 128000),
+	GPT52:                 newModelData(0.00000175, 0.00000018, 0.00001400, 400000, 128000),
+	GPT5220251211:         newModelData(0.00000175, 0.00000018, 0.00001400, 400000, 128000),
+	GPT52ChatLatest:       newModelData(0.00000175, 0.00000018, 0.00001400, 128000, 16384),
+	GPT52Pro:              newModelData(0.00002100, 0.00000000, 0.00016800, 400000, 128000),
+	GPT52Pro20251211:      newModelData(0.00002100, 0.00000000, 0.00016800, 400000, 128000),
+	GPT52Codex:            newModelData(0.00000175, 0.00000018, 0.00001400, 400000, 128000),
+	GPT53Codex:            newModelData(0.00000175, 0.00000018, 0.00001400, 400000, 128000),
+	GPT53ChatLatest:       newModelData(0.00000175, 0.00000018, 0.00001400, 128000, 16384),
+	GPT54:                 newTieredModelData(0.00000250, 0.00000025, 0.00000250, 0.00001500, 272000, 0.00000500, 0.00000050, 0.00000500, 0.00002250, 1050000, 128000),
+	GPT5420260305:         newTieredModelData(0.00000250, 0.00000025, 0.00000250, 0.00001500, 272000, 0.00000500, 0.00000050, 0.00000500, 0.00002250, 1050000, 128000),
+	GPT54Mini:             newModelData(0.00000075, 0.00000008, 0.00000450, 400000, 128000),
+	GPT54Mini20260317:     newModelData(0.00000075, 0.00000008, 0.00000450, 400000, 128000),
+	GPT54Nano:             newModelData(0.00000020, 0.00000002, 0.00000125, 400000, 128000),
+	GPT54Nano20260317:     newModelData(0.00000020, 0.00000002, 0.00000125, 400000, 128000),
+	GPT54Pro:              newTieredModelData(0.00003000, 0.00000000, 0.00003000, 0.00018000, 272000, 0.00006000, 0.00000000, 0.00006000, 0.00027000, 1050000, 128000),
+	GPT54Pro20260305:      newTieredModelData(0.00003000, 0.00000000, 0.00003000, 0.00018000, 272000, 0.00006000, 0.00000000, 0.00006000, 0.00027000, 1050000, 128000),
+	GPT55:                 newTieredModelData(0.00000500, 0.00000050, 0.00000500, 0.00003000, 272000, 0.00001000, 0.00000100, 0.00001000, 0.00004500, 1050000, 128000),
+	GPT5520260423:         newTieredModelData(0.00000500, 0.00000050, 0.00000500, 0.00003000, 272000, 0.00001000, 0.00000100, 0.00001000, 0.00004500, 1050000, 128000),
+	GPT55Pro:              newTieredModelData(0.00003000, 0.00000000, 0.00003000, 0.00018000, 272000, 0.00006000, 0.00000000, 0.00006000, 0.00027000, 1050000, 128000),
+	GPT55Pro20260423:      newTieredModelData(0.00003000, 0.00000000, 0.00003000, 0.00018000, 272000, 0.00006000, 0.00000000, 0.00006000, 0.00027000, 1050000, 128000),
+	GPT56Sol:              newTieredModelData(0.00000500, 0.00000050, 0.00000625, 0.00003000, 272000, 0.00001000, 0.00000100, 0.00001250, 0.00004500, 1050000, 128000),
+	GPT56Terra:            newTieredModelData(0.00000250, 0.00000025, 0.000003125, 0.00001500, 272000, 0.00000500, 0.00000050, 0.00000625, 0.00002250, 1050000, 128000),
+	GPT56Luna:             newTieredModelData(0.00000100, 0.00000010, 0.00000125, 0.00000600, 272000, 0.00000200, 0.00000020, 0.00000250, 0.00000900, 1050000, 128000),
 
 	// Multimodal realtime & audio
-	GPTRealtime:             {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
-	GPTRealtime15:           {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
-	GPTRealtime2:            {0.00000400, 0.00000040, 0.00002400, 128000, 32000},
-	GPTRealtime21:           {0.00000400, 0.00000040, 0.00002400, 128000, 32000},
-	GPTRealtime21Mini:       {0.00000060, 0.00000006, 0.00000240, 0, 0}, // official docs do not provide context/output limits
-	GPTRealtime20250828:     {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
-	GPTRealtimeMini:         {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
-	GPTRealtimeMini20251006: {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
-	GPTRealtimeMini20251215: {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
-	GPTAudio:                {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPTAudio15:              {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPTAudio20250828:        {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPTAudioMini:            {0.00000060, 0.00000000, 0.00000240, 128000, 16384},
-	GPTAudioMini20251006:    {0.00000060, 0.00000000, 0.00000240, 128000, 16384},
-	GPTAudioMini20251215:    {0.00000060, 0.00000000, 0.00000240, 128000, 16384},
+	GPTRealtime:             newModelData(0.00000400, 0.00000040, 0.00001600, 128000, 16384),
+	GPTRealtime15:           newModelData(0.00000400, 0.00000040, 0.00001600, 128000, 16384),
+	GPTRealtime2:            newModelData(0.00000400, 0.00000040, 0.00002400, 128000, 32000),
+	GPTRealtime21:           newModelData(0.00000400, 0.00000040, 0.00002400, 128000, 32000),
+	GPTRealtime21Mini:       newModelData(0.00000060, 0.00000006, 0.00000240, 0, 0), // official docs do not provide context/output limits
+	GPTRealtime20250828:     newModelData(0.00000400, 0.00000040, 0.00001600, 128000, 16384),
+	GPTRealtimeMini:         newModelData(0.00000060, 0.00000006, 0.00000240, 128000, 16384),
+	GPTRealtimeMini20251006: newModelData(0.00000060, 0.00000006, 0.00000240, 128000, 16384),
+	GPTRealtimeMini20251215: newModelData(0.00000060, 0.00000006, 0.00000240, 128000, 16384),
+	GPTAudio:                newModelData(0.00000250, 0.00000000, 0.00001000, 128000, 16384),
+	GPTAudio15:              newModelData(0.00000250, 0.00000000, 0.00001000, 128000, 16384),
+	GPTAudio20250828:        newModelData(0.00000250, 0.00000000, 0.00001000, 128000, 16384),
+	GPTAudioMini:            newModelData(0.00000060, 0.00000000, 0.00000240, 128000, 16384),
+	GPTAudioMini20251006:    newModelData(0.00000060, 0.00000000, 0.00000240, 128000, 16384),
+	GPTAudioMini20251215:    newModelData(0.00000060, 0.00000000, 0.00000240, 128000, 16384),
 
 	// O-series
-	O1:                         {0.00001500, 0.00000750, 0.00006000, 200000, 100000},
-	O120241217:                 {0.00001500, 0.00000750, 0.00006000, 200000, 100000},
-	O1Pro:                      {0.00015000, 0.00000000, 0.00060000, 200000, 100000},
-	O1Pro20250319:              {0.00015000, 0.00000000, 0.00060000, 200000, 100000},
-	O3:                         {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
-	O320250416:                 {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
-	O3Mini:                     {0.00000110, 0.00000055, 0.00000440, 200000, 100000},
-	O3Mini20250131:             {0.00000110, 0.00000055, 0.00000440, 200000, 100000},
-	O3Pro:                      {0.00002000, 0.00000000, 0.00008000, 200000, 100000},
-	O3Pro20250610:              {0.00002000, 0.00000000, 0.00008000, 200000, 100000},
-	O3DeepResearch:             {0.00001000, 0.00000250, 0.00004000, 200000, 100000},
-	O3DeepResearch20250626:     {0.00001000, 0.00000250, 0.00004000, 200000, 100000},
-	O4Mini:                     {0.00000110, 0.00000028, 0.00000440, 200000, 100000},
-	O4Mini20250416:             {0.00000110, 0.00000028, 0.00000440, 200000, 100000},
-	O4MiniDeepResearch:         {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
-	O4MiniDeepResearch20250626: {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
+	O1:                         newModelData(0.00001500, 0.00000750, 0.00006000, 200000, 100000),
+	O120241217:                 newModelData(0.00001500, 0.00000750, 0.00006000, 200000, 100000),
+	O1Pro:                      newModelData(0.00015000, 0.00000000, 0.00060000, 200000, 100000),
+	O1Pro20250319:              newModelData(0.00015000, 0.00000000, 0.00060000, 200000, 100000),
+	O3:                         newModelData(0.00000200, 0.00000050, 0.00000800, 200000, 100000),
+	O320250416:                 newModelData(0.00000200, 0.00000050, 0.00000800, 200000, 100000),
+	O3Mini:                     newModelData(0.00000110, 0.00000055, 0.00000440, 200000, 100000),
+	O3Mini20250131:             newModelData(0.00000110, 0.00000055, 0.00000440, 200000, 100000),
+	O3Pro:                      newModelData(0.00002000, 0.00000000, 0.00008000, 200000, 100000),
+	O3Pro20250610:              newModelData(0.00002000, 0.00000000, 0.00008000, 200000, 100000),
+	O3DeepResearch:             newModelData(0.00001000, 0.00000250, 0.00004000, 200000, 100000),
+	O3DeepResearch20250626:     newModelData(0.00001000, 0.00000250, 0.00004000, 200000, 100000),
+	O4Mini:                     newModelData(0.00000110, 0.00000028, 0.00000440, 200000, 100000),
+	O4Mini20250416:             newModelData(0.00000110, 0.00000028, 0.00000440, 200000, 100000),
+	O4MiniDeepResearch:         newModelData(0.00000200, 0.00000050, 0.00000800, 200000, 100000),
+	O4MiniDeepResearch20250626: newModelData(0.00000200, 0.00000050, 0.00000800, 200000, 100000),
 
 	// Tooling & moderation
-	ComputerUsePreview:         {0.00000300, 0.00000000, 0.00001200, 128000, 16384},
-	ComputerUsePreview20250311: {0.00000300, 0.00000000, 0.00001200, 128000, 16384},
-	OmniModeration:             {0.00000000, 0.00000000, 0.00000000, 8192, 4096},
-	OmniModeration20240926:     {0.00000000, 0.00000000, 0.00000000, 8192, 4096},
+	ComputerUsePreview:         newModelData(0.00000300, 0.00000000, 0.00001200, 128000, 16384),
+	ComputerUsePreview20250311: newModelData(0.00000300, 0.00000000, 0.00001200, 128000, 16384),
+	OmniModeration:             newModelData(0.00000000, 0.00000000, 0.00000000, 8192, 4096),
+	OmniModeration20240926:     newModelData(0.00000000, 0.00000000, 0.00000000, 8192, 4096),
 
 	// Completion models
-	Davinci002: {0.00000200, 0.00000000, 0.00000200, 16384, 4096},
-	Babbage002: {0.00000040, 0.00000000, 0.00000040, 16384, 4096},
+	Davinci002: newModelData(0.00000200, 0.00000000, 0.00000200, 16384, 4096),
+	Babbage002: newModelData(0.00000040, 0.00000000, 0.00000040, 16384, 4096),
 
 	// Embedding models
-	TextEmbedding3Large: {0.00000013, 0.00000000, 0.00000000, 8191, 3072},
-	TextEmbedding3Small: {0.00000002, 0.00000000, 0.00000000, 8191, 1536},
+	TextEmbedding3Large: newModelData(0.00000013, 0.00000000, 0.00000000, 8191, 3072),
+	TextEmbedding3Small: newModelData(0.00000002, 0.00000000, 0.00000000, 8191, 1536),
 }

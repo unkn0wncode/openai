@@ -182,6 +182,7 @@ func (w *wsClient) readLoop() {
 			return
 		}
 
+		w.client.logStreamingCost(event)
 		w.pushEvent(event)
 	}
 }
