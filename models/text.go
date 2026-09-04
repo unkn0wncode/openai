@@ -109,7 +109,6 @@ const (
 	GPTRealtime21Mini       = "gpt-realtime-2.1-mini"
 	GPTRealtime20250828     = "gpt-realtime-2025-08-28"
 	GPTRealtimeMini         = "gpt-realtime-mini"
-	GPTRealtimeMini20251006 = "gpt-realtime-mini-2025-10-06"
 	GPTRealtimeMini20251215 = "gpt-realtime-mini-2025-12-15"
 	GPTAudio                = "gpt-audio"
 	GPTAudio15              = "gpt-audio-1.5"
@@ -332,7 +331,6 @@ var Data = map[string]pricing{
 	GPTRealtime21Mini:       newModelData(0.00000060, 0.00000006, 0.00000240, 0, 0), // official docs do not provide context/output limits
 	GPTRealtime20250828:     newModelData(0.00000400, 0.00000040, 0.00001600, 128000, 16384),
 	GPTRealtimeMini:         newModelData(0.00000060, 0.00000006, 0.00000240, 128000, 16384),
-	GPTRealtimeMini20251006: newModelData(0.00000060, 0.00000006, 0.00000240, 128000, 16384),
 	GPTRealtimeMini20251215: newModelData(0.00000060, 0.00000006, 0.00000240, 128000, 16384),
 	GPTAudio:                newModelData(0.00000250, 0.00000000, 0.00001000, 128000, 16384),
 	GPTAudio15:              newModelData(0.00000250, 0.00000000, 0.00001000, 128000, 16384),
