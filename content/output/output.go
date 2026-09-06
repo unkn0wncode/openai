@@ -42,8 +42,6 @@ func (a *Any) UnmarshalToTarget(target any) error {
 // Unmarshal unmarshals the full content into a type specified in the "type" field.
 func (a *Any) Unmarshal() (any, error) {
 	switch a.Type {
-	case "text":
-		return unmarshalToType[Text](a)
 	case "output_text":
 		return unmarshalToType[OutputText](a)
 	case "input_text":
@@ -56,8 +54,6 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[input.ItemReference](a)
 	case "image_url":
 		return unmarshalToType[ImageURL](a)
-	case "image_file":
-		return unmarshalToType[ImageFile](a)
 	case "refusal":
 		return unmarshalToType[Refusal](a)
 	case "message":
@@ -130,29 +126,6 @@ func (a Any) String() string {
 	return string(a.raw)
 }
 
-// Text is a string content.
-type Text struct {
-	Type string `json:"type"` // "text"
-	Text struct {
-		Value       string          `json:"value"`
-		Annotations []AnyAnnotation `json:"annotations,omitempty"`
-	} `json:"text"`
-}
-
-// MarshalJSON implements the json.Marshaler interface.
-// It fills in the "type" field with "text", discarding any prior value.
-func (t Text) MarshalJSON() ([]byte, error) {
-	t.Type = "text"
-	type alias Text
-	return openai.Marshal(alias(t))
-}
-
-// String implements the fmt.Stringer interface.
-// Returns the text content.
-func (t Text) String() string {
-	return t.Text.Value
-}
-
 // OutputText is a text content.
 type OutputText struct {
 	Type        string          `json:"type"` // "output_text"
@@ -199,29 +172,6 @@ func (i ImageURL) MarshalJSON() ([]byte, error) {
 // Returns the image URL content.
 func (i ImageURL) String() string {
 	return i.Image.URL
-}
-
-// ImageFile is an image referenced by a file ID.
-type ImageFile struct {
-	Type string `json:"type"` // "image_file"
-	File struct {
-		FileID string `json:"file_id"`          // required
-		Detail string `json:"detail,omitempty"` // optional; "auto", "high", "low"
-	} `json:"image_file"`
-}
-
-// MarshalJSON implements the json.Marshaler interface.
-// It fills in the "type" field with "image_file", discarding any prior value.
-func (i ImageFile) MarshalJSON() ([]byte, error) {
-	i.Type = "image_file"
-	type alias ImageFile
-	return openai.Marshal(alias(i))
-}
-
-// String implements the fmt.Stringer interface.
-// Returns the image file content.
-func (i ImageFile) String() string {
-	return i.File.FileID
 }
 
 // AnyAnnotation is an annotation for a text value with only the "type" field unmarshaled.

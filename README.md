@@ -103,7 +103,6 @@ Currently implemented APIs:
 - Responses
 - Chat (Legacy)
 - Moderation
-- Assistants (deprecated)
 - Embeddings
 - Completions (Legacy)
 
@@ -454,46 +453,6 @@ for _, res := range results {
     fmt.Printf("Input: %q | Flagged: %v | Scores: %v\n",
         res.Input, res.Flagged, res.CategoryScores)
 }
-```
-
-## Assistants API (deprecated)
-
-The Assistants API service accessible through `Client.Assistants` provides methods to manage assistants:
-- `CreateAssistant` creates a new assistant.
-- `ListAssistant` lists all assistants for the client.
-- `LoadAssistant` retrieves an assistant by ID.
-- `DeleteAssistant` removes an assistant.
-- `AssistantsRunRefreshInterval` gets the polling interval for run status checks.
-- `SetAssistantsRunRefreshInterval` configures the polling interval for run status checks.
-
-Other exposed types in the `assistants` package:
-- `Content` is an interface listing all types that can be used as content in the Assistants API.
-- `Assistant` provides methods `ID`, `Model`, `NewThread`, and `LoadThread` to manage assistant metadata and start conversation threads.
-- `Thread` provides methods `AddMessage`, `Messages`, `Run`, and `RunAndFetch` to add messages and obtain assistant responses.
-- `Run` provides methods `Await`, `SubmitToolOutputs`, `IsPending`, and `IsExpectingToolOutputs` to handle execution lifecycle.
-- Options for creating threads and runs.
-
-A use example:
-
-```go
-// Create a new assistant
-asst, _ := client.Assistants.CreateAssistant(assistants.CreateParams{
-    Name:  "Demo Assistant",
-    Model: models.DefaultMini,
-})
-
-// Start a new conversation thread
-thread, _ := asst.NewThread(nil)
-
-// Add a user message
-thread.AddMessage(assistants.InputMessage{
-    Role:    roles.User,
-    Content: "hi how are you?",
-})
-
-// Run the assistant and fetch the reply
-_, msg, _ := thread.RunAndFetch(context.Background(), nil)
-fmt.Println(msg.Content)
 ```
 
 ## Embeddings API

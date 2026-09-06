@@ -46,8 +46,6 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[InputText](a)
 	case "image_url":
 		return unmarshalToType[ImageURL](a)
-	case "image_file":
-		return unmarshalToType[ImageFile](a)
 	case "input_image":
 		return unmarshalToType[InputImage](a)
 	case "input_file":
@@ -143,15 +141,6 @@ func (i ImageURL) String() string {
 	return i.Image.URL
 }
 
-// ImageFile is an image referenced by a file ID.
-type ImageFile struct {
-	Type string `json:"type"` // "image_file"
-	File struct {
-		FileID string `json:"file_id"`          // required
-		Detail string `json:"detail,omitempty"` // optional; "auto", "high", "low"
-	} `json:"image_file"`
-}
-
 // InputImage is an image given to the model.
 type InputImage struct {
 	Type     string `json:"type"`             // "input_image"
@@ -182,20 +171,6 @@ func (i InputFile) MarshalJSON() ([]byte, error) {
 	i.Type = "input_file"
 	type alias InputFile
 	return openai.Marshal(alias(i))
-}
-
-// MarshalJSON implements the json.Marshaler interface.
-// It fills in the "type" field with "image_file", discarding any prior value.
-func (i ImageFile) MarshalJSON() ([]byte, error) {
-	i.Type = "image_file"
-	type alias ImageFile
-	return openai.Marshal(alias(i))
-}
-
-// String implements the fmt.Stringer interface.
-// Returns the image file content.
-func (i ImageFile) String() string {
-	return i.File.FileID
 }
 
 // ItemReference describes a reference to an item by ID.

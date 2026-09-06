@@ -1,3 +1,4 @@
+// Package openai / client_test.go tests the client against the OpenAI API.
 package openai
 
 import (
@@ -9,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/unkn0wncode/openai/assistants"
 	"github.com/unkn0wncode/openai/chat"
 	"github.com/unkn0wncode/openai/completion"
 	"github.com/unkn0wncode/openai/content/output"
@@ -142,51 +142,6 @@ func TestClient_Completion(t *testing.T) {
 	require.NotEmpty(t, resp)
 
 	t.Logf("resp: %s", resp)
-}
-
-// TestClient_Assistants checks the assistants functionality in assistants API.
-func TestClient_Assistants(t *testing.T) {
-	t.Parallel()
-	t.Skip("Assistants API is deprecated")
-	c := NewClient(testToken)
-
-	// Create a new assistant
-	assistant, err := c.Assistants.CreateAssistant(assistants.CreateParams{
-		Name:  "Test Assistant",
-		Model: models.GPT41Nano, // GPT-5 does not support assistants
-	})
-	require.NoError(t, err)
-	require.NotNil(t, assistant)
-
-	// List assistantsList
-	assistantsList, err := c.Assistants.ListAssistant()
-	require.NoError(t, err)
-	require.NotEmpty(t, assistantsList)
-
-	// Create a new thread
-	thread, err := assistant.NewThread(nil)
-	require.NoError(t, err)
-	require.NotNil(t, thread)
-
-	// Add a message to the thread
-	addedMsg, err := thread.AddMessage(assistants.InputMessage{
-		Role:    roles.User,
-		Content: "Hello, how are you?",
-	})
-	require.NoError(t, err)
-	require.NotNil(t, addedMsg)
-
-	// Run the thread
-	run, msg, err := thread.RunAndFetch(t.Context(), nil)
-	require.NoError(t, err)
-	require.NotNil(t, run)
-	require.NotNil(t, msg)
-
-	// Delete the assistant
-	err = c.Assistants.DeleteAssistant(assistant.ID())
-	require.NoError(t, err)
-
-	t.Logf("response: %s", msg.Content)
 }
 
 // TestClient_Responses_hi checks the responses functionality in responses API.
