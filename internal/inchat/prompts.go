@@ -59,15 +59,14 @@ func (c *Client) Send(req chat.Request) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	respText, err := c.checkFirst(respData)
+	if err != nil {
+		return respText, err
+	}
 
 	// if response contains tool/function calls, it needs to be handled specially
 	aiMessage := respData.Choices[0].Message
 	if len(aiMessage.ToolCalls) > 0 {
-		_, err := c.checkFirst(respData)
-		if err != nil {
-			return "", err
-		}
-
 		var callsToReturn []*openai.FunctionCallData
 		var callErrors []error
 		for i, tc := range aiMessage.ToolCalls {
@@ -157,8 +156,7 @@ func (c *Client) Send(req chat.Request) (string, error) {
 				return string(b), errors.Join(err, marshalErr)
 			}
 
-			respText, respCheckErr := c.checkFirst(respData)
-			return respText, errors.Join(err, respCheckErr)
+			return respText, err
 		}
 
 		// if we found any function calls that need to be returned, encode and return them
@@ -188,5 +186,5 @@ func (c *Client) Send(req chat.Request) (string, error) {
 		return c.Send(req)
 	}
 
-	return c.checkFirst(respData)
+	return respText, nil
 }

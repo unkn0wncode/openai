@@ -54,16 +54,16 @@ The `Client.Config().HTTPClient` contains a `LogTripper` that you can enable for
 client.Config().EnableLogTripper()
 ```
 
-When enabled, the `LogTripper` will log HTTP request and response dumps with the `Debug` level.
+When enabled, the `LogTripper` will log HTTP request and response dumps with the `Debug` level. SSE responses log headers only, so event delivery is not delayed by reading the stream body. Dumps are skipped when the logger suppresses Debug output.
 
 `LogTripper` is a wrapper around a standard `http.RoundTripper` in `client.Config().HTTPClient.Client.Transport`. You can freely replace it with your own `http.RoundTripper` implementation losing this logging functionality, and then the `EnableLogTripper()` will return an error if you try to call it.
 
 `HTTPClient` has additional fields with settings:
 - `RequestAttempts` is the number of attempts to make the request, default is 3 (one initial attempt and two retries).
 - `RetryInterval` is the interval to wait before each retry, default is 3 seconds.
-- `AutoLogTripper` is a flag that can be set to true to enable automatic toggling of log tripper on errors/successes, default is false.
+- `AutoLogTripper` enables request/response dumps for subsequent requests after a transport error or non-2xx response, and disables them after a successful response. It applies to ordinary `Do` calls and retry attempts, and defaults to false.
 
-If any request fails or returns a non-200 status, it will be retried according to the `HTTPClient` settings.
+`WithRetry` retries failed requests and non-200 responses according to these settings. Ordinary `Do` calls do not retry.
 
 ### Client Tools
 
@@ -86,7 +86,7 @@ Mind that the same tool/function can be used across multiple APIs, as long as yo
 
 ## Resources shared across APIs
 
-- `openai/models` package contains data for available models across all APIs. You can still use a model ID literal if it is not listed. When a request omits its model, the API-specific default is used. `models.Data` contains token prices and limits; `models.Data[model].Cost(usage)` calculates Responses API cost, including cached input, cache writes, and long-context rates.
+- `openai/models` package contains data for available models across all APIs. You can still use a model ID literal if it is not listed. When a request omits its model, the API-specific default is used. `models.Data` contains token prices and limits. Each entry's `Cost(usage)` estimates Standard token charges, including cached input, cache writes, and long-context rates; it returns an error when pricing is unavailable. Use `ForTier` to select other published service-tier rates.
 - `openai/roles` package contains constants for roles that can be used in messages. Some models may be sensitive to the choice between the older "system" and the newer "developer" roles.
 - `openai/tools` package contains types for tools/functions that can be used in requests in multiple APIs. You declare a tool/function, add it to the client, and then list its name in the `Functions`/`Tools` field of a request.
 - `openai/content/input` and `openai/content/output` packages contain all types that can be sent to the API or received from it. Some types can be used for both input and output, such are placed in the output package. Note that there are types that are present in both packages and have the same name, but their implementations differ slightly.
@@ -132,6 +132,7 @@ The `client.Responses` exposes the following methods:
 - `Stream` sends a given request to the API and returns a stream of events. It can be used to read the response as it's being generated. See the Streaming section for details.
 - `WebSocket` opens a WebSocket connection for streaming responses repeatedly over a single connection. See the [WebSocket](#websocket) section for details.
 - `Poll` polls a background response by ID until completion, failure, or context cancellation.
+- `CountInputTokens` calls the API's input counter without generating a response. It resolves registered tools and counts supported text, image, file, and conversation inputs. Prompt templates and context management must be expanded before counting because the count endpoint does not accept those parameters.
 - `NewRequest` creates a new empty request. It is only a shorthand to make the type `responses.Request` more easily discoverable. You can use the request type directly.
 - `NewMessage` creates a new empty message. It is only a shorthand to make the type `output.Message` more easily discoverable. You can use the message type directly.
 - `CreateConversation` creates a persistent conversation container where you can manage context items and reuse it in Responses requests.
@@ -145,7 +146,9 @@ Other exposed types/functions in the `responses` package:
 - A few more types for request fields.
 - `Response` wraps the API response and exposes the following:
   - `Response.ID` field contains the response ID that can be used to chain requests.
-  - `Response.Usage` contains usage token counts from the API response. When automatic tool handling sends follow-up requests, this usage belongs to the final response.
+  - `Response.Model`, `ServiceTier`, and `Status` describe the final API response. Its `Usage` contains token counts, or is nil when usage is unavailable.
+  - `Response.Calls` preserves individual API responses with their original outputs and billing evidence. `TotalUsage()` sums their known counters; never price this sum as one request because context thresholds and tiers apply to each call separately.
+  - `Response.EstimatedCost` and `CostError` contain the estimate and its limitations. Each entry in `Calls` has its own values. Cost errors are separate from execution errors returned by `Send`.
   - `Response.<ContentType>()` methods return a slice of outputs of a specific type extracted from the response. For example, `Texts()` returns string of all text outputs, usually just one.
   - `Response.Outputs` contains all received outputs as `[]output.Any`. `Any` contains parsed `type` field and raw data.
   - `Response.ParsedOutputs` contains all received outputs fully parsed in an `[]any` slice. The `.Parse()` method for populating it is called automatically before the response is returned so you don't need to call it.
@@ -345,6 +348,57 @@ A conversation object provides methods for managing the conversation:
 
 Because the conversation context is managed automatically, it is possible for "system" messages to be trimmed out. This is why prompting in Responses API is done via a separate field: `responses.Request.Instructions`. This field is supposed to be supplied with each request and can be easily changed between requests within the same conversation if you want the model to change its behavior.
 
+### Cost estimates
+
+For a Standard token estimate, look up the model returned by the API:
+
+```go
+pricing, ok := models.Data[resp.Model]
+if !ok {
+    return fmt.Errorf("no pricing found for model %q", resp.Model)
+}
+amount, costErr := pricing.Cost(resp.Usage)
+```
+
+`Cost` excludes hosted tools and regional charges. `pricing.ForTier(resp.ServiceTier)` selects the actual tier before calculating. Both `fast` and `priority` select Fast prices. Missing pricing or usage produces an error, while a known free model or zero-token usage can legitimately cost zero.
+
+Use the request-aware estimator for an executed Responses request:
+
+```go
+amount, costErr := req.EstimateCost(resp)
+if costErr != nil {
+    fmt.Printf("Known subtotal: $%.9f; incomplete estimate: %v\n", amount, costErr)
+} else {
+    fmt.Printf("Estimated cost: $%.9f\n", amount)
+}
+for _, call := range resp.Calls {
+    // if tools cause intermediate requests you may want separate estimates for each request
+    fmt.Printf("%s: $%.9f; %v\n", call.ID, call.EstimatedCost, call.CostError)
+}
+```
+
+The estimator uses each API call's returned model and service tier, rather than the requested tier. This matters when Fast is downgraded to Standard. It records individual estimation errors and returns their `errors.Join` aggregate; `Send` returns execution errors separately. An execution error may accompany a partial response containing already-observed usage. `BillingIncomplete` records a sent request whose billing evidence was not observed. Pending responses also produce an incomplete estimate.
+
+Known search and file-search call fees are included. Container sessions, file-search storage, and tool charges not exposed by the response remain unpriced. When free or fixed-block search-content billing cannot be separated from reported input, the subtotal includes supported output and call charges and reports the input as unpriced. Regional token uplift is applied when the endpoint and model establish it; custom endpoints leave the region unknown. These estimates use public list prices, excluding account-specific discounts or credits. See the [API pricing documentation](https://developers.openai.com/api/docs/pricing).
+
+Before generation, you can count the input and compare explicit usage assumptions:
+
+```go
+inputTokens, err := client.Responses.CountInputTokens(ctx, req)
+if err != nil {
+    return err
+}
+scenario := req.Clone()
+scenario.ServiceTier = responses.ServiceTierFlex
+assumedUsage := &responses.Usage{
+    InputTokens: inputTokens,
+    OutputTokens: 1000,
+}
+amount, costErr := scenario.PreviewCost(assumedUsage)
+```
+
+This scenario assumes 1,000 generated tokens and no cache reads or writes. Adjust the usage details to compare cache reuse or writes, and recount inputs when changing models or request content. `PreviewCost` makes no network calls and estimates tokens for a single request; hosted tools, regional charges, and subsequent tool-follow-up requests are excluded. It requires an explicit tier because `auto` depends on project settings. `MaxOutputTokens` can be used as an output scenario, but is not a prediction or a bound on a whole tool loop. [Input token counting](https://developers.openai.com/api/docs/guides/token-counting) includes non-visible structure; output usage includes reasoning and other non-visible generated tokens.
+
 ### Streaming
 
 Use `client.Responses.Stream(ctx, req)` to get a stream of `any` events. The SDK sets `stream=true` in the request body and does not mutate the original request.
@@ -353,7 +407,7 @@ In normal flow, you'll get a sequence of events with types from the `responses/s
 
 Some event types have fields than may contain multiple different types of data. Such fields are left as `json.RawMessage` and mostly can be parsed further using types from the `output` package, but this is not done automatically.
 
-Completed SSE and WebSocket response events carry usage when provided. The client logs token counts and calculated cost at `Debug` level for non-streaming responses and completed streams with usage. For manual streaming cost calculation, convert `streaming.ResponseUsage` to `responses.Usage` and pass it to `models.Data[model].Cost(usage)`.
+Completed, incomplete, and failed SSE and WebSocket response events carry usage when provided. Non-streaming responses, terminal polling results, and terminal streams log estimates at `Debug` level, using the actual model and service tier. Logs distinguish complete estimates, known subtotals, and unavailable estimates. For a manual Standard token estimate, use a checked `models.Data[event.Response.Model]` lookup and pass `event.Response.Usage` to its `Cost` method. This excludes hosted tools and regional charges.
 
 ### WebSocket
 According to OpenAI, responses with 20+ tool calls can be up to 40% faster over WebSocket.

@@ -1,3 +1,4 @@
+// Package main demonstrates a request to the legacy Completions API.
 package main
 
 import (
@@ -20,7 +21,7 @@ func main() {
 	req := completion.Request{
 		Model:     models.GPT35TurboInstruct,
 		Prompt:    "Once upon a time",
-		MaxTokens: 512,
+		MaxTokens: 2048,
 	}
 
 	resp, err := client.Completion.Send(req)

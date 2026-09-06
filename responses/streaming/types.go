@@ -4,6 +4,8 @@ package streaming
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/unkn0wncode/openai/models"
 )
 
 // Any is a partial representation of a content object with only the "type" field unmarshaled.
@@ -200,18 +202,7 @@ type (
 	}
 
 	// ResponseUsage contains token usage for a response.
-	ResponseUsage struct {
-		InputTokens        int `json:"input_tokens"`
-		InputTokensDetails struct {
-			CachedTokens     int `json:"cached_tokens"`
-			CacheWriteTokens int `json:"cache_write_tokens"`
-		} `json:"input_tokens_details"`
-		OutputTokens        int `json:"output_tokens"`
-		OutputTokensDetails struct {
-			ReasoningTokens int `json:"reasoning_tokens"`
-		} `json:"output_tokens_details"`
-		TotalTokens int `json:"total_tokens"`
-	}
+	ResponseUsage = models.Usage
 
 	// Response represents a response object payload in streaming events.
 	Response struct {
@@ -265,7 +256,7 @@ type (
 			Variables map[string]json.RawMessage `json:"variables"`
 			Version   *string                    `json:"version"`
 		} `json:"prompt"`
-		ServiceTier *string `json:"service_tier"` // "default", "auto", or "flex"
+		ServiceTier *string `json:"service_tier"` // actual processing tier, including default, flex, fast, or priority
 		TopLogprobs *int    `json:"top_logprobs"`
 	}
 )

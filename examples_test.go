@@ -1,3 +1,4 @@
+// Package openai / examples_test.go tests the example programs against the OpenAI API.
 package openai
 
 import (
@@ -12,10 +13,7 @@ import (
 )
 
 func TestExamples(t *testing.T) {
-	token := os.Getenv("OPENAI_API_KEY")
-	if token == "" {
-		t.Skip("OPENAI_API_KEY not set, skip testing examples")
-	}
+	token := integrationToken(t)
 
 	exampleDirs, err := collectExampleDirs(t, "examples")
 	require.NoError(t, err)

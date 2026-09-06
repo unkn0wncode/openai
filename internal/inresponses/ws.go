@@ -1,3 +1,4 @@
+// Package inresponses / ws.go implements the WebSocket transport for the Responses API.
 package inresponses
 
 import (
@@ -13,6 +14,7 @@ import (
 	"github.com/unkn0wncode/openai/models"
 	"github.com/unkn0wncode/openai/responses"
 	"github.com/unkn0wncode/openai/responses/streaming"
+	"github.com/unkn0wncode/openai/tools"
 
 	"github.com/gorilla/websocket"
 )
@@ -29,10 +31,13 @@ type wsClient struct {
 
 // wsTurn tracks one response.create turn.
 type wsTurn struct {
-	events chan any
-	done   chan struct{}
-	once   sync.Once
-	err    error
+	events           chan any
+	done             chan struct{}
+	once             sync.Once
+	err              error
+	request          *responses.Request
+	tools            []tools.Tool
+	processingRegion string
 }
 
 func newWSTurn() *wsTurn {
@@ -160,7 +165,7 @@ func wsURLFromBase(base string) (string, error) {
 
 func (w *wsClient) logPayload(direction string, data []byte) {
 	lt, ok := w.client.HTTPClient.Transport.(*openai.LoggingTransport)
-	if !ok || !lt.EnableLog {
+	if !ok || !lt.Enabled() {
 		return
 	}
 	w.client.Log.Debug(fmt.Sprintf("websocket %s:\n%s", direction, string(data)))
@@ -182,7 +187,6 @@ func (w *wsClient) readLoop() {
 			return
 		}
 
-		w.client.logStreamingCost(event)
 		w.pushEvent(event)
 	}
 }
@@ -193,6 +197,7 @@ func (w *wsClient) pushEvent(event any) {
 		return
 	}
 
+	w.client.logStreamingCost(turn.request, turn.tools, turn.processingRegion, event)
 	turn.deliver(event)
 	if streaming.IsTerminalEvent(event) {
 		w.finishTurn(nil)
@@ -282,6 +287,17 @@ func (w *wsClient) Send(ctx context.Context, req *responses.Request) (*streaming
 	}
 
 	turn := newWSTurn()
+	turn.request = data
+	var sent struct {
+		Tools []tools.Tool `json:"tools"`
+	}
+	if err := json.Unmarshal(reqBytes, &sent); err != nil {
+		return nil, fmt.Errorf("failed to decode sent tool definitions: %w", err)
+	}
+	turn.tools = sent.Tools
+	if endpoint, err := url.Parse(w.client.BaseAPI); err == nil {
+		turn.processingRegion = processingRegion(endpoint)
+	}
 
 	w.logPayload("send", eventBytes)
 

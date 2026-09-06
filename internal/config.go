@@ -73,6 +73,8 @@ func (c *Config) EnableLogTripper() error {
 		)
 	}
 
+	transport.mu.Lock()
+	defer transport.mu.Unlock()
 	transport.EnableLog = true
 	if c.Log != nil {
 		transport.Log = c.Log
@@ -100,6 +102,6 @@ func (c *Config) DisableLogTripper() error {
 		)
 	}
 
-	transport.EnableLog = false
+	transport.setEnabled(false)
 	return nil
 }
