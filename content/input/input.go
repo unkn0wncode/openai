@@ -98,16 +98,28 @@ func (t Text) String() string {
 	return t.Text
 }
 
+// PromptCacheBreakpoint marks the end of a cacheable prompt prefix (gpt-5.6+ models).
+// The prefix covers the marked block and everything before it.
+type PromptCacheBreakpoint struct {
+	Mode string `json:"mode"` // only "explicit" is valid
+}
+
 // InputText is a text content.
 type InputText struct {
 	Type string `json:"type"` // "input_text"
 	Text string `json:"text"`
+
+	PromptCacheBreakpoint *PromptCacheBreakpoint `json:"prompt_cache_breakpoint,omitempty"` // optional
 }
 
 // MarshalJSON implements the json.Marshaler interface.
 // It fills in the "type" field with "input_text", discarding any prior value.
+// Empty breakpoint mode is filled with "explicit".
 func (i InputText) MarshalJSON() ([]byte, error) {
 	i.Type = "input_text"
+	if i.PromptCacheBreakpoint != nil && i.PromptCacheBreakpoint.Mode == "" {
+		i.PromptCacheBreakpoint = &PromptCacheBreakpoint{Mode: "explicit"}
+	}
 	type alias InputText
 	return openai.Marshal(alias(i))
 }
