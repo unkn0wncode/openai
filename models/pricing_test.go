@@ -151,6 +151,15 @@ func TestMissingRatesRetainSubtotal(t *testing.T) {
 	require.InDelta(t, 0.000135, got, 1e-12)
 }
 
+func TestCostClampsNegativeUncachedInput(t *testing.T) {
+	u := &Usage{InputTokens: 10}
+	u.InputTokensDetails.CachedTokens = 7
+	u.InputTokensDetails.CacheWriteTokens = 6
+	got, err := testPricing().Cost(u)
+	require.ErrorContains(t, err, "uncached input was clamped to zero")
+	require.InDelta(t, 0.0000215, got, 1e-12)
+}
+
 // There is no actual free model but we want to test the package API contract that distinguishes
 // between nil and zero cost, preventing user from mistaking a pricing error for a real zero cost.
 func TestNilVsFreeUsage(t *testing.T) {

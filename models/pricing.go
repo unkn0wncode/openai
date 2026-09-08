@@ -100,9 +100,7 @@ func (u *Usage) Cost(p Pricing) (float64, error) {
 	if u.InputTokens < 0 ||
 		u.OutputTokens < 0 ||
 		u.InputTokensDetails.CachedTokens < 0 ||
-		u.InputTokensDetails.CacheWriteTokens < 0 ||
-		u.InputTokensDetails.CachedTokens > u.InputTokens ||
-		u.InputTokensDetails.CacheWriteTokens > u.InputTokens-u.InputTokensDetails.CachedTokens {
+		u.InputTokensDetails.CacheWriteTokens < 0 {
 		return 0, errors.New("invalid token counts")
 	}
 	tier := p.standard
@@ -119,14 +117,19 @@ func (u *Usage) Cost(p Pricing) (float64, error) {
 		}
 		rates = tier.long
 	}
+	uncachedInput := u.InputTokens - u.InputTokensDetails.CachedTokens - u.InputTokensDetails.CacheWriteTokens
 	var cost float64
 	var errs []error
+	if uncachedInput < 0 {
+		uncachedInput = 0
+		errs = append(errs, errors.New("input token details exceed input tokens; uncached input was clamped to zero"))
+	}
 	for _, part := range []struct {
 		name   string
 		tokens int
 		rate   float64
 	}{
-		{"input", u.InputTokens - u.InputTokensDetails.CachedTokens - u.InputTokensDetails.CacheWriteTokens, rates.input},
+		{"input", uncachedInput, rates.input},
 		{"cached input", u.InputTokensDetails.CachedTokens, rates.cachedInput},
 		{"cache write", u.InputTokensDetails.CacheWriteTokens, rates.cacheWrite},
 		{"output", u.OutputTokens, rates.output},
