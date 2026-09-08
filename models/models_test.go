@@ -1,8 +1,8 @@
+// Package models / models_test.go checks the catalog against the OpenAI model inventory.
 package models
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -30,10 +30,7 @@ func TestMain(m *testing.M) {
 			}
 		}
 	}
-	if testToken = os.Getenv("OPENAI_API_KEY"); testToken == "" {
-		fmt.Fprintln(os.Stderr, "OPENAI_API_KEY not set, skipping integration tests")
-		os.Exit(1)
-	}
+	testToken = os.Getenv("OPENAI_API_KEY")
 	os.Exit(m.Run())
 }
 
@@ -48,6 +45,12 @@ type modelData struct {
 // TestModelsList fetches all models from https://api.openai.com/v1/models and checks if
 // the list is same as the hard-coded list in this package.
 func TestModelsList(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration test disabled in short mode")
+	}
+	if testToken == "" {
+		t.Skip("OPENAI_API_KEY not set")
+	}
 	// fetch list of models from API
 
 	client := NewHTTPClient()
@@ -59,6 +62,7 @@ func TestModelsList(t *testing.T) {
 	resp, err := client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode, "model catalog request failed: %s", resp.Status)
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)

@@ -12,7 +12,8 @@ package models
 // No marketing names (Quasar, Omni, etc). If there's no constant, use the
 // model ID string directly.
 const (
-	Default     = GPT56Sol
+	Latest      = GPT6Astra
+	Default     = Latest
 	DefaultMini = GPT56Terra
 	DefaultNano = GPT56Luna
 
@@ -99,6 +100,9 @@ const (
 	GPT56Terra            = "gpt-5.6-terra"
 	GPT56Luna             = "gpt-5.6-luna"
 
+	// GPT-6 family
+	GPT6Astra = "gpt-6-astra"
+
 	// Multimodal realtime & audio
 	GPTRealtime             = "gpt-realtime"
 	GPTRealtime15           = "gpt-realtime-1.5"
@@ -154,158 +158,575 @@ const (
 	TextModerationStable   = "text-moderation-stable"
 )
 
-//go:generate go run ../internal/cmd/getmodels
-
-// CODE BELOW THIS LINE IS GENERATED. ONLY EDIT IF YOU KNOW HOW.
-
-// Data contains price per 1 token for each model, separately for input and output, and token limits.
-// Note that pricing page https://openai.com/pricing lists price per 1M tokens and here it's per 1 token.
-// The "" denotes default values.
-var Data = map[string]struct {
-	PriceIn       float64
-	PriceCachedIn float64
-	PriceOut      float64
-	LimitContext  int
-	LimitOutput   int
-}{
-	// Zeroes in the end of prices are added to align it and make it easier to read.
-	// Can be read as "0.00000450 = 4.5 micro dollars per token = $4.50 per 1M tokens".
-	"": {0.00000000, 0.00000000, 0.00000000, 4096, 4096},
+// Data contains token prices and limits for each model.
+// https://developers.openai.com/api/docs/pricing
+// Older models have no additional cache-write charge; their writes use input rates.
+// The empty model ID supplies default limits only and has no pricing.
+var Data = map[string]Pricing{
+	"": {LimitContext: 4096, LimitOutput: 4096},
 
 	// Chat aliases
-	ChatLatest: {0.00000500, 0.00000050, 0.00003000, 400000, 128000},
+	ChatLatest: {
+		standard:     &tierRates{short: tokenRates{input: 5, cachedInput: 0.5, cacheWrite: 5, output: 30}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
 
 	// GPT-3.5 family
-	GPT35Turbo:             {0.00000050, 0.00000000, 0.00000150, 16385, 4096},
-	GPT35Turbo0125:         {0.00000050, 0.00000050, 0.00000150, 16348, 4096},
-	GPT35Turbo1106:         {0.00000100, 0.00000100, 0.00000200, 16348, 4096},
-	GPT35TurboInstruct:     {0.00000150, 0.00000000, 0.00000200, 16348, 4096},
-	GPT35TurboInstruct0914: {0.00000150, 0.00000000, 0.00000200, 16348, 4096},
+	GPT35Turbo: {
+		standard:     &tierRates{short: tokenRates{input: 0.5, cachedInput: unavailableRate, cacheWrite: 0.5, output: 1.5}},
+		LimitContext: 16385, LimitOutput: 4096,
+	},
+	GPT35Turbo0125: {
+		standard:     &tierRates{short: tokenRates{input: 0.5, cachedInput: unavailableRate, cacheWrite: 0.5, output: 1.5}},
+		LimitContext: 16348, LimitOutput: 4096,
+	},
+	GPT35Turbo1106: {
+		standard:     &tierRates{short: tokenRates{input: 1, cachedInput: unavailableRate, cacheWrite: 1, output: 2}},
+		LimitContext: 16348, LimitOutput: 4096,
+	},
+	GPT35TurboInstruct: {
+		standard:     &tierRates{short: tokenRates{input: 1.5, cachedInput: unavailableRate, cacheWrite: 1.5, output: 2}},
+		LimitContext: 16348, LimitOutput: 4096,
+	},
+	GPT35TurboInstruct0914: {
+		standard:     &tierRates{short: tokenRates{input: 1.5, cachedInput: unavailableRate, cacheWrite: 1.5, output: 2}},
+		LimitContext: 16348, LimitOutput: 4096,
+	},
 
 	// GPT-4 family
-	"gpt-4":           {0.00003000, 0.00000000, 0.00006000, 8192, 8192},
-	GPT4Turbo:         {0.00001000, 0.00000000, 0.00003000, 128000, 4096},
-	GPT4Turbo20240409: {0.00001000, 0.00001000, 0.00003000, 128000, 4096},
-	"gpt-4-0613":      {0.00003000, 0.00003000, 0.00006000, 8192, 8192},
+	"gpt-4": {
+		standard:     &tierRates{short: tokenRates{input: 30, cachedInput: unavailableRate, cacheWrite: 30, output: 60}},
+		LimitContext: 8192, LimitOutput: 8192,
+	},
+	GPT4Turbo: {
+		standard:     &tierRates{short: tokenRates{input: 10, cachedInput: unavailableRate, cacheWrite: 10, output: 30}},
+		LimitContext: 128000, LimitOutput: 4096,
+	},
+	GPT4Turbo20240409: {
+		standard:     &tierRates{short: tokenRates{input: 10, cachedInput: unavailableRate, cacheWrite: 10, output: 30}},
+		LimitContext: 128000, LimitOutput: 4096,
+	},
+	"gpt-4-0613": {
+		standard:     &tierRates{short: tokenRates{input: 30, cachedInput: unavailableRate, cacheWrite: 30, output: 60}},
+		LimitContext: 8192, LimitOutput: 8192,
+	},
 
 	// GPT-4.1 family
-	GPT41:             {0.00000200, 0.00000050, 0.00000800, 1047576, 32768},
-	GPT4120250414:     {0.00000200, 0.00000050, 0.00000800, 1000000, 32768},
-	GPT41Mini:         {0.00000040, 0.00000010, 0.00000160, 1047576, 32768},
-	GPT41Mini20250414: {0.00000040, 0.00000010, 0.00000160, 1000000, 32768},
-	GPT41Nano:         {0.00000010, 0.00000003, 0.00000040, 1047576, 32768},
-	GPT41Nano20250414: {0.00000010, 0.00000003, 0.00000040, 1000000, 32768},
+	GPT41: {
+		standard:     &tierRates{short: tokenRates{input: 2, cachedInput: 0.5, cacheWrite: 2, output: 8}},
+		fast:         &tierRates{short: tokenRates{input: 3.5, cachedInput: 0.875, cacheWrite: 3.5, output: 14}},
+		LimitContext: 1047576, LimitOutput: 32768,
+	},
+	GPT4120250414: {
+		standard:     &tierRates{short: tokenRates{input: 2, cachedInput: 0.5, cacheWrite: 2, output: 8}},
+		fast:         &tierRates{short: tokenRates{input: 3.5, cachedInput: 0.875, cacheWrite: 3.5, output: 14}},
+		LimitContext: 1000000, LimitOutput: 32768,
+	},
+	GPT41Mini: {
+		standard:     &tierRates{short: tokenRates{input: 0.4, cachedInput: 0.1, cacheWrite: 0.4, output: 1.6}},
+		fast:         &tierRates{short: tokenRates{input: 0.7, cachedInput: 0.175, cacheWrite: 0.7, output: 2.8}},
+		LimitContext: 1047576, LimitOutput: 32768,
+	},
+	GPT41Mini20250414: {
+		standard:     &tierRates{short: tokenRates{input: 0.4, cachedInput: 0.1, cacheWrite: 0.4, output: 1.6}},
+		fast:         &tierRates{short: tokenRates{input: 0.7, cachedInput: 0.175, cacheWrite: 0.7, output: 2.8}},
+		LimitContext: 1000000, LimitOutput: 32768,
+	},
+	GPT41Nano: {
+		standard:     &tierRates{short: tokenRates{input: 0.1, cachedInput: 0.025, cacheWrite: 0.1, output: 0.4}},
+		fast:         &tierRates{short: tokenRates{input: 0.2, cachedInput: 0.05, cacheWrite: 0.2, output: 0.8}},
+		LimitContext: 1047576, LimitOutput: 32768,
+	},
+	GPT41Nano20250414: {
+		standard:     &tierRates{short: tokenRates{input: 0.1, cachedInput: 0.025, cacheWrite: 0.1, output: 0.4}},
+		fast:         &tierRates{short: tokenRates{input: 0.2, cachedInput: 0.05, cacheWrite: 0.2, output: 0.8}},
+		LimitContext: 1000000, LimitOutput: 32768,
+	},
 
 	// GPT-4o family
-	GPT4o:                          {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
-	GPT4o20240513:                  {0.00000500, 0.00000000, 0.00001500, 128000, 4096},
-	GPT4o20240806:                  {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
-	GPT4o20241120:                  {0.00000250, 0.00000125, 0.00001000, 128000, 16384},
-	GPT4oMini:                      {0.00000015, 0.00000008, 0.00000060, 128000, 16384},
-	GPT4oMini20240718:              {0.00000015, 0.00000008, 0.00000060, 128000, 16348},
-	GPT4oSearchPreview:             {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oSearchPreview20250311:     {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oMiniSearchPreview:         {0.00000015, 0.00000000, 0.00000060, 128000, 16384},
-	GPT4oMiniSearchPreview20250311: {0.00000015, 0.00000000, 0.00000060, 128000, 16384},
-	GPT4oTranscribe:                {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oTranscribeDiarize:         {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPT4oMiniTranscribe:            {0.00000125, 0.00000000, 0.00000500, 128000, 16384},
-	GPT4oMiniTranscribe20250320:    {0.00000125, 0.00000000, 0.00000500, 128000, 16384},
-	GPT4oMiniTranscribe20251215:    {0.00000125, 0.00000000, 0.00000500, 128000, 16384},
-	GPT4oMiniTTS:                   {0.00000060, 0.00000000, 0.00001200, 128000, 16384},
+	GPT4o: {
+		standard:     &tierRates{short: tokenRates{input: 2.5, cachedInput: 1.25, cacheWrite: 2.5, output: 10}},
+		fast:         &tierRates{short: tokenRates{input: 4.25, cachedInput: 2.125, cacheWrite: 4.25, output: 17}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPT4o20240513: {
+		standard:     &tierRates{short: tokenRates{input: 5, cachedInput: unavailableRate, cacheWrite: 5, output: 15}},
+		fast:         &tierRates{short: tokenRates{input: 8.75, cachedInput: unavailableRate, cacheWrite: 8.75, output: 26.25}},
+		LimitContext: 128000, LimitOutput: 4096,
+	},
+	GPT4o20240806: {
+		standard:     &tierRates{short: tokenRates{input: 2.5, cachedInput: 1.25, cacheWrite: 2.5, output: 10}},
+		fast:         &tierRates{short: tokenRates{input: 4.25, cachedInput: 2.125, cacheWrite: 4.25, output: 17}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPT4o20241120: {
+		standard:     &tierRates{short: tokenRates{input: 2.5, cachedInput: 1.25, cacheWrite: 2.5, output: 10}},
+		fast:         &tierRates{short: tokenRates{input: 4.25, cachedInput: 2.125, cacheWrite: 4.25, output: 17}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPT4oMini: {
+		standard:     &tierRates{short: tokenRates{input: 0.15, cachedInput: 0.075, cacheWrite: 0.15, output: 0.6}},
+		fast:         &tierRates{short: tokenRates{input: 0.25, cachedInput: 0.125, cacheWrite: 0.25, output: 1}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPT4oMini20240718: {
+		standard:     &tierRates{short: tokenRates{input: 0.15, cachedInput: 0.075, cacheWrite: 0.15, output: 0.6}},
+		fast:         &tierRates{short: tokenRates{input: 0.25, cachedInput: 0.125, cacheWrite: 0.25, output: 1}},
+		LimitContext: 128000, LimitOutput: 16348,
+	},
+	GPT4oSearchPreview: {
+		standard:     &tierRates{short: tokenRates{input: 2.5, cachedInput: unavailableRate, cacheWrite: 2.5, output: 10}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPT4oSearchPreview20250311: {
+		standard:     &tierRates{short: tokenRates{input: 2.5, cachedInput: unavailableRate, cacheWrite: 2.5, output: 10}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPT4oMiniSearchPreview: {
+		standard:     &tierRates{short: tokenRates{input: 0.15, cachedInput: unavailableRate, cacheWrite: 0.15, output: 0.6}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPT4oMiniSearchPreview20250311: {
+		standard:     &tierRates{short: tokenRates{input: 0.15, cachedInput: unavailableRate, cacheWrite: 0.15, output: 0.6}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPT4oTranscribe: {
+		standard:     &tierRates{short: tokenRates{input: 2.5, cachedInput: unavailableRate, cacheWrite: 2.5, output: 10}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPT4oTranscribeDiarize: {
+		standard:     &tierRates{short: tokenRates{input: 2.5, cachedInput: unavailableRate, cacheWrite: 2.5, output: 10}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPT4oMiniTranscribe: {
+		standard:     &tierRates{short: tokenRates{input: 1.25, cachedInput: unavailableRate, cacheWrite: 1.25, output: 5}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPT4oMiniTranscribe20250320: {
+		standard:     &tierRates{short: tokenRates{input: 1.25, cachedInput: unavailableRate, cacheWrite: 1.25, output: 5}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPT4oMiniTranscribe20251215: {
+		standard:     &tierRates{short: tokenRates{input: 1.25, cachedInput: unavailableRate, cacheWrite: 1.25, output: 5}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPT4oMiniTTS: {
+		standard:     &tierRates{short: tokenRates{input: 0.6, cachedInput: unavailableRate, cacheWrite: 0.6, output: 12}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
 
 	// GPT-5 family
-	GPT5:                  {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT520250807:          {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT5Mini:              {0.00000025, 0.00000003, 0.00000200, 400000, 128000},
-	GPT5Mini20250807:      {0.00000025, 0.00000003, 0.00000200, 400000, 128000},
-	GPT5Nano:              {0.00000005, 0.00000001, 0.00000040, 400000, 128000},
-	GPT5Nano20250807:      {0.00000005, 0.00000001, 0.00000040, 400000, 128000},
-	GPT5ChatLatest:        {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT5Codex:             {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT5Pro:               {0.00001500, 0.00000000, 0.00012000, 400000, 272000},
-	GPT5Pro20251006:       {0.00001500, 0.00000000, 0.00012000, 400000, 272000},
-	GPT5SearchAPI:         {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT5SearchAPI20251014: {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT51:                 {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT5120251113:         {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT51ChatLatest:       {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT51Codex:            {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT51CodexMax:         {0.00000125, 0.00000013, 0.00001000, 400000, 128000},
-	GPT51CodexMini:        {0.00000025, 0.00000003, 0.00000200, 400000, 128000},
-	GPT52:                 {0.00000175, 0.00000018, 0.00001400, 400000, 128000},
-	GPT5220251211:         {0.00000175, 0.00000018, 0.00001400, 400000, 128000},
-	GPT52ChatLatest:       {0.00000175, 0.00000018, 0.00001400, 128000, 16384},
-	GPT52Pro:              {0.00002100, 0.00000000, 0.00016800, 400000, 128000},
-	GPT52Pro20251211:      {0.00002100, 0.00000000, 0.00016800, 400000, 128000},
-	GPT52Codex:            {0.00000175, 0.00000018, 0.00001400, 400000, 128000},
-	GPT53Codex:            {0.00000175, 0.00000018, 0.00001400, 400000, 128000},
-	GPT53ChatLatest:       {0.00000175, 0.00000018, 0.00001400, 128000, 16384},
-	GPT54:                 {0.00000250, 0.00000025, 0.00001500, 1050000, 128000},
-	GPT5420260305:         {0.00000250, 0.00000025, 0.00001500, 1050000, 128000},
-	GPT54Mini:             {0.00000075, 0.00000008, 0.00000450, 400000, 128000},
-	GPT54Mini20260317:     {0.00000075, 0.00000008, 0.00000450, 400000, 128000},
-	GPT54Nano:             {0.00000020, 0.00000002, 0.00000125, 400000, 128000},
-	GPT54Nano20260317:     {0.00000020, 0.00000002, 0.00000125, 400000, 128000},
-	GPT54Pro:              {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
-	GPT54Pro20260305:      {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
-	// GPT-5.5 prices are the standard short-context rates; official pricing
-	// applies higher rates to sessions with more than 272K input tokens.
-	GPT55:            {0.00000500, 0.00000050, 0.00003000, 1050000, 128000},
-	GPT5520260423:    {0.00000500, 0.00000050, 0.00003000, 1050000, 128000},
-	GPT55Pro:         {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
-	GPT55Pro20260423: {0.00003000, 0.00000000, 0.00018000, 1050000, 128000},
-	// GPT-5.6 prices are the standard short-context rates; official pricing
-	// applies higher rates to sessions with more than 272K input tokens.
-	GPT56Sol:   {0.00000500, 0.00000050, 0.00003000, 1050000, 128000},
-	GPT56Terra: {0.00000250, 0.00000025, 0.00001500, 1050000, 128000},
-	GPT56Luna:  {0.00000100, 0.00000010, 0.00000600, 1050000, 128000},
+	GPT5: {
+		standard:     &tierRates{short: tokenRates{input: 1.25, cachedInput: 0.125, cacheWrite: 1.25, output: 10}},
+		fast:         &tierRates{short: tokenRates{input: 2.5, cachedInput: 0.25, cacheWrite: 2.5, output: 20}},
+		flex:         &tierRates{short: tokenRates{input: 0.625, cachedInput: 0.0625, cacheWrite: 0.625, output: 5}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT520250807: {
+		standard:     &tierRates{short: tokenRates{input: 1.25, cachedInput: 0.125, cacheWrite: 1.25, output: 10}},
+		fast:         &tierRates{short: tokenRates{input: 2.5, cachedInput: 0.25, cacheWrite: 2.5, output: 20}},
+		flex:         &tierRates{short: tokenRates{input: 0.625, cachedInput: 0.0625, cacheWrite: 0.625, output: 5}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT5Mini: {
+		standard:     &tierRates{short: tokenRates{input: 0.25, cachedInput: 0.025, cacheWrite: 0.25, output: 2}},
+		fast:         &tierRates{short: tokenRates{input: 0.45, cachedInput: 0.045, cacheWrite: 0.45, output: 3.6}},
+		flex:         &tierRates{short: tokenRates{input: 0.125, cachedInput: 0.0125, cacheWrite: 0.125, output: 1}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT5Mini20250807: {
+		standard:     &tierRates{short: tokenRates{input: 0.25, cachedInput: 0.025, cacheWrite: 0.25, output: 2}},
+		fast:         &tierRates{short: tokenRates{input: 0.45, cachedInput: 0.045, cacheWrite: 0.45, output: 3.6}},
+		flex:         &tierRates{short: tokenRates{input: 0.125, cachedInput: 0.0125, cacheWrite: 0.125, output: 1}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT5Nano: {
+		standard:     &tierRates{short: tokenRates{input: 0.05, cachedInput: 0.005, cacheWrite: 0.05, output: 0.4}},
+		flex:         &tierRates{short: tokenRates{input: 0.025, cachedInput: 0.0025, cacheWrite: 0.025, output: 0.2}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT5Nano20250807: {
+		standard:     &tierRates{short: tokenRates{input: 0.05, cachedInput: 0.005, cacheWrite: 0.05, output: 0.4}},
+		flex:         &tierRates{short: tokenRates{input: 0.025, cachedInput: 0.0025, cacheWrite: 0.025, output: 0.2}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT5ChatLatest: {
+		standard:     &tierRates{short: tokenRates{input: 1.25, cachedInput: 0.125, cacheWrite: 1.25, output: 10}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT5Codex: {
+		standard:     &tierRates{short: tokenRates{input: 1.25, cachedInput: 0.125, cacheWrite: 1.25, output: 10}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT5Pro: {
+		standard:     &tierRates{short: tokenRates{input: 15, cachedInput: unavailableRate, cacheWrite: 15, output: 120}},
+		LimitContext: 400000, LimitOutput: 272000,
+	},
+	GPT5Pro20251006: {
+		standard:     &tierRates{short: tokenRates{input: 15, cachedInput: unavailableRate, cacheWrite: 15, output: 120}},
+		LimitContext: 400000, LimitOutput: 272000,
+	},
+	GPT5SearchAPI: {
+		standard:     &tierRates{short: tokenRates{input: 1.25, cachedInput: 0.125, cacheWrite: 1.25, output: 10}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT5SearchAPI20251014: {
+		standard:     &tierRates{short: tokenRates{input: 1.25, cachedInput: 0.125, cacheWrite: 1.25, output: 10}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT51: {
+		standard:     &tierRates{short: tokenRates{input: 1.25, cachedInput: 0.125, cacheWrite: 1.25, output: 10}},
+		fast:         &tierRates{short: tokenRates{input: 2.5, cachedInput: 0.25, cacheWrite: 2.5, output: 20}},
+		flex:         &tierRates{short: tokenRates{input: 0.625, cachedInput: 0.0625, cacheWrite: 0.625, output: 5}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT5120251113: {
+		standard:     &tierRates{short: tokenRates{input: 1.25, cachedInput: 0.125, cacheWrite: 1.25, output: 10}},
+		fast:         &tierRates{short: tokenRates{input: 2.5, cachedInput: 0.25, cacheWrite: 2.5, output: 20}},
+		flex:         &tierRates{short: tokenRates{input: 0.625, cachedInput: 0.0625, cacheWrite: 0.625, output: 5}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT51ChatLatest: {
+		standard:     &tierRates{short: tokenRates{input: 1.25, cachedInput: 0.125, cacheWrite: 1.25, output: 10}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT51Codex: {
+		standard:     &tierRates{short: tokenRates{input: 1.25, cachedInput: 0.125, cacheWrite: 1.25, output: 10}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT51CodexMax: {
+		standard:     &tierRates{short: tokenRates{input: 1.25, cachedInput: 0.125, cacheWrite: 1.25, output: 10}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT51CodexMini: {
+		standard:     &tierRates{short: tokenRates{input: 0.25, cachedInput: 0.025, cacheWrite: 0.25, output: 2}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT52: {
+		standard:     &tierRates{short: tokenRates{input: 1.75, cachedInput: 0.175, cacheWrite: 1.75, output: 14}},
+		fast:         &tierRates{short: tokenRates{input: 3.5, cachedInput: 0.35, cacheWrite: 3.5, output: 28}},
+		flex:         &tierRates{short: tokenRates{input: 0.875, cachedInput: 0.0875, cacheWrite: 0.875, output: 7}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT5220251211: {
+		standard:     &tierRates{short: tokenRates{input: 1.75, cachedInput: 0.175, cacheWrite: 1.75, output: 14}},
+		fast:         &tierRates{short: tokenRates{input: 3.5, cachedInput: 0.35, cacheWrite: 3.5, output: 28}},
+		flex:         &tierRates{short: tokenRates{input: 0.875, cachedInput: 0.0875, cacheWrite: 0.875, output: 7}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT52ChatLatest: {
+		standard:     &tierRates{short: tokenRates{input: 1.75, cachedInput: 0.175, cacheWrite: 1.75, output: 14}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPT52Pro: {
+		standard:     &tierRates{short: tokenRates{input: 21, cachedInput: unavailableRate, cacheWrite: 21, output: 168}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT52Pro20251211: {
+		standard:     &tierRates{short: tokenRates{input: 21, cachedInput: unavailableRate, cacheWrite: 21, output: 168}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT52Codex: {
+		standard:     &tierRates{short: tokenRates{input: 1.75, cachedInput: 0.175, cacheWrite: 1.75, output: 14}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT53Codex: {
+		standard:     &tierRates{short: tokenRates{input: 1.75, cachedInput: 0.175, cacheWrite: 1.75, output: 14}},
+		fast:         &tierRates{short: tokenRates{input: 3.5, cachedInput: 0.35, cacheWrite: 3.5, output: 28}},
+		LimitContext: 400000, LimitOutput: 128000,
+	},
+	GPT53ChatLatest: {
+		standard:     &tierRates{short: tokenRates{input: 1.75, cachedInput: 0.175, cacheWrite: 1.75, output: 14}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPT54: {
+		standard:     &tierRates{short: tokenRates{input: 2.5, cachedInput: 0.25, cacheWrite: 2.5, output: 15}, long: &tokenRates{input: 5, cachedInput: 0.5, cacheWrite: 5, output: 22.5}},
+		fast:         &tierRates{short: tokenRates{input: 5, cachedInput: 0.5, cacheWrite: 5, output: 30}},
+		flex:         &tierRates{short: tokenRates{input: 1.25, cachedInput: 0.13, cacheWrite: 1.25, output: 7.5}, long: &tokenRates{input: 2.5, cachedInput: 0.25, cacheWrite: 2.5, output: 11.25}},
+		LimitContext: 1050000, LimitOutput: 128000,
+		LongContextThreshold: 272000,
+		RegionalUplift:       0.1,
+	},
+	GPT5420260305: {
+		standard:     &tierRates{short: tokenRates{input: 2.5, cachedInput: 0.25, cacheWrite: 2.5, output: 15}, long: &tokenRates{input: 5, cachedInput: 0.5, cacheWrite: 5, output: 22.5}},
+		fast:         &tierRates{short: tokenRates{input: 5, cachedInput: 0.5, cacheWrite: 5, output: 30}},
+		flex:         &tierRates{short: tokenRates{input: 1.25, cachedInput: 0.13, cacheWrite: 1.25, output: 7.5}, long: &tokenRates{input: 2.5, cachedInput: 0.25, cacheWrite: 2.5, output: 11.25}},
+		LimitContext: 1050000, LimitOutput: 128000,
+		LongContextThreshold: 272000,
+		RegionalUplift:       0.1,
+	},
+	GPT54Mini: {
+		standard:     &tierRates{short: tokenRates{input: 0.75, cachedInput: 0.075, cacheWrite: 0.75, output: 4.5}},
+		fast:         &tierRates{short: tokenRates{input: 1.5, cachedInput: 0.15, cacheWrite: 1.5, output: 9}},
+		flex:         &tierRates{short: tokenRates{input: 0.375, cachedInput: 0.0375, cacheWrite: 0.375, output: 2.25}},
+		LimitContext: 400000, LimitOutput: 128000,
+		RegionalUplift: 0.1,
+	},
+	GPT54Mini20260317: {
+		standard:     &tierRates{short: tokenRates{input: 0.75, cachedInput: 0.075, cacheWrite: 0.75, output: 4.5}},
+		fast:         &tierRates{short: tokenRates{input: 1.5, cachedInput: 0.15, cacheWrite: 1.5, output: 9}},
+		flex:         &tierRates{short: tokenRates{input: 0.375, cachedInput: 0.0375, cacheWrite: 0.375, output: 2.25}},
+		LimitContext: 400000, LimitOutput: 128000,
+		RegionalUplift: 0.1,
+	},
+	GPT54Nano: {
+		standard:     &tierRates{short: tokenRates{input: 0.2, cachedInput: 0.02, cacheWrite: 0.2, output: 1.25}},
+		flex:         &tierRates{short: tokenRates{input: 0.1, cachedInput: 0.01, cacheWrite: 0.1, output: 0.625}},
+		LimitContext: 400000, LimitOutput: 128000,
+		RegionalUplift: 0.1,
+	},
+	GPT54Nano20260317: {
+		standard:     &tierRates{short: tokenRates{input: 0.2, cachedInput: 0.02, cacheWrite: 0.2, output: 1.25}},
+		flex:         &tierRates{short: tokenRates{input: 0.1, cachedInput: 0.01, cacheWrite: 0.1, output: 0.625}},
+		LimitContext: 400000, LimitOutput: 128000,
+		RegionalUplift: 0.1,
+	},
+	GPT54Pro: {
+		standard:     &tierRates{short: tokenRates{input: 30, cachedInput: unavailableRate, cacheWrite: 30, output: 180}, long: &tokenRates{input: 60, cachedInput: unavailableRate, cacheWrite: 60, output: 270}},
+		flex:         &tierRates{short: tokenRates{input: 15, cachedInput: unavailableRate, cacheWrite: 15, output: 90}, long: &tokenRates{input: 30, cachedInput: unavailableRate, cacheWrite: 30, output: 135}},
+		LimitContext: 1050000, LimitOutput: 128000,
+		LongContextThreshold: 272000,
+		RegionalUplift:       0.1,
+	},
+	GPT54Pro20260305: {
+		standard:     &tierRates{short: tokenRates{input: 30, cachedInput: unavailableRate, cacheWrite: 30, output: 180}, long: &tokenRates{input: 60, cachedInput: unavailableRate, cacheWrite: 60, output: 270}},
+		flex:         &tierRates{short: tokenRates{input: 15, cachedInput: unavailableRate, cacheWrite: 15, output: 90}, long: &tokenRates{input: 30, cachedInput: unavailableRate, cacheWrite: 30, output: 135}},
+		LimitContext: 1050000, LimitOutput: 128000,
+		LongContextThreshold: 272000,
+		RegionalUplift:       0.1,
+	},
+	GPT55: {
+		standard:     &tierRates{short: tokenRates{input: 5, cachedInput: 0.5, cacheWrite: 5, output: 30}, long: &tokenRates{input: 10, cachedInput: 1, cacheWrite: 10, output: 45}},
+		fast:         &tierRates{short: tokenRates{input: 12.5, cachedInput: 1.25, cacheWrite: 12.5, output: 75}},
+		flex:         &tierRates{short: tokenRates{input: 2.5, cachedInput: 0.25, cacheWrite: 2.5, output: 15}, long: &tokenRates{input: 5, cachedInput: 0.5, cacheWrite: 5, output: 22.5}},
+		LimitContext: 1050000, LimitOutput: 128000,
+		LongContextThreshold: 272000,
+		RegionalUplift:       0.1,
+	},
+	GPT5520260423: {
+		standard:     &tierRates{short: tokenRates{input: 5, cachedInput: 0.5, cacheWrite: 5, output: 30}, long: &tokenRates{input: 10, cachedInput: 1, cacheWrite: 10, output: 45}},
+		fast:         &tierRates{short: tokenRates{input: 12.5, cachedInput: 1.25, cacheWrite: 12.5, output: 75}},
+		flex:         &tierRates{short: tokenRates{input: 2.5, cachedInput: 0.25, cacheWrite: 2.5, output: 15}, long: &tokenRates{input: 5, cachedInput: 0.5, cacheWrite: 5, output: 22.5}},
+		LimitContext: 1050000, LimitOutput: 128000,
+		LongContextThreshold: 272000,
+		RegionalUplift:       0.1,
+	},
+	GPT55Pro: {
+		standard:     &tierRates{short: tokenRates{input: 30, cachedInput: unavailableRate, cacheWrite: 30, output: 180}, long: &tokenRates{input: 60, cachedInput: unavailableRate, cacheWrite: 60, output: 270}},
+		flex:         &tierRates{short: tokenRates{input: 15, cachedInput: unavailableRate, cacheWrite: 15, output: 90}},
+		LimitContext: 1050000, LimitOutput: 128000,
+		LongContextThreshold: 272000,
+		RegionalUplift:       0.1,
+	},
+	GPT55Pro20260423: {
+		standard:     &tierRates{short: tokenRates{input: 30, cachedInput: unavailableRate, cacheWrite: 30, output: 180}, long: &tokenRates{input: 60, cachedInput: unavailableRate, cacheWrite: 60, output: 270}},
+		flex:         &tierRates{short: tokenRates{input: 15, cachedInput: unavailableRate, cacheWrite: 15, output: 90}},
+		LimitContext: 1050000, LimitOutput: 128000,
+		LongContextThreshold: 272000,
+		RegionalUplift:       0.1,
+	},
+	GPT56Sol: {
+		standard:     &tierRates{short: tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 5, output: 20}, long: &tokenRates{input: 8, cachedInput: 0.8, cacheWrite: 10, output: 30}},
+		fast:         &tierRates{short: tokenRates{input: 8, cachedInput: 0.8, cacheWrite: 10, output: 40}, long: &tokenRates{input: 16, cachedInput: 1.6, cacheWrite: 20, output: 60}},
+		flex:         &tierRates{short: tokenRates{input: 2, cachedInput: 0.2, cacheWrite: 2.5, output: 10}, long: &tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 5, output: 15}},
+		LimitContext: 1050000, LimitOutput: 128000,
+		LongContextThreshold: 272000,
+		RegionalUplift:       0.1,
+	},
+	GPT56Terra: {
+		standard:     &tierRates{short: tokenRates{input: 2, cachedInput: 0.2, cacheWrite: 2.5, output: 12}, long: &tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 5, output: 18}},
+		fast:         &tierRates{short: tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 5, output: 24}, long: &tokenRates{input: 8, cachedInput: 0.8, cacheWrite: 10, output: 36}},
+		flex:         &tierRates{short: tokenRates{input: 1, cachedInput: 0.1, cacheWrite: 1.25, output: 6}, long: &tokenRates{input: 2, cachedInput: 0.2, cacheWrite: 2.5, output: 9}},
+		LimitContext: 1050000, LimitOutput: 128000,
+		LongContextThreshold: 272000,
+		RegionalUplift:       0.1,
+	},
+	GPT56Luna: {
+		standard:     &tierRates{short: tokenRates{input: 0.2, cachedInput: 0.02, cacheWrite: 0.25, output: 1.2}, long: &tokenRates{input: 0.4, cachedInput: 0.04, cacheWrite: 0.5, output: 1.8}},
+		fast:         &tierRates{short: tokenRates{input: 0.4, cachedInput: 0.04, cacheWrite: 0.5, output: 2.4}, long: &tokenRates{input: 0.8, cachedInput: 0.08, cacheWrite: 1, output: 3.6}},
+		flex:         &tierRates{short: tokenRates{input: 0.1, cachedInput: 0.01, cacheWrite: 0.125, output: 0.6}, long: &tokenRates{input: 0.2, cachedInput: 0.02, cacheWrite: 0.25, output: 0.9}},
+		LimitContext: 1050000, LimitOutput: 128000,
+		LongContextThreshold: 272000,
+		RegionalUplift:       0.1,
+	},
+
+	// GPT-6 family
+	GPT6Astra: {
+		standard:     &tierRates{short: tokenRates{input: 10, cachedInput: 1, cacheWrite: 12.5, output: 50}, long: &tokenRates{input: 20, cachedInput: 2, cacheWrite: 25, output: 75}},
+		fast:         &tierRates{short: tokenRates{input: 20, cachedInput: 2, cacheWrite: 25, output: 100}, long: &tokenRates{input: 40, cachedInput: 4, cacheWrite: 50, output: 150}},
+		flex:         &tierRates{short: tokenRates{input: 5, cachedInput: 0.5, cacheWrite: 6.25, output: 25}, long: &tokenRates{input: 10, cachedInput: 1, cacheWrite: 12.5, output: 37.5}},
+		LimitContext: 1050000, LimitOutput: 128000,
+		LongContextThreshold: 272000,
+		RegionalUplift:       0.1,
+	},
 
 	// Multimodal realtime & audio
-	GPTRealtime:             {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
-	GPTRealtime15:           {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
-	GPTRealtime2:            {0.00000400, 0.00000040, 0.00002400, 128000, 32000},
-	GPTRealtime21:           {0.00000400, 0.00000040, 0.00002400, 128000, 32000},
-	GPTRealtime21Mini:       {0.00000060, 0.00000006, 0.00000240, 0, 0}, // official docs do not provide context/output limits
-	GPTRealtime20250828:     {0.00000400, 0.00000040, 0.00001600, 128000, 16384},
-	GPTRealtimeMini:         {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
-	GPTRealtimeMini20251215: {0.00000060, 0.00000006, 0.00000240, 128000, 16384},
-	GPTAudio:                {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPTAudio15:              {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPTAudio20250828:        {0.00000250, 0.00000000, 0.00001000, 128000, 16384},
-	GPTAudioMini:            {0.00000060, 0.00000000, 0.00000240, 128000, 16384},
-	GPTAudioMini20251006:    {0.00000060, 0.00000000, 0.00000240, 128000, 16384},
-	GPTAudioMini20251215:    {0.00000060, 0.00000000, 0.00000240, 128000, 16384},
+	GPTRealtime: {
+		standard:     &tierRates{short: tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 4, output: 16}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPTRealtime15: {
+		standard:     &tierRates{short: tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 4, output: 16}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPTRealtime2: {
+		standard:     &tierRates{short: tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 4, output: 24}},
+		LimitContext: 128000, LimitOutput: 32000,
+	},
+	GPTRealtime21: {
+		standard:     &tierRates{short: tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 4, output: 24}},
+		LimitContext: 128000, LimitOutput: 32000,
+	},
+	GPTRealtime21Mini: {
+		standard:     &tierRates{short: tokenRates{input: 0.6, cachedInput: 0.06, cacheWrite: 0.6, output: 2.4}},
+		LimitContext: 0, LimitOutput: 0,
+	}, // official docs do not provide context/output limits
+	GPTRealtime20250828: {
+		standard:     &tierRates{short: tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 4, output: 16}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPTRealtimeMini: {
+		standard:     &tierRates{short: tokenRates{input: 0.6, cachedInput: 0.06, cacheWrite: 0.6, output: 2.4}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPTRealtimeMini20251215: {
+		standard:     &tierRates{short: tokenRates{input: 0.6, cachedInput: 0.06, cacheWrite: 0.6, output: 2.4}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPTAudio: {
+		standard:     &tierRates{short: tokenRates{input: 2.5, cachedInput: unavailableRate, cacheWrite: 2.5, output: 10}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPTAudio15: {
+		standard:     &tierRates{short: tokenRates{input: 2.5, cachedInput: unavailableRate, cacheWrite: 2.5, output: 10}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPTAudio20250828: {
+		standard:     &tierRates{short: tokenRates{input: 2.5, cachedInput: unavailableRate, cacheWrite: 2.5, output: 10}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPTAudioMini: {
+		standard:     &tierRates{short: tokenRates{input: 0.6, cachedInput: unavailableRate, cacheWrite: 0.6, output: 2.4}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPTAudioMini20251006: {
+		standard:     &tierRates{short: tokenRates{input: 0.6, cachedInput: unavailableRate, cacheWrite: 0.6, output: 2.4}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	GPTAudioMini20251215: {
+		standard:     &tierRates{short: tokenRates{input: 0.6, cachedInput: unavailableRate, cacheWrite: 0.6, output: 2.4}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
 
 	// O-series
-	O1:                         {0.00001500, 0.00000750, 0.00006000, 200000, 100000},
-	O120241217:                 {0.00001500, 0.00000750, 0.00006000, 200000, 100000},
-	O1Pro:                      {0.00015000, 0.00000000, 0.00060000, 200000, 100000},
-	O1Pro20250319:              {0.00015000, 0.00000000, 0.00060000, 200000, 100000},
-	O3:                         {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
-	O320250416:                 {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
-	O3Mini:                     {0.00000110, 0.00000055, 0.00000440, 200000, 100000},
-	O3Mini20250131:             {0.00000110, 0.00000055, 0.00000440, 200000, 100000},
-	O3Pro:                      {0.00002000, 0.00000000, 0.00008000, 200000, 100000},
-	O3Pro20250610:              {0.00002000, 0.00000000, 0.00008000, 200000, 100000},
-	O3DeepResearch:             {0.00001000, 0.00000250, 0.00004000, 200000, 100000},
-	O3DeepResearch20250626:     {0.00001000, 0.00000250, 0.00004000, 200000, 100000},
-	O4Mini:                     {0.00000110, 0.00000028, 0.00000440, 200000, 100000},
-	O4Mini20250416:             {0.00000110, 0.00000028, 0.00000440, 200000, 100000},
-	O4MiniDeepResearch:         {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
-	O4MiniDeepResearch20250626: {0.00000200, 0.00000050, 0.00000800, 200000, 100000},
+	O1: {
+		standard:     &tierRates{short: tokenRates{input: 15, cachedInput: 7.5, cacheWrite: 15, output: 60}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
+	O120241217: {
+		standard:     &tierRates{short: tokenRates{input: 15, cachedInput: 7.5, cacheWrite: 15, output: 60}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
+	O1Pro: {
+		standard:     &tierRates{short: tokenRates{input: 150, cachedInput: unavailableRate, cacheWrite: 150, output: 600}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
+	O1Pro20250319: {
+		standard:     &tierRates{short: tokenRates{input: 150, cachedInput: unavailableRate, cacheWrite: 150, output: 600}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
+	O3: {
+		standard:     &tierRates{short: tokenRates{input: 2, cachedInput: 0.5, cacheWrite: 2, output: 8}},
+		fast:         &tierRates{short: tokenRates{input: 3.5, cachedInput: 0.875, cacheWrite: 3.5, output: 14}},
+		flex:         &tierRates{short: tokenRates{input: 1, cachedInput: 0.25, cacheWrite: 1, output: 4}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
+	O320250416: {
+		standard:     &tierRates{short: tokenRates{input: 2, cachedInput: 0.5, cacheWrite: 2, output: 8}},
+		fast:         &tierRates{short: tokenRates{input: 3.5, cachedInput: 0.875, cacheWrite: 3.5, output: 14}},
+		flex:         &tierRates{short: tokenRates{input: 1, cachedInput: 0.25, cacheWrite: 1, output: 4}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
+	O3Mini: {
+		standard:     &tierRates{short: tokenRates{input: 1.1, cachedInput: 0.55, cacheWrite: 1.1, output: 4.4}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
+	O3Mini20250131: {
+		standard:     &tierRates{short: tokenRates{input: 1.1, cachedInput: 0.55, cacheWrite: 1.1, output: 4.4}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
+	O3Pro: {
+		standard:     &tierRates{short: tokenRates{input: 20, cachedInput: unavailableRate, cacheWrite: 20, output: 80}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
+	O3Pro20250610: {
+		standard:     &tierRates{short: tokenRates{input: 20, cachedInput: unavailableRate, cacheWrite: 20, output: 80}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
+	O3DeepResearch: {
+		standard:     &tierRates{short: tokenRates{input: 10, cachedInput: 2.5, cacheWrite: 10, output: 40}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
+	O3DeepResearch20250626: {
+		standard:     &tierRates{short: tokenRates{input: 10, cachedInput: 2.5, cacheWrite: 10, output: 40}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
+	O4Mini: {
+		standard:     &tierRates{short: tokenRates{input: 1.1, cachedInput: 0.275, cacheWrite: 1.1, output: 4.4}},
+		fast:         &tierRates{short: tokenRates{input: 2, cachedInput: 0.5, cacheWrite: 2, output: 8}},
+		flex:         &tierRates{short: tokenRates{input: 0.55, cachedInput: 0.138, cacheWrite: 0.55, output: 2.2}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
+	O4Mini20250416: {
+		standard:     &tierRates{short: tokenRates{input: 1.1, cachedInput: 0.275, cacheWrite: 1.1, output: 4.4}},
+		fast:         &tierRates{short: tokenRates{input: 2, cachedInput: 0.5, cacheWrite: 2, output: 8}},
+		flex:         &tierRates{short: tokenRates{input: 0.55, cachedInput: 0.138, cacheWrite: 0.55, output: 2.2}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
+	O4MiniDeepResearch: {
+		standard:     &tierRates{short: tokenRates{input: 2, cachedInput: 0.5, cacheWrite: 2, output: 8}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
+	O4MiniDeepResearch20250626: {
+		standard:     &tierRates{short: tokenRates{input: 2, cachedInput: 0.5, cacheWrite: 2, output: 8}},
+		LimitContext: 200000, LimitOutput: 100000,
+	},
 
 	// Tooling & moderation
-	ComputerUsePreview:         {0.00000300, 0.00000000, 0.00001200, 128000, 16384},
-	ComputerUsePreview20250311: {0.00000300, 0.00000000, 0.00001200, 128000, 16384},
-	OmniModeration:             {0.00000000, 0.00000000, 0.00000000, 8192, 4096},
-	OmniModeration20240926:     {0.00000000, 0.00000000, 0.00000000, 8192, 4096},
+	ComputerUsePreview: {
+		standard:     &tierRates{short: tokenRates{input: 3, cachedInput: unavailableRate, cacheWrite: 3, output: 12}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	ComputerUsePreview20250311: {
+		standard:     &tierRates{short: tokenRates{input: 3, cachedInput: unavailableRate, cacheWrite: 3, output: 12}},
+		LimitContext: 128000, LimitOutput: 16384,
+	},
+	OmniModeration: {
+		standard:     &tierRates{short: tokenRates{input: 0, cachedInput: 0, cacheWrite: 0, output: 0}},
+		LimitContext: 8192, LimitOutput: 4096,
+	},
+	OmniModeration20240926: {
+		standard:     &tierRates{short: tokenRates{input: 0, cachedInput: 0, cacheWrite: 0, output: 0}},
+		LimitContext: 8192, LimitOutput: 4096,
+	},
 
 	// Completion models
-	Davinci002: {0.00000200, 0.00000000, 0.00000200, 16384, 4096},
-	Babbage002: {0.00000040, 0.00000000, 0.00000040, 16384, 4096},
+	Davinci002: {
+		standard:     &tierRates{short: tokenRates{input: 2, cachedInput: unavailableRate, cacheWrite: 2, output: 2}},
+		LimitContext: 16384, LimitOutput: 4096,
+	},
+	Babbage002: {
+		standard:     &tierRates{short: tokenRates{input: 0.4, cachedInput: unavailableRate, cacheWrite: 0.4, output: 0.4}},
+		LimitContext: 16384, LimitOutput: 4096,
+	},
 
 	// Embedding models
-	TextEmbedding3Large: {0.00000013, 0.00000000, 0.00000000, 8191, 3072},
-	TextEmbedding3Small: {0.00000002, 0.00000000, 0.00000000, 8191, 1536},
+	TextEmbedding3Large: {
+		standard:     &tierRates{short: tokenRates{input: 0.13, cachedInput: unavailableRate, cacheWrite: 0.13, output: unavailableRate}},
+		LimitContext: 8191, LimitOutput: 3072,
+	},
+	TextEmbedding3Small: {
+		standard:     &tierRates{short: tokenRates{input: 0.02, cachedInput: unavailableRate, cacheWrite: 0.02, output: unavailableRate}},
+		LimitContext: 8191, LimitOutput: 1536,
+	},
 }

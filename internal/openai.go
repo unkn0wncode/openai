@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
+	"net/http/httputil"
 	"os"
 	"sync"
 	"time"
@@ -24,9 +26,25 @@ const DefaultBaseAPI = "https://api.openai.com/"
 var SupportedImageTypes = []string{"png", "jpeg", "jpg", "gif", "webp"}
 
 // LoggingTransport is a custom HTTP transport that logs request and response dumps.
+// Configure its fields before use; Config's enable/disable methods synchronize
+// changes while requests are running.
 type LoggingTransport struct {
+	mu        sync.RWMutex
 	Log       *slog.Logger
 	EnableLog bool
+}
+
+// Enabled reports whether request and response dumps are enabled.
+func (lt *LoggingTransport) Enabled() bool {
+	lt.mu.RLock()
+	defer lt.mu.RUnlock()
+	return lt.EnableLog
+}
+
+func (lt *LoggingTransport) setEnabled(enabled bool) {
+	lt.mu.Lock()
+	defer lt.mu.Unlock()
+	lt.EnableLog = enabled
 }
 
 // HTTPClient is a wrapper for http.Client with OpenAI-specific behaviors.
@@ -39,7 +57,8 @@ type HTTPClient struct {
 	// Interval to wait before each retry.
 	RetryInterval time.Duration
 
-	// If true, LogTripper is enabled on errors and disabled on successes.
+	// If true, Do enables LogTripper after errors or non-2xx responses and
+	// disables it after successful responses. This also applies to retry attempts.
 	AutoLogTripper bool
 }
 
@@ -56,9 +75,12 @@ func NewHTTPClient() *HTTPClient {
 }
 
 // RoundTrip logs the request and response while performing round trip, if logger is set.
+// SSE response dumps include headers only; the caller consumes the event stream.
 func (lt *LoggingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	log := lt.Log
-	if log == nil || !lt.EnableLog {
+	lt.mu.RLock()
+	log, enabled := lt.Log, lt.EnableLog
+	lt.mu.RUnlock()
+	if log == nil || !enabled || !log.Enabled(r.Context(), slog.LevelDebug) {
 		return http.DefaultTransport.RoundTrip(r)
 	}
 
@@ -69,8 +91,13 @@ func (lt *LoggingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	resp, err := http.DefaultTransport.RoundTrip(r)
 	// err is returned after dumping the response
+	if resp == nil {
+		log.Debug(fmt.Sprintf("request:\n%s\nrequest failed: %v", string(reqBytes), err))
+		return nil, err
+	}
 
-	respBytes, dumpErr := util.Dump(resp)
+	mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	respBytes, dumpErr := httputil.DumpResponse(resp, mediaType != "text/event-stream")
 	if dumpErr != nil {
 		return nil, fmt.Errorf("failed to dump response: %w", dumpErr)
 	}
@@ -82,7 +109,17 @@ func (lt *LoggingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 // Do performs the HTTP request but makes a copy of body beforehand and sets it back afterwards
 // to allow retrying the same request multiple times with no data loss.
-func (c *HTTPClient) Do(req *http.Request) (*http.Response, error) {
+// When AutoLogTripper is set, the result controls logging of subsequent requests.
+func (c *HTTPClient) Do(req *http.Request) (resp *http.Response, err error) {
+	if c.AutoLogTripper {
+		defer func() {
+			if lt, ok := c.Transport.(*LoggingTransport); ok && lt != nil {
+				failed := err != nil || resp == nil ||
+					resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices
+				lt.setEnabled(failed)
+			}
+		}()
+	}
 	if req.Body == nil {
 		return c.Client.Do(req)
 	}
@@ -94,7 +131,7 @@ func (c *HTTPClient) Do(req *http.Request) (*http.Response, error) {
 
 	req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	resp, err := c.Client.Do(req)
+	resp, err = c.Client.Do(req)
 
 	req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
@@ -114,6 +151,7 @@ func (c *HTTPClient) WithRetry(req *http.Request) (*http.Response, error) {
 			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 		}
 	}
+	restoreBody()
 	defer restoreBody()
 
 	var resp *http.Response
@@ -125,13 +163,6 @@ func (c *HTTPClient) WithRetry(req *http.Request) (*http.Response, error) {
 		resp, err = c.Do(req)
 		duration := time.Since(before)
 		if err != nil {
-
-			if c.AutoLogTripper {
-				if lt, ok := c.Transport.(*LoggingTransport); ok && lt != nil {
-					lt.EnableLog = true
-				}
-			}
-
 			return fmt.Errorf("request failed in %v: %w", duration, err)
 		}
 
@@ -141,12 +172,6 @@ func (c *HTTPClient) WithRetry(req *http.Request) (*http.Response, error) {
 				"request failed in %v with status: %d, response body: %s",
 				duration, resp.StatusCode, string(respBytes),
 			)
-		}
-
-		if c.AutoLogTripper {
-			if lt, ok := c.Transport.(*LoggingTransport); ok && lt != nil {
-				lt.EnableLog = false
-			}
 		}
 
 		return nil

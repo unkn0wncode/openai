@@ -1,3 +1,4 @@
+// Package inresponses / client.go implements Responses requests, tool handling, polling, and SSE streaming.
 package inresponses
 
 import (
@@ -10,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"runtime/debug"
 	"slices"
 	"sync"
@@ -106,10 +108,16 @@ func (c *Client) marshalRequest(data *responses.Request) ([]byte, error) {
 	})
 }
 
-// execute sends request to the Responses API and returns the response.
-func (c *Client) executeRequest(data *responses.Request) (*response, error) {
+// executeRequest sends one request and returns:
+//   - result: the decoded API response, or nil if decoding did not succeed.
+//   - outcomeKnown: true for a decoded response, a local failure before sending,
+//     or an HTTP rejection below status 500. False means processing may have
+//     occurred without a decoded response, so billing evidence is incomplete.
+//   - err: a validation, transport, HTTP status, body-read, or decoding error.
+//     Errors and terminal statuses inside a decoded response are handled by send.
+func (c *Client) executeRequest(data *responses.Request) (result *response, outcomeKnown bool, err error) {
 	if data == nil {
-		return nil, fmt.Errorf("request is nil")
+		return nil, true, fmt.Errorf("request is nil")
 	}
 
 	if data.Model == "" {
@@ -118,25 +126,21 @@ func (c *Client) executeRequest(data *responses.Request) (*response, error) {
 
 	// Check if we have input
 	if data.Input == nil {
-		return nil, fmt.Errorf("input is required")
+		return nil, true, fmt.Errorf("input is required")
 	}
 
 	if data.Stream {
-		return nil, fmt.Errorf("request has 'stream' parameter but was invoked with Send method, use Stream method instead")
+		return nil, true, fmt.Errorf("request has 'stream' parameter but was invoked with Send method, use Stream method instead")
 	}
 
 	b, err := c.marshalRequest(data)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+		return nil, true, fmt.Errorf("failed to marshal request body: %w", err)
 	}
-
-	// if testing.Testing() {
-	// 	fmt.Printf("Request body: %s\n", string(b))
-	// }
 
 	req, err := http.NewRequest(http.MethodPost, c.BaseAPI+"v1/responses", bytes.NewBuffer(b))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, true, fmt.Errorf("failed to create request: %w", err)
 	}
 	c.AddHeaders(req)
 
@@ -145,50 +149,38 @@ func (c *Client) executeRequest(data *responses.Request) (*response, error) {
 	resp, err = c.HTTPClient.Do(req)
 	duration := time.Since(before)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
+		return nil, false, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, false, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// if testing.Testing() {
-	// 	fmt.Printf("Response status: %s\n", resp.Status)
-	// 	fmt.Printf("Response body: %s\n", string(body))
-	// }
-
-	// Handle background mode (Accepted) when requested
-	if resp.StatusCode == http.StatusAccepted && data.Background {
-		var res response
-		if err := json.Unmarshal(body, &res); err != nil {
-			return nil, fmt.Errorf("failed to decode background response: %w", err)
-		}
-		return &res, nil
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("request failed with status: %s, body: %s", resp.Status, string(body))
+	if resp.StatusCode != http.StatusOK && (resp.StatusCode != http.StatusAccepted || !data.Background) {
+		return nil, resp.StatusCode < http.StatusInternalServerError,
+			fmt.Errorf("request failed with status: %s, body: %s", resp.Status, string(body))
 	}
 
 	var res response
 	if err := json.Unmarshal(body, &res); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+		return nil, false, fmt.Errorf("failed to decode response: %w", err)
 	}
-
-	c.Log.Debug(
-		fmt.Sprintf(
-			"Consumed OpenAI Responses tokens: %d + %d = %d ($%f)",
-			res.Usage.InputTokens, res.Usage.OutputTokens,
-			res.Usage.TotalTokens, c.cost(&res),
-		),
-		slog.Any("responseID", res.ID),
-		slog.Any("model", res.Model),
-		slog.Any("duration", duration),
-		slog.Any("metadata", res.Metadata),
-	)
-
-	return &res, nil
+	res.ProcessingRegion = processingRegion(req.URL)
+	res.Duration = duration
+	if res.Tools == nil {
+		// Preserve the resolved definitions actually sent, even when not echoed.
+		var sent struct {
+			Tools []tools.Tool `json:"tools"`
+		}
+		if err := json.Unmarshal(b, &sent); err != nil {
+			c.Log.Warn("Failed to decode sent tool definitions", slog.Any("error", err))
+		} else {
+			res.Tools = sent.Tools
+		}
+	}
+	return &res, true, nil
 }
 
 // response is the response body from the Responses API.
@@ -204,6 +196,7 @@ type response struct {
 	Conversation      *responses.Conversation `json:"conversation"`
 	MaxOutputTokens   int                     `json:"max_output_tokens"`
 	Model             string                  `json:"model"`
+	ServiceTier       string                  `json:"service_tier"`
 
 	// Output Content
 	Output []output.Any `json:"output"`
@@ -228,88 +221,169 @@ type response struct {
 	Truncation string          `json:"truncation"`
 
 	// Usage Information
-	Usage struct {
-		InputTokens        int `json:"input_tokens"`
-		InputTokensDetails struct {
-			CachedTokens int `json:"cached_tokens"`
-		} `json:"input_tokens_details"`
-		OutputTokens        int `json:"output_tokens"`
-		OutputTokensDetails struct {
-			ReasoningTokens int `json:"reasoning_tokens"`
-		} `json:"output_tokens_details"`
-		TotalTokens int `json:"total_tokens"`
-	} `json:"usage"`
+	Usage *responses.Usage `json:"usage"`
 
 	// Other Properties
-	User     string         `json:"user"`
-	Metadata map[string]any `json:"metadata"`
+	User             string         `json:"user"`
+	Metadata         map[string]any `json:"metadata"`
+	ProcessingRegion string         `json:"-"`
+	Duration         time.Duration  `json:"-"`
 }
 
-// checkResponseData checks if API response is valid, returns raw content or tool call of first choice and error.
-func (data *response) checkResponseData() (*responses.Response, error) {
-	if data == nil {
-		return nil, fmt.Errorf("response is nil")
+// project preserves billing evidence before output parsing or local tool execution.
+func (data *response) project() *responses.Response {
+	return &responses.Response{
+		ID:               data.ID,
+		Model:            data.Model,
+		ServiceTier:      data.ServiceTier,
+		Status:           data.Status,
+		Outputs:          data.Output,
+		Usage:            data.Usage,
+		Tools:            data.Tools,
+		ProcessingRegion: data.ProcessingRegion,
+	}
+}
+
+func (data *response) checkResponseData(resp *responses.Response) error {
+	var statusErr error
+	switch data.Status {
+	case "queued", "in_progress":
+		return nil
+	case "completed":
+	case "failed":
+		statusErr = fmt.Errorf("response %s failed: %v", data.ID, data.Error)
+	case "incomplete":
+		statusErr = fmt.Errorf("response %s incomplete: %v", data.ID, data.IncompleteDetails)
+	case "cancelled":
+		statusErr = fmt.Errorf("response %s cancelled", data.ID)
+	default:
+		statusErr = fmt.Errorf("response %s has unexpected status %q", data.ID, data.Status)
+	}
+	if data.Error != nil && statusErr == nil {
+		statusErr = fmt.Errorf("got API error: %v", data.Error)
+	}
+	if err := resp.Parse(); err != nil {
+		return errors.Join(statusErr, fmt.Errorf("failed to parse output: %w", err))
+	}
+	if statusErr != nil {
+		return statusErr
+	}
+	if len(resp.Outputs) == 0 {
+		return fmt.Errorf("no output returned")
 	}
 
-	if data.Error != nil {
-		return nil, fmt.Errorf("got API error: %v", data.Error)
-	}
-
-	if len(data.Output) == 0 {
-		return nil, fmt.Errorf("no output returned")
-	}
-
-	// parse resp
-	resp := &responses.Response{
-		ID:      data.ID,
-		Outputs: data.Output,
-	}
-	err := resp.Parse()
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse output: %w", err)
-	}
-
-	// check if outputs are valid
 	for _, o := range resp.ParsedOutputs {
 		if m, ok := o.(output.Message); ok {
 			if m.Content == nil {
-				return nil, fmt.Errorf("no content in output message (nil content)")
+				return fmt.Errorf("no content in output message (nil content)")
 			}
-
-			if anyContent, ok := m.Content.([]any); ok && len(anyContent) == 0 {
-				return nil, fmt.Errorf(
-					"no content in output message (zero length []any content)",
-				)
+			if content, ok := m.Content.([]any); ok && len(content) == 0 {
+				return fmt.Errorf("no content in output message (zero length []any content)")
 			}
-
-			status := m.Status
-			isValidStatus := status == "" ||
-				status == "completed" ||
-				status == "incomplete" ||
-				status == "error"
-
-			if !isValidStatus {
-				return nil, fmt.Errorf("got unexpected status: %s", status)
+			switch m.Status {
+			case "", "completed", "incomplete", "error":
+			default:
+				return fmt.Errorf("got unexpected status: %s", m.Status)
 			}
 		}
 	}
-
-	return resp, nil
+	return nil
 }
 
-// cost returns the resulting cost of the completed request in USD.
-// Returns zero if pricing for the model is not known.
-func (c *Client) cost(resp *response) float64 {
-	pricing, ok := models.Data[resp.Model]
-	if !ok {
-		c.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", resp.Model))
-		return 0
+func processingRegion(endpoint *url.URL) string {
+	switch endpoint.Hostname() {
+	case "api.openai.com":
+		return "global"
+	case "us.api.openai.com":
+		return "us"
+	case "eu.api.openai.com":
+		return "eu"
+	default:
+		return ""
 	}
-	total := 0.0
-	total += float64(resp.Usage.InputTokens-resp.Usage.InputTokensDetails.CachedTokens) * pricing.PriceIn
-	total += float64(resp.Usage.InputTokensDetails.CachedTokens) * pricing.PriceCachedIn
-	total += float64(resp.Usage.OutputTokens) * pricing.PriceOut
-	return total
+}
+
+// logCost records terminal usage and the estimate already stored on resp.
+func (c *Client) logCost(resp *responses.Response, duration time.Duration, metadata any) {
+	switch resp.Status {
+	case "queued", "in_progress":
+		return
+	case "completed", "failed", "incomplete", "cancelled":
+	default:
+		c.Log.Warn(fmt.Sprintf("Unexpected response status %q", resp.Status), slog.String("responseID", resp.ID))
+	}
+	if _, ok := models.Data[resp.Model]; !ok {
+		c.Log.Warn(fmt.Sprintf("No pricing found for model %q", resp.Model))
+	}
+	amount, err := resp.EstimatedCost, resp.CostError
+	attrs := []any{
+		slog.String("responseID", resp.ID),
+		slog.String("model", resp.Model),
+		slog.String("serviceTier", resp.ServiceTier),
+		slog.String("status", resp.Status),
+		slog.Any("duration", duration),
+		slog.Any("metadata", metadata),
+	}
+	message := "OpenAI Responses usage unavailable"
+	if resp.Usage != nil {
+		usage := resp.Usage
+		message = fmt.Sprintf("Consumed OpenAI Responses tokens: %d + %d = %d", usage.InputTokens, usage.OutputTokens, usage.TotalTokens)
+	}
+	switch {
+	case err == nil:
+		message += fmt.Sprintf(" (estimated cost $%.9f)", amount)
+	case amount != 0:
+		message += fmt.Sprintf(" (known cost subtotal $%.9f; estimate incomplete)", amount)
+	default:
+		message += " (cost estimate unavailable)"
+	}
+	if err != nil {
+		attrs = append(attrs, slog.Any("costError", err))
+	}
+	c.Log.Debug(message, attrs...)
+}
+
+// logStreamingCost uses the same accounting for all terminal response events.
+func (c *Client) logStreamingCost(req *responses.Request, sentTools []tools.Tool, region string, event any) {
+	var streamed streaming.Response
+	switch event := event.(type) {
+	case streaming.ResponseCompleted:
+		streamed = event.Response
+	case streaming.ResponseIncomplete:
+		streamed = event.Response
+	case streaming.ResponseFailed:
+		streamed = event.Response
+	default:
+		return
+	}
+	resp := &responses.Response{
+		ID:               streamed.ID,
+		Model:            streamed.Model,
+		Status:           streamed.Status,
+		ProcessingRegion: region,
+		Tools:            sentTools,
+	}
+	if streamed.ServiceTier != nil {
+		resp.ServiceTier = *streamed.ServiceTier
+	}
+	if streamed.Usage != nil {
+		usage := responses.Usage(*streamed.Usage)
+		resp.Usage = &usage
+	}
+	if len(streamed.Output) > 0 {
+		if err := json.Unmarshal(streamed.Output, &resp.Outputs); err != nil {
+			c.Log.Warn("Failed to decode streaming billing outputs", slog.Any("error", err))
+			resp.BillingIncomplete = true
+		}
+	}
+	if len(streamed.Tools) > 0 && string(streamed.Tools) != "null" {
+		if err := json.Unmarshal(streamed.Tools, &resp.Tools); err != nil {
+			c.Log.Warn("Failed to decode streaming tool definitions", slog.Any("error", err))
+			resp.BillingIncomplete = true
+		}
+	}
+	resp.EstimatedCost, resp.CostError = req.EstimateCost(resp)
+	c.logCost(resp, 0, streamed.Metadata)
 }
 
 // executableFunctionCall is an intermediate representation of a function call that can be executed.
@@ -331,8 +405,10 @@ type executableCustomToolCall struct {
 
 // sendContext tracks per-Send state across follow-up requests.
 type sendContext struct {
-	callCounts   map[string]int
-	blockedTools map[string]struct{}
+	callCounts        map[string]int
+	blockedTools      map[string]struct{}
+	calls             []responses.Response
+	billingIncomplete bool
 }
 
 // newSendContext initializes per-Send tracking state.
@@ -346,29 +422,42 @@ func newSendContext() *sendContext {
 // Send sends a request to the Responses API with custom data.
 // Returns the AI reply, request ID, and any error.
 func (c *Client) Send(req *responses.Request) (*responses.Response, error) {
-	return c.send(req, newSendContext())
+	if req == nil {
+		return nil, errors.New("request is nil")
+	}
+	sc := newSendContext()
+	resp, err := c.send(req.Clone(), sc)
+	if resp == nil && sc.billingIncomplete {
+		resp = &responses.Response{}
+	}
+	if resp != nil {
+		resp.Calls = sc.calls
+		resp.BillingIncomplete = sc.billingIncomplete
+		resp.EstimatedCost, resp.CostError = req.EstimateCost(resp)
+	}
+	return resp, err
 }
+
 func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Response, error) {
-	respData, err := c.executeRequest(req)
+	respData, outcomeKnown, err := c.executeRequest(req)
+	if !outcomeKnown {
+		sc.billingIncomplete = true
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	// Background returns only the response ID immediately
-	// so we don't need to handle outputs
-	if req.Background {
-		return &responses.Response{ID: respData.ID}, nil
+	resp := respData.project()
+	sc.calls = append(sc.calls, *resp)
+	call := &sc.calls[len(sc.calls)-1]
+	call.EstimatedCost, call.CostError = req.EstimateCost(call)
+	c.logCost(call, respData.Duration, respData.Metadata)
+	resp.EstimatedCost, resp.CostError = call.EstimatedCost, call.CostError
+	if err := respData.checkResponseData(resp); err != nil {
+		return resp, err
 	}
-
-	// Check if we have output
-	if len(respData.Output) == 0 {
-		return nil, fmt.Errorf("no output returned")
-	}
-
-	// get and parse the outputs
-	resp, err := respData.checkResponseData()
-	if err != nil {
-		return nil, err
+	if resp.Status == "queued" || resp.Status == "in_progress" {
+		return resp, nil
 	}
 
 	// log refusals as warnings
@@ -378,6 +467,7 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 
 	// First pass: analyze outputs and categorize them
 	var messages []output.Message
+	var messageOutputs []output.Any
 	var executableCalls []executableFunctionCall
 	var executableCustomCalls []executableCustomToolCall
 	var returnableCalls []output.FunctionCall
@@ -389,6 +479,7 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 		switch o := anyOutput.(type) {
 		case output.Message:
 			messages = append(messages, o)
+			messageOutputs = append(messageOutputs, resp.Outputs[i])
 		case output.FunctionCall:
 			if req.ReturnToolCalls {
 				returnableCalls = append(returnableCalls, o)
@@ -417,7 +508,7 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 					continue
 				}
 			} else {
-				return nil, fmt.Errorf("tool/function '%s' is not registered", o.Name)
+				return resp, fmt.Errorf("tool/function '%s' is not registered", o.Name)
 			}
 
 			executableCalls = append(executableCalls, executableFunctionCall{
@@ -436,10 +527,10 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 			// Get the tool by name from the registered tools
 			t, ok := c.Tools.GetTool(o.Name)
 			if !ok {
-				return nil, fmt.Errorf("tool '%s' is not registered", o.Name)
+				return resp, fmt.Errorf("tool '%s' is not registered", o.Name)
 			}
 			if t.Type != "custom" {
-				return nil, fmt.Errorf("tool '%s' is not a custom tool", o.Name)
+				return resp, fmt.Errorf("tool '%s' is not a custom tool", o.Name)
 			}
 			if t.Custom == nil {
 				returnableCustomCalls = append(returnableCustomCalls, o)
@@ -487,7 +578,7 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 				// Here we return ID despite error because this error indicates intended behavior
 				return resp, nil
 			default:
-				return nil, fmt.Errorf("failed to execute function '%s': %w", call.Name, err)
+				return resp, fmt.Errorf("failed to execute function '%s': %w", call.Name, err)
 			}
 			// Add function_call_output
 			var anyOut output.Any
@@ -497,7 +588,7 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 				Output: fResult,
 			})
 			if err := json.Unmarshal(b, &anyOut); err != nil {
-				return nil, fmt.Errorf("failed to prepare function_call_output: %w", err)
+				return resp, fmt.Errorf("failed to prepare function_call_output: %w", err)
 			}
 			toolOutputs = append(toolOutputs, anyOut)
 
@@ -520,7 +611,7 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 			case errors.Is(err, tools.ErrDoNotRespond):
 				return resp, nil
 			default:
-				return nil, fmt.Errorf("failed to execute custom tool '%s': %w", call.Name, err)
+				return resp, fmt.Errorf("failed to execute custom tool '%s': %w", call.Name, err)
 			}
 			// Add custom_tool_call_output
 			var anyOut output.Any
@@ -530,7 +621,7 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 				Output: fResult,
 			})
 			if err := json.Unmarshal(b, &anyOut); err != nil {
-				return nil, fmt.Errorf("failed to prepare custom_tool_call_output: %w", err)
+				return resp, fmt.Errorf("failed to prepare custom_tool_call_output: %w", err)
 			}
 			toolOutputs = append(toolOutputs, anyOut)
 		}
@@ -545,28 +636,19 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 		}
 
 		followupResp, err := c.send(followUpReq, sc)
-		if err != nil {
-			return nil, err
+		if followupResp == nil {
+			return resp, err
 		}
+		followupErr := err
 
 		// Combine unhandled messages (if any) with follow-up response
 		var combinedOutputs []output.Any
 		var combinedParsedOutputs []any
 
-		// Add unhandled messages first
+		// Add unhandled messages first, preserving their original wire content.
 		if req.IntermediateMessageHandler == nil {
+			combinedOutputs = append(combinedOutputs, messageOutputs...)
 			for _, msg := range messages {
-				// Marshal the message to JSON
-				b, err := json.Marshal(msg)
-				if err != nil {
-					return nil, fmt.Errorf("failed to marshal message: %w", err)
-				}
-				// Create an Any instance from the raw JSON
-				var anyMsg output.Any
-				if err := json.Unmarshal(b, &anyMsg); err != nil {
-					return nil, fmt.Errorf("failed to unmarshal message to Any: %w", err)
-				}
-				combinedOutputs = append(combinedOutputs, anyMsg)
 				combinedParsedOutputs = append(combinedParsedOutputs, msg)
 			}
 		}
@@ -579,11 +661,11 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 		combinedOutputs = append(combinedOutputs, followupResp.Outputs...)
 		combinedParsedOutputs = append(combinedParsedOutputs, followupResp.ParsedOutputs...)
 
+		*resp = *followupResp
 		resp.Outputs = combinedOutputs
 		resp.ParsedOutputs = combinedParsedOutputs
-		resp.ID = followupResp.ID
 
-		return resp, nil
+		return resp, followupErr
 
 	// Case 4: Only other outputs
 	case len(otherOutputs) > 0:
@@ -591,7 +673,7 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 	}
 
 	// This should be unreachable
-	return nil, fmt.Errorf("logic error: unreachable code, stack: %s", string(debug.Stack()))
+	return resp, fmt.Errorf("logic error: unreachable code, stack: %s", string(debug.Stack()))
 }
 
 // filterBlockedTools removes blocked tool names from the provided list.
@@ -623,48 +705,50 @@ func (c *Client) NewRequest() *responses.Request {
 // Poll continuously fetches a previously created background response until
 // completion or failure. ctx controls cancellation, interval specifies wait between polls.
 func (c *Client) Poll(ctx context.Context, id string, interval time.Duration) (*responses.Response, error) {
-	url := fmt.Sprintf("%sv1/responses/%s", c.BaseAPI, id)
-
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	default:
-	}
-
+	targetURL := fmt.Sprintf("%sv1/responses/%s", c.BaseAPI, id)
+	var last *responses.Response
 	for {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err := ctx.Err(); err != nil {
+			return last, err
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create poll request: %w", err)
+			return last, fmt.Errorf("failed to create poll request: %w", err)
 		}
 		c.AddHeaders(req)
+		before := time.Now()
 		resp, err := c.HTTPClient.Do(req)
 		if err != nil {
-			return nil, fmt.Errorf("failed to send poll request: %w", err)
+			return last, fmt.Errorf("failed to send poll request: %w", err)
 		}
 
 		body, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			return nil, fmt.Errorf("failed to read poll response: %w", err)
+			return last, fmt.Errorf("failed to read poll response: %w", err)
 		}
 		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("poll request failed with status: %s, body: %s", resp.Status, string(body))
+			return last, fmt.Errorf("poll request failed with status: %s, body: %s", resp.Status, string(body))
 		}
 
 		var raw response
 		if err := json.Unmarshal(body, &raw); err != nil {
-			return nil, fmt.Errorf("failed to decode poll response: %w", err)
+			return last, fmt.Errorf("failed to decode poll response: %w", err)
 		}
+		raw.ProcessingRegion = processingRegion(req.URL)
+		last = raw.project()
+		last.Calls = []responses.Response{*last}
+		last.EstimatedCost, last.CostError = (&responses.Request{}).EstimateCost(last)
+		c.logCost(last, time.Since(before), raw.Metadata)
 		switch raw.Status {
-		case "completed":
-			return raw.checkResponseData()
-		case "failed":
-			return nil, fmt.Errorf("response %s failed", raw.ID)
+		case "queued", "in_progress":
+		default:
+			return last, raw.checkResponseData(last)
 		}
 
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return last, ctx.Err()
 		case <-time.After(interval):
 		}
 	}
@@ -733,6 +817,12 @@ func (c *Client) streamEvents(ctx context.Context, data *responses.Request) (str
 	b, err := c.marshalRequest(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
+	}
+	var sent struct {
+		Tools []tools.Tool `json:"tools"`
+	}
+	if err := json.Unmarshal(b, &sent); err != nil {
+		return nil, fmt.Errorf("failed to decode sent tool definitions: %w", err)
 	}
 
 	streamCtx, cancel := context.WithCancel(ctx)
@@ -825,6 +915,7 @@ func (c *Client) streamEvents(ctx context.Context, data *responses.Request) (str
 				src.finish(fmt.Errorf("failed to unmarshal event data: %w", err))
 				return
 			}
+			c.logStreamingCost(data, sent.Tools, processingRegion(req.URL), event)
 
 			select {
 			case src.events <- event:

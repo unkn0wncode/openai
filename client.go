@@ -2,12 +2,10 @@
 package openai
 
 import (
-	"github.com/unkn0wncode/openai/assistants"
 	"github.com/unkn0wncode/openai/chat"
 	"github.com/unkn0wncode/openai/completion"
 	"github.com/unkn0wncode/openai/embedding"
 	openai "github.com/unkn0wncode/openai/internal"
-	"github.com/unkn0wncode/openai/internal/inassistants"
 	"github.com/unkn0wncode/openai/internal/inchat"
 	"github.com/unkn0wncode/openai/internal/incompletion"
 	"github.com/unkn0wncode/openai/internal/inembedding"
@@ -23,7 +21,6 @@ type Client struct {
 	Chat       chat.Service
 	Moderation moderation.Service
 	Completion completion.Service
-	Assistants assistants.Service
 	Responses  responses.Service
 	Embedding  embedding.Service
 
@@ -37,7 +34,6 @@ func NewClient(token string) *Client {
 	c.Chat = inchat.NewClient(c.config)
 	c.Moderation = inmoderation.NewClient(c.config)
 	c.Completion = incompletion.NewClient(c.config)
-	c.Assistants = inassistants.NewClient(c.config)
 	c.Responses = inresponses.NewClient(c.config)
 	c.Embedding = inembedding.NewClient(c.config)
 	return c

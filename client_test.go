@@ -1,15 +1,14 @@
+// Package openai / client_test.go tests the client against the OpenAI API.
 package openai
 
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/unkn0wncode/openai/assistants"
 	"github.com/unkn0wncode/openai/chat"
 	"github.com/unkn0wncode/openai/completion"
 	"github.com/unkn0wncode/openai/content/output"
@@ -33,18 +32,26 @@ func TestMain(m *testing.M) {
 			}
 		}
 	}
-	if testToken = os.Getenv("OPENAI_API_KEY"); testToken == "" {
-		fmt.Fprintln(os.Stderr, "OPENAI_API_KEY not set, skipping integration tests")
-		os.Exit(1)
-	}
+	testToken = os.Getenv("OPENAI_API_KEY")
 	os.Exit(m.Run())
+}
+
+func integrationToken(t *testing.T) string {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("integration test disabled in short mode")
+	}
+	if testToken == "" {
+		t.Skip("OPENAI_API_KEY not set")
+	}
+	return testToken
 }
 
 // TestClient_Chat_hi checks the basic chat functionality by sending a "hi" message
 // and checking the response.
 func TestClient_Chat_hi(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	req := chat.Request{
 		Model: models.GPT55, // lock model for chat tests since it's discontinued
@@ -63,7 +70,7 @@ func TestClient_Chat_hi(t *testing.T) {
 // TestClient_Chat_Function checks the function calling functionality in chat API.
 func TestClient_Chat_Function(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	// Register test function
 	var called bool
@@ -97,7 +104,7 @@ func TestClient_Chat_Function(t *testing.T) {
 // TestClient_Moderation checks the moderation functionality in moderation API.
 func TestClient_Moderation(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	t.Run("safe", func(t *testing.T) {
 		t.Parallel()
@@ -129,7 +136,7 @@ func TestClient_Moderation(t *testing.T) {
 // TestClient_Completion checks the completion functionality in completion API.
 func TestClient_Completion(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	req := completion.Request{
 		Model:     models.GPT35TurboInstruct,
@@ -144,55 +151,10 @@ func TestClient_Completion(t *testing.T) {
 	t.Logf("resp: %s", resp)
 }
 
-// TestClient_Assistants checks the assistants functionality in assistants API.
-func TestClient_Assistants(t *testing.T) {
-	t.Parallel()
-	t.Skip("Assistants API is deprecated")
-	c := NewClient(testToken)
-
-	// Create a new assistant
-	assistant, err := c.Assistants.CreateAssistant(assistants.CreateParams{
-		Name:  "Test Assistant",
-		Model: models.GPT41Nano, // GPT-5 does not support assistants
-	})
-	require.NoError(t, err)
-	require.NotNil(t, assistant)
-
-	// List assistantsList
-	assistantsList, err := c.Assistants.ListAssistant()
-	require.NoError(t, err)
-	require.NotEmpty(t, assistantsList)
-
-	// Create a new thread
-	thread, err := assistant.NewThread(nil)
-	require.NoError(t, err)
-	require.NotNil(t, thread)
-
-	// Add a message to the thread
-	addedMsg, err := thread.AddMessage(assistants.InputMessage{
-		Role:    roles.User,
-		Content: "Hello, how are you?",
-	})
-	require.NoError(t, err)
-	require.NotNil(t, addedMsg)
-
-	// Run the thread
-	run, msg, err := thread.RunAndFetch(t.Context(), nil)
-	require.NoError(t, err)
-	require.NotNil(t, run)
-	require.NotNil(t, msg)
-
-	// Delete the assistant
-	err = c.Assistants.DeleteAssistant(assistant.ID())
-	require.NoError(t, err)
-
-	t.Logf("response: %s", msg.Content)
-}
-
 // TestClient_Responses_hi checks the responses functionality in responses API.
 func TestClient_Responses_hi(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	req := &responses.Request{
 		Model: models.Default,
@@ -219,7 +181,7 @@ func TestClient_Responses_hi(t *testing.T) {
 // TestClient_Responses_dialogue checks the responses functionality with mixed input types.
 func TestClient_Responses_dialogue(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	req := &responses.Request{
 		Input: []any{
@@ -239,7 +201,9 @@ func TestClient_Responses_dialogue(t *testing.T) {
 
 func TestClient_Responses_ContextCompaction(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
+	// Server-side compaction can exceed the normal request timeout.
+	c.Config().HTTPClient.Timeout = 2 * time.Minute
 
 	const compactThreshold = 1000
 	longMessage := "Reply with one short word. "
@@ -249,7 +213,7 @@ func TestClient_Responses_ContextCompaction(t *testing.T) {
 		Model:             models.GPT52,
 		Input:             longMessage,
 		ContextManagement: []responses.ContextConfig{{Type: "compaction", CompactThreshold: compactThreshold}},
-		MaxOutputTokens:   32,
+		MaxOutputTokens:   4096,
 		Reasoning: &responses.ReasoningConfig{
 			Effort: "none",
 		},
@@ -274,9 +238,9 @@ func TestClient_Responses_ContextCompaction(t *testing.T) {
 		PreviousResponseID: firstResp.ID,
 		Input:              "Send a short follow-up sentence.",
 		ContextManagement:  []responses.ContextConfig{{Type: "compaction", CompactThreshold: compactThreshold}},
-		MaxOutputTokens:    32,
+		MaxOutputTokens:    4096,
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	}
 
@@ -294,7 +258,7 @@ func TestClient_Responses_ContextCompaction(t *testing.T) {
 
 func TestClient_Responses_Function(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	// Register a test function
 	testFunctionCalled := false
@@ -327,7 +291,7 @@ func TestClient_Responses_Function(t *testing.T) {
 		Input: "What's the weather like in San Francisco?",
 		Tools: []string{"get_current_weather"},
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 		User: "test-user",
 	}
@@ -346,7 +310,7 @@ func TestClient_Responses_Function(t *testing.T) {
 
 func TestClient_Responses_jsonSchema(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	req := responses.Request{
 		Model: models.Default,
@@ -368,7 +332,7 @@ func TestClient_Responses_jsonSchema(t *testing.T) {
 		},
 		Input: "send true",
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	}
 
@@ -388,7 +352,7 @@ func TestClient_Responses_jsonSchema(t *testing.T) {
 
 func TestClient_Embedding(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	vec, err := c.Embedding.One("Hello, world!")
 	require.NoError(t, err)
@@ -397,7 +361,7 @@ func TestClient_Embedding(t *testing.T) {
 
 func TestClient_Responses_ConversationsLifecycle(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	conv, err := c.Responses.CreateConversation(
 		map[string]string{"integration": "true"},
@@ -447,7 +411,7 @@ func TestClient_Responses_ConversationsLifecycle(t *testing.T) {
 			Input:        "Say hello back in one short sentence.",
 			Conversation: conv.ID,
 			Reasoning: &responses.ReasoningConfig{
-				Effort: "none",
+				Effort: "low",
 			},
 		})
 		require.NoError(t, err)
@@ -514,7 +478,7 @@ func TestClient_Responses_ConversationsLifecycle(t *testing.T) {
 // TestClient_Responses_BackgroundPolling verifies background mode and Polling.
 func TestClient_Responses_BackgroundPolling(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	// Send with background mode
 	resp, err := c.Responses.Send(&responses.Request{
@@ -522,7 +486,7 @@ func TestClient_Responses_BackgroundPolling(t *testing.T) {
 		Input:      "Tell me a short joke.",
 		Background: true,
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	})
 	require.NoError(t, err)
@@ -541,7 +505,7 @@ func TestClient_Responses_BackgroundPolling(t *testing.T) {
 // TestClient_Responses_WebSearch checks the web_search tool usage in responses API.
 func TestClient_Responses_WebSearch(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	err := c.Tools().RegisterTool(tools.Tool{
 		Type: "web_search",
@@ -554,7 +518,7 @@ func TestClient_Responses_WebSearch(t *testing.T) {
 		Input: "What's the newest version of Golang? Use web_search tool to check.",
 		Tools: []string{"web_search"}, // GPT-5 cannot force tool choice for web_search
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 		User: "test-user",
 	}
@@ -579,7 +543,7 @@ func TestClient_Responses_WebSearch(t *testing.T) {
 
 func TestClient_Responses_CustomToolAuto(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	err := c.Tools().RegisterTool(tools.Tool{
 		Type:        "custom",
@@ -594,7 +558,7 @@ func TestClient_Responses_CustomToolAuto(t *testing.T) {
 		Input:        "Apple",
 		Tools:        []string{"submit_word"},
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	}
 
@@ -612,7 +576,7 @@ func TestClient_Responses_CustomToolAuto(t *testing.T) {
 
 func TestClient_Responses_CustomToolRegex(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	err := c.Tools().RegisterTool(tools.Tool{
 		Type:        "custom",
@@ -632,7 +596,7 @@ func TestClient_Responses_CustomToolRegex(t *testing.T) {
 		Input:        "Apple",
 		Tools:        []string{"submit_word"},
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	}
 
@@ -650,14 +614,14 @@ func TestClient_Responses_CustomToolRegex(t *testing.T) {
 
 func TestClient_Responses_Stream(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	req := &responses.Request{
 		Model:  models.Default,
 		Input:  "Write a haiku about AI agents.",
 		Stream: true,
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	}
 
@@ -687,14 +651,14 @@ func TestClient_Responses_Stream(t *testing.T) {
 
 func TestClient_Responses_Stream_CollectText(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	req := &responses.Request{
 		Model:  models.Default,
 		Input:  "Write a haiku about AI agents.",
 		Stream: true,
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	}
 
@@ -716,14 +680,14 @@ func TestClient_Responses_Stream_CollectText(t *testing.T) {
 
 func TestClient_Responses_Stream_Range(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	req := &responses.Request{
 		Model:  models.Default,
 		Input:  "Write a haiku about AI agents.",
 		Stream: true,
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	}
 
@@ -753,14 +717,14 @@ func TestClient_Responses_Stream_Range(t *testing.T) {
 
 func TestClient_Responses_Stream_All(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 
 	req := &responses.Request{
 		Model:  models.Default,
 		Input:  "Write a haiku about AI agents.",
 		Stream: true,
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	}
 
@@ -800,7 +764,7 @@ func newWebSocketTestConn(t *testing.T, c *Client) responses.WSConn {
 
 func TestClient_Responses_WebSocket_Send(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 	ws := newWebSocketTestConn(t, c)
 	defer ws.Close()
 
@@ -811,7 +775,7 @@ func TestClient_Responses_WebSocket_Send(t *testing.T) {
 		Model: models.Default,
 		Input: "Write a haiku about Go.",
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	}
 
@@ -837,7 +801,7 @@ func TestClient_Responses_WebSocket_Send(t *testing.T) {
 
 func TestClient_Responses_WebSocket_WarmupAndContinue(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 	ws := newWebSocketTestConn(t, c)
 	defer ws.Close()
 
@@ -848,7 +812,7 @@ func TestClient_Responses_WebSocket_WarmupAndContinue(t *testing.T) {
 		Model: models.Default,
 		Input: "Prepare tools and state for the next turn.",
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	})
 	require.NoError(t, err)
@@ -859,7 +823,7 @@ func TestClient_Responses_WebSocket_WarmupAndContinue(t *testing.T) {
 		PreviousResponseID: warmupID,
 		Input:              "Now answer in exactly one short sentence about warmup.",
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	})
 	require.NoError(t, err)
@@ -878,7 +842,7 @@ func TestClient_Responses_WebSocket_WarmupAndContinue(t *testing.T) {
 
 func TestClient_Responses_WebSocket_ContextCancellation(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 	ws := newWebSocketTestConn(t, c)
 	defer ws.Close()
 
@@ -890,7 +854,7 @@ func TestClient_Responses_WebSocket_ContextCancellation(t *testing.T) {
 		Input:           "Write 10 points about Go.",
 		MaxOutputTokens: 180,
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	})
 	require.NoError(t, err)
@@ -915,7 +879,7 @@ func TestClient_Responses_WebSocket_ContextCancellation(t *testing.T) {
 		Input:           "Give one short line proving this websocket still works.",
 		MaxOutputTokens: 40,
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	})
 	require.NoError(t, err)
@@ -933,7 +897,7 @@ func TestClient_Responses_WebSocket_ContextCancellation(t *testing.T) {
 
 func TestClient_Responses_WebSocket_CloseDuringTurn(t *testing.T) {
 	t.Parallel()
-	c := NewClient(testToken)
+	c := NewClient(integrationToken(t))
 	ws := newWebSocketTestConn(t, c)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
@@ -943,7 +907,7 @@ func TestClient_Responses_WebSocket_CloseDuringTurn(t *testing.T) {
 		Model: models.Default,
 		Input: "Write a long answer about Go and include many sections.",
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	})
 	require.NoError(t, err)

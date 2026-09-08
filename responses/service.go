@@ -13,7 +13,9 @@ import (
 	"github.com/unkn0wncode/openai/content/input"
 	"github.com/unkn0wncode/openai/content/output"
 	openai "github.com/unkn0wncode/openai/internal"
+	"github.com/unkn0wncode/openai/models"
 	"github.com/unkn0wncode/openai/responses/streaming"
+	"github.com/unkn0wncode/openai/tools"
 )
 
 const (
@@ -27,12 +29,16 @@ const (
 	ServiceTierDefault  = "default"  // standard pricing and performance for the selected model
 	ServiceTierFlex     = "flex"     // slower but cheaper
 	ServiceTierPriority = "priority" // faster but more expensive
+	ServiceTierFast     = "fast"     // same request behavior as priority
 )
 
 // Service is the service layer for OpenAI responses API.
 type Service interface {
 	// Send sends a request to the Responses API.
 	Send(req *Request) (response *Response, err error)
+
+	// CountInputTokens counts the input for a request without generating a response.
+	CountInputTokens(ctx context.Context, req *Request) (int, error)
 
 	// Stream sends a request with parameter "stream":true and returns a streaming iterator.
 	Stream(ctx context.Context, req *Request) (*streaming.StreamIterator, error)
@@ -178,9 +184,32 @@ type StreamOptions struct {
 // Response is a wrapper for outputs returned from the Responses API.
 type Response struct {
 	ID            string
+	Model         string
+	ServiceTier   string
+	Status        string
 	Outputs       []output.Any
 	ParsedOutputs []any
+	Usage         *Usage
+	Tools         []tools.Tool
+
+	// Calls contains the individual API responses observed by Send, including
+	// automatic tool follow-ups, or the latest response returned by Poll.
+	// Their outputs are not combined, and their own Calls slices are empty.
+	Calls []Response
+	// BillingIncomplete means an API request was sent without observable usage.
+	// It is independent of the API's response status.
+	BillingIncomplete bool
+	// ProcessingRegion is recorded from the API endpoint. "global" means no
+	// regional processing; an empty value means the routing is unknown.
+	ProcessingRegion string
+	// EstimatedCost and CostError are populated by Request.EstimateCost.
+	// If CostError is non-nil, EstimatedCost is only the known subtotal in USD.
+	EstimatedCost float64
+	CostError     error
 }
+
+// Usage contains token usage for a response.
+type Usage models.Usage
 
 // Parse parses the []output.Any and places the parsed objects in ParsedOutputs.
 func (r *Response) Parse() error {

@@ -1,3 +1,4 @@
+// Package inresponses / ws_test.go tests WebSocket event delivery and connection handling.
 package inresponses
 
 import (
@@ -104,7 +105,8 @@ func TestWebSocketCloseFinishesPendingTurn(t *testing.T) {
 
 	requestRead := make(chan struct{})
 	client := newWSTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Upgrade(w, r, nil, 1024, 1024)
+		upgrader := websocket.Upgrader{}
+		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
@@ -133,7 +135,8 @@ func TestWebSocketWSErrorBecomesStreamError(t *testing.T) {
 	t.Parallel()
 
 	client := newWSTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Upgrade(w, r, nil, 1024, 1024)
+		upgrader := websocket.Upgrader{}
+		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
@@ -173,7 +176,8 @@ func TestWebSocketResponseFailedIsDeliveredAsEvent(t *testing.T) {
 	t.Parallel()
 
 	client := newWSTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Upgrade(w, r, nil, 1024, 1024)
+		upgrader := websocket.Upgrader{}
+		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
@@ -212,7 +216,8 @@ func TestWebSocketEarlyCloseOnHeadTurnAllowsNextTurn(t *testing.T) {
 	t.Parallel()
 
 	client := newWSTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Upgrade(w, r, nil, 1024, 1024)
+		upgrader := websocket.Upgrader{}
+		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}

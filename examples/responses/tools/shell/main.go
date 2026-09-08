@@ -1,3 +1,4 @@
+// Package main demonstrates Responses API shell usage.
 package main
 
 import (
@@ -30,7 +31,7 @@ func main() {
 		Tools:      []string{"shell"},
 		ToolChoice: responses.ForceToolChoice("shell", ""),
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 		User: "responses-shell-example",
 	}
@@ -72,7 +73,7 @@ func main() {
 		PreviousResponseID: resp.ID,
 		Input:              []output.ShellCallOutput{toolOutput},
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	})
 	if err != nil {
