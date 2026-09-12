@@ -85,3 +85,23 @@ func TestCountInputTokensDoesNotOmitUnresolvedPrompt(t *testing.T) {
 	_, err := client.CountInputTokens(t.Context(), &responses.Request{Prompt: &responses.Prompt{ID: "prompt"}})
 	require.ErrorContains(t, err, "expanded input")
 }
+
+// TestCountInputTokensAPI checks the live token-counting API contract.
+func TestCountInputTokensAPI(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("integration test disabled in short mode")
+	}
+	token := os.Getenv("OPENAI_API_KEY")
+	if token == "" {
+		t.Skip("OPENAI_API_KEY not set")
+	}
+
+	client := NewClient(openai.NewConfig(token))
+	count, err := client.CountInputTokens(t.Context(), &responses.Request{
+		Model: models.Default,
+		Input: "Hello, world!",
+	})
+	require.NoError(t, err)
+	require.Positive(t, count)
+}
