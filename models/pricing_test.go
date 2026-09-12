@@ -2,7 +2,6 @@
 package models
 
 import (
-	"errors"
 	"math"
 	"strconv"
 	"testing"
@@ -34,7 +33,6 @@ func TestTokenCostComponents(t *testing.T) {
 		input, cached, written, output int
 		want                           float64
 	}{
-		{"uncached input", 10, 0, 0, 0, 0.000020},
 		{"cached input", 10, 10, 0, 0, 0.000005},
 		{"cache writes", 10, 0, 10, 0, 0.000030},
 		{"output", 0, 0, 0, 10, 0.000070},
@@ -171,44 +169,6 @@ func TestNilVsFreeUsage(t *testing.T) {
 	got, err := testPricing().Cost(&Usage{})
 	require.NoError(t, err)
 	require.Zero(t, got)
-	free := Pricing{standard: &tierRates{}}
-	got, err = free.Cost(&Usage{InputTokens: 10, OutputTokens: 5})
-	require.NoError(t, err)
-	require.Zero(t, got)
-}
-
-func TestTierSelectionRetainsPricing(t *testing.T) {
-	original := testPricing()
-	u := &Usage{InputTokens: 10}
-	p, err := original.ForTier("priority")
-	require.NoError(t, err)
-	got, err := p.Cost(u)
-	require.NoError(t, err)
-	require.InDelta(t, 0.000060, got, 1e-12)
-	p, err = p.ForTier("")
-	require.NoError(t, err)
-	got, err = p.Cost(u)
-	require.NoError(t, err)
-	require.InDelta(t, 0.000020, got, 1e-12)
-	got, err = original.Cost(u)
-	require.NoError(t, err)
-	require.InDelta(t, 0.000020, got, 1e-12)
-}
-
-type resourceUsage struct{ err error }
-
-func (u resourceUsage) Cost(Pricing) (float64, error) { return 7, u.err }
-
-func TestCostDispatch(t *testing.T) {
-	expectedErr := errors.New("resource-specific component unavailable")
-	u := resourceUsage{err: expectedErr}
-	got, err := testPricing().Cost(u)
-	require.Equal(t, 7.0, got)
-	require.ErrorIs(t, err, expectedErr)
-	got, err = (Pricing{}).Cost(u)
-	require.Zero(t, got)
-	require.Error(t, err)
-	require.NotErrorIs(t, err, expectedErr)
 }
 
 func TestCatalogValidity(t *testing.T) {

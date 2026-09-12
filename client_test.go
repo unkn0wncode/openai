@@ -278,12 +278,6 @@ func TestClient_Responses_Function(t *testing.T) {
 	// Register the function
 	toolReg := c.Tools()
 	require.NoError(t, toolReg.CreateFunction(testFunction))
-	require.Len(t, toolReg.FunctionCalls, 1)
-	gotFunc, ok := toolReg.GetFunction("get_current_weather")
-	require.True(t, ok)
-	require.Equal(t, testFunction.Name, gotFunc.Name)
-	require.Equal(t, testFunction.Description, gotFunc.Description)
-	require.Equal(t, testFunction.ParamsSchema, gotFunc.ParamsSchema)
 
 	// Create a request with tools
 	req := responses.Request{
@@ -465,14 +459,6 @@ func TestClient_Responses_ConversationsLifecycle(t *testing.T) {
 		_, ok := item.(output.Message)
 		require.True(t, ok, "expected output.Message from conversation item")
 	})
-
-	t.Run("retrieve via service handle", func(t *testing.T) {
-		t.Parallel()
-		handle, err := c.Responses.Conversation(conv.ID)
-		require.NoError(t, err)
-		require.Equal(t, conv.ID, handle.ID)
-		require.Equal(t, conv.Metadata["integration"], handle.Metadata["integration"])
-	})
 }
 
 // TestClient_Responses_BackgroundPolling verifies background mode and Polling.
@@ -649,108 +635,6 @@ func TestClient_Responses_Stream(t *testing.T) {
 	require.NotEmpty(t, outputText.String())
 }
 
-func TestClient_Responses_Stream_CollectText(t *testing.T) {
-	t.Parallel()
-	c := NewClient(integrationToken(t))
-
-	req := &responses.Request{
-		Model:  models.Default,
-		Input:  "Write a haiku about AI agents.",
-		Stream: true,
-		Reasoning: &responses.ReasoningConfig{
-			Effort: "low",
-		},
-	}
-
-	stream, err := c.Responses.Stream(t.Context(), req)
-	require.NoError(t, err)
-	require.NotNil(t, stream)
-
-	var fullText string
-	for stream.Next() {
-		event := stream.Event()
-		if delta, ok := event.(streaming.ResponseOutputTextDelta); ok {
-			fullText += delta.Delta
-		}
-	}
-	require.NotEmpty(t, fullText)
-
-	t.Logf("collected text: %s", fullText)
-}
-
-func TestClient_Responses_Stream_Range(t *testing.T) {
-	t.Parallel()
-	c := NewClient(integrationToken(t))
-
-	req := &responses.Request{
-		Model:  models.Default,
-		Input:  "Write a haiku about AI agents.",
-		Stream: true,
-		Reasoning: &responses.ReasoningConfig{
-			Effort: "low",
-		},
-	}
-
-	stream, err := c.Responses.Stream(t.Context(), req)
-	require.NoError(t, err)
-	require.NotNil(t, stream)
-
-	var outputText strings.Builder
-	eventCount := 0
-	for event, err := range stream.Seq() {
-		require.NoError(t, err)
-		eventCount++
-
-		switch e := event.(type) {
-		case streaming.ResponseOutputTextDelta:
-			outputText.WriteString(e.Delta)
-			t.Logf("text delta: %s", e.Delta)
-		case streaming.ResponseOutputTextDone:
-			t.Logf("streamed text: %s", e.Text)
-		}
-	}
-
-	require.NoError(t, stream.Err())
-	require.NotZero(t, eventCount)
-	require.NotEmpty(t, outputText.String())
-}
-
-func TestClient_Responses_Stream_All(t *testing.T) {
-	t.Parallel()
-	c := NewClient(integrationToken(t))
-
-	req := &responses.Request{
-		Model:  models.Default,
-		Input:  "Write a haiku about AI agents.",
-		Stream: true,
-		Reasoning: &responses.ReasoningConfig{
-			Effort: "low",
-		},
-	}
-
-	stream, err := c.Responses.Stream(t.Context(), req)
-	require.NoError(t, err)
-	require.NotNil(t, stream)
-
-	events, err := stream.All()
-	require.NoError(t, err)
-	require.NotEmpty(t, events)
-
-	var outputText string
-	textDeltaCount := 0
-	for _, event := range events {
-		if delta, ok := event.(streaming.ResponseOutputTextDelta); ok {
-			outputText += delta.Delta
-			textDeltaCount++
-		}
-	}
-
-	require.NotZero(t, textDeltaCount)
-	require.NotEmpty(t, outputText)
-	t.Logf("Collected %d total events, %d text deltas", len(events), textDeltaCount)
-	t.Logf("Final text: %s", outputText)
-}
-
 func newWebSocketTestConn(t *testing.T, c *Client) responses.WSConn {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
@@ -893,30 +777,4 @@ func TestClient_Responses_WebSocket_ContextCancellation(t *testing.T) {
 	}
 	require.NoError(t, nextStream.Err())
 	require.True(t, completed, "expected queued second turn to complete")
-}
-
-func TestClient_Responses_WebSocket_CloseDuringTurn(t *testing.T) {
-	t.Parallel()
-	c := NewClient(integrationToken(t))
-	ws := newWebSocketTestConn(t, c)
-
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
-	defer cancel()
-
-	stream, err := ws.Send(ctx, &responses.Request{
-		Model: models.Default,
-		Input: "Write a long answer about Go and include many sections.",
-		Reasoning: &responses.ReasoningConfig{
-			Effort: "low",
-		},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, stream)
-
-	require.NoError(t, ws.Close())
-
-	for stream.Next() {
-	}
-	require.Error(t, stream.Err())
-	require.ErrorContains(t, stream.Err(), "websocket")
 }

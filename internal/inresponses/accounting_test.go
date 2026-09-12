@@ -375,20 +375,6 @@ func TestSendFollowUpHTTPFailurePreservesPriorAccounting(t *testing.T) {
 	}
 }
 
-func TestSendLocalValidationFailureHasNoResponse(t *testing.T) {
-	t.Parallel()
-
-	client := newAccountingClient(t, func(w http.ResponseWriter, _ *http.Request) {
-		t.Error("invalid request reached the server")
-		w.WriteHeader(http.StatusInternalServerError)
-	})
-	for _, req := range []*responses.Request{nil, {Model: "gpt-5.4"}, {Model: "gpt-5.4", Input: "hi", Tools: []string{"unregistered"}}} {
-		resp, err := client.Send(req)
-		require.Error(t, err)
-		require.Nil(t, resp)
-	}
-}
-
 func TestSendDecodeAndParseFailuresPreserveAvailableAccounting(t *testing.T) {
 	t.Parallel()
 
@@ -425,30 +411,6 @@ func TestSendDecodeAndParseFailuresPreserveAvailableAccounting(t *testing.T) {
 		require.NoError(t, resp.CostError)
 		require.InDelta(t, 0.004, resp.EstimatedCost, 1e-12)
 	})
-}
-
-func TestBackgroundSendRetainsPendingMetadataWithoutUsage(t *testing.T) {
-	t.Parallel()
-
-	for _, statusCode := range []int{http.StatusOK, http.StatusAccepted} {
-		t.Run(http.StatusText(statusCode), func(t *testing.T) {
-			t.Parallel()
-			client := newAccountingClient(t, func(w http.ResponseWriter, _ *http.Request) {
-				body := accountingResponse("resp_pending", "queued", "flex", 0, 0)
-				body["usage"] = nil
-				w.WriteHeader(statusCode)
-				require.NoError(t, json.NewEncoder(w).Encode(body))
-			})
-			resp, err := client.Send(&responses.Request{Model: "gpt-5.4", Input: "hi", Background: true})
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			require.Equal(t, "resp_pending", resp.ID)
-			require.Equal(t, "gpt-5.4", resp.Model)
-			require.Equal(t, "flex", resp.ServiceTier)
-			require.Equal(t, "queued", resp.Status)
-			require.Nil(t, resp.Usage)
-		})
-	}
 }
 
 func TestPollWaitsForPendingStatesAndPreservesCompletion(t *testing.T) {

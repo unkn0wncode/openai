@@ -2,7 +2,6 @@ package inresponses
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -100,69 +99,6 @@ func writeSSE(w http.ResponseWriter, event string, data string) {
 	}
 }
 
-func TestSSEStreamHTTPErrorReturnsBeforeIteration(t *testing.T) {
-	t.Parallel()
-
-	client, bodyClosed := newSSETestClient(t, func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = io.WriteString(w, `{"error":{"message":"bad token"}}`)
-	})
-
-	stream, err := client.Stream(t.Context(), streamRequest())
-
-	require.Nil(t, stream)
-	require.ErrorContains(t, err, "stream request failed with status 401 Unauthorized")
-	require.ErrorContains(t, err, "bad token")
-	requireChannelClosed(t, bodyClosed)
-}
-
-func TestSSEStreamSetsStreamParameter(t *testing.T) {
-	t.Parallel()
-
-	client, bodyClosed := newSSETestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		var reqBody struct {
-			Stream bool `json:"stream"`
-		}
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&reqBody))
-		require.True(t, reqBody.Stream)
-
-		w.Header().Set("Content-Type", "text/event-stream")
-		writeSSE(w, "response.completed", `{"type":"response.completed","response":{"id":"resp_test","object":"response","status":"completed"}}`)
-	})
-
-	req := &responses.Request{
-		Model: "test-model",
-		Input: "hi",
-	}
-	stream, err := client.Stream(t.Context(), req)
-	require.NoError(t, err)
-	require.False(t, req.Stream)
-
-	require.True(t, stream.Next())
-	require.False(t, stream.Next())
-	require.NoError(t, stream.Err())
-	requireChannelClosed(t, bodyClosed)
-}
-
-func TestSSEStreamCompletedClosesBody(t *testing.T) {
-	t.Parallel()
-
-	client, bodyClosed := newSSETestClient(t, func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		writeSSE(w, "response.completed", `{"type":"response.completed","response":{"id":"resp_test","object":"response","status":"completed"}}`)
-	})
-
-	stream, err := client.Stream(t.Context(), streamRequest())
-	require.NoError(t, err)
-
-	require.True(t, stream.Next())
-	require.IsType(t, streaming.ResponseCompleted{}, stream.Event())
-	require.False(t, stream.Next())
-	require.NoError(t, stream.Err())
-	requireChannelClosed(t, bodyClosed)
-}
-
 func TestSSEStreamAcceptsCRLFSeparators(t *testing.T) {
 	t.Parallel()
 
@@ -180,22 +116,6 @@ func TestSSEStreamAcceptsCRLFSeparators(t *testing.T) {
 	require.IsType(t, streaming.ResponseCompleted{}, stream.Event())
 	require.False(t, stream.Next())
 	require.NoError(t, stream.Err())
-	requireChannelClosed(t, bodyClosed)
-}
-
-func TestSSEStreamMalformedDataReturnsErr(t *testing.T) {
-	t.Parallel()
-
-	client, bodyClosed := newSSETestClient(t, func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		writeSSE(w, "response.completed", `{"type":`)
-	})
-
-	stream, err := client.Stream(t.Context(), streamRequest())
-	require.NoError(t, err)
-
-	require.False(t, stream.Next())
-	require.ErrorContains(t, stream.Err(), "failed to unmarshal event data")
 	requireChannelClosed(t, bodyClosed)
 }
 

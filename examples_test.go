@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestExamples checks that every example program builds and runs successfully.
 func TestExamples(t *testing.T) {
 	token := integrationToken(t)
 
