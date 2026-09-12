@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"runtime/debug"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -290,14 +291,17 @@ func (data *response) checkResponseData(resp *responses.Response) error {
 	return nil
 }
 
+// processingRegion retyrns region name recognized by documented OpenAI endpoints; arbitrary proxies
+// do not establish the region used for billing.
 func processingRegion(endpoint *url.URL) string {
-	switch endpoint.Hostname() {
+	host := strings.ToLower(endpoint.Hostname())
+	switch host {
 	case "api.openai.com":
 		return "global"
-	case "us.api.openai.com":
-		return "us"
-	case "eu.api.openai.com":
-		return "eu"
+	case "us.api.openai.com", "eu.api.openai.com", "au.api.openai.com", "ca.api.openai.com",
+		"jp.api.openai.com", "in.api.openai.com", "sg.api.openai.com", "kr.api.openai.com",
+		"gb.api.openai.com", "ae.api.openai.com":
+		return strings.TrimSuffix(host, ".api.openai.com")
 	default:
 		return ""
 	}

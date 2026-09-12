@@ -166,6 +166,68 @@ func TestSendLocalToolFailurePreservesObservedResponse(t *testing.T) {
 	require.Equal(t, "function_call", resp.Calls[0].Outputs[0].Type)
 }
 
+func TestSendTerminalErrorsPreserveAccountingWithoutExecutingTools(t *testing.T) {
+	t.Parallel()
+
+	for _, status := range []string{"incomplete", "failed", "cancelled"} {
+		t.Run(status, func(t *testing.T) {
+			t.Parallel()
+			var requests, toolCalls atomic.Int32
+			client := newAccountingClient(t, func(w http.ResponseWriter, _ *http.Request) {
+				if requests.Add(1) != 1 {
+					t.Error("terminal response triggered a follow-up request")
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				body := accountingResponse("resp_terminal", status, "flex", 1000, 100,
+					accountingMessage("Partial answer"), json.RawMessage(accountingFunctionCall))
+				switch status {
+				case "incomplete":
+					body["incomplete_details"] = map[string]string{"reason": "max_output_tokens"}
+				case "failed":
+					body["error"] = map[string]string{"code": "server_error", "message": "generation failed"}
+				}
+				require.NoError(t, json.NewEncoder(w).Encode(body))
+			})
+			registerAccountingFunction(t, client, func(json.RawMessage) (string, error) {
+				toolCalls.Add(1)
+				return "found", nil
+			})
+			req := &responses.Request{Model: "requested-model", Input: "Look up a value", Tools: []string{"lookup"}, ServiceTier: "default"}
+
+			resp, executionErr := client.Send(req)
+
+			require.ErrorContains(t, executionErr, status)
+			require.EqualValues(t, 1, requests.Load())
+			require.Zero(t, toolCalls.Load())
+			require.NotNil(t, resp)
+			require.Equal(t, "resp_terminal", resp.ID)
+			require.Equal(t, "gpt-5.4", resp.Model)
+			require.Equal(t, "flex", resp.ServiceTier)
+			require.Equal(t, status, resp.Status)
+			require.Equal(t, "Partial answer", resp.FirstText())
+			require.Len(t, resp.FunctionCalls(), 1)
+			require.NotNil(t, resp.Usage)
+			require.Equal(t, 1000, resp.Usage.InputTokens)
+			require.Equal(t, 100, resp.Usage.OutputTokens)
+			require.Equal(t, 1100, resp.Usage.TotalTokens)
+			require.False(t, resp.BillingIncomplete)
+			require.NoError(t, resp.CostError)
+			require.Positive(t, resp.EstimatedCost)
+			require.Len(t, resp.Calls, 1)
+			call := resp.Calls[0]
+			require.Equal(t, resp.ID, call.ID)
+			require.Equal(t, resp.Model, call.Model)
+			require.Equal(t, resp.ServiceTier, call.ServiceTier)
+			require.Equal(t, resp.Status, call.Status)
+			require.Equal(t, resp.Usage, call.Usage)
+			require.Equal(t, resp.Outputs, call.Outputs)
+			require.NoError(t, call.CostError)
+			require.Equal(t, resp.EstimatedCost, call.EstimatedCost)
+		})
+	}
+}
+
 func TestSendKeepsDistinctEstimationErrorsSeparateFromExecution(t *testing.T) {
 	t.Parallel()
 
@@ -240,6 +302,77 @@ func TestSendFollowUpTransportFailurePreservesPriorAccounting(t *testing.T) {
 	require.Error(t, costErr)
 	require.InDelta(t, 0.004, cost, 1e-12)
 	require.NotErrorIs(t, costErr, transportErr)
+}
+
+func TestSendFollowUpHTTPFailurePreservesPriorAccounting(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		status            int
+		billingIncomplete bool
+	}{
+		{http.StatusBadRequest, false},
+		{http.StatusTooManyRequests, false},
+		{http.StatusInternalServerError, true},
+		{http.StatusServiceUnavailable, true},
+	} {
+		t.Run(http.StatusText(tc.status), func(t *testing.T) {
+			t.Parallel()
+			var requests, toolCalls atomic.Int32
+			client := newAccountingClient(t, func(w http.ResponseWriter, r *http.Request) {
+				switch requests.Add(1) {
+				case 1:
+					require.NoError(t, json.NewEncoder(w).Encode(accountingResponse("resp_observed", "completed", "default", 1000, 100,
+						accountingMessage("Looking it up"), json.RawMessage(accountingFunctionCall))))
+				case 2:
+					var req struct {
+						PreviousResponseID string `json:"previous_response_id"`
+					}
+					require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+					require.Equal(t, "resp_observed", req.PreviousResponseID)
+					http.Error(w, "follow-up failed", tc.status)
+				default:
+					t.Error("unexpected additional request")
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			})
+			registerAccountingFunction(t, client, func(json.RawMessage) (string, error) {
+				toolCalls.Add(1)
+				return "found", nil
+			})
+			req := &responses.Request{Model: "gpt-5.4", Input: "Look up a value", Tools: []string{"lookup"}}
+
+			resp, executionErr := client.Send(req)
+
+			require.ErrorContains(t, executionErr, fmt.Sprintf("%d %s", tc.status, http.StatusText(tc.status)))
+			require.EqualValues(t, 2, requests.Load())
+			require.EqualValues(t, 1, toolCalls.Load())
+			require.NotNil(t, resp)
+			require.Equal(t, "resp_observed", resp.ID)
+			require.Equal(t, "Looking it up", resp.FirstText())
+			require.Equal(t, tc.billingIncomplete, resp.BillingIncomplete)
+			require.Len(t, resp.Calls, 1)
+			call := resp.Calls[0]
+			require.Equal(t, "resp_observed", call.ID)
+			require.Equal(t, "completed", call.Status)
+			require.NotNil(t, call.Usage)
+			require.Equal(t, 1000, call.Usage.InputTokens)
+			require.Equal(t, 100, call.Usage.OutputTokens)
+			require.Equal(t, resp.Usage, call.Usage)
+			require.Len(t, call.Outputs, 2)
+			require.Equal(t, "function_call", call.Outputs[1].Type)
+			require.False(t, call.BillingIncomplete)
+			require.NoError(t, call.CostError)
+			require.Positive(t, call.EstimatedCost)
+			require.Equal(t, call.EstimatedCost, resp.EstimatedCost)
+			if tc.billingIncomplete {
+				require.ErrorContains(t, resp.CostError, "usage is unavailable for an attempted API request")
+				require.NotErrorIs(t, resp.CostError, executionErr)
+			} else {
+				require.NoError(t, resp.CostError)
+			}
+		})
+	}
 }
 
 func TestSendLocalValidationFailureHasNoResponse(t *testing.T) {
@@ -538,6 +671,8 @@ func TestStreamingTerminalUsageLogsActualTier(t *testing.T) {
 				require.Equal(t, "DEBUG", costRecords[0]["level"])
 				require.Equal(t, "gpt-5.4", costRecords[0]["model"])
 				require.Equal(t, "flex", costRecords[0]["serviceTier"])
+				require.Contains(t, costRecords[0]["msg"], "estimated cost")
+				require.NotContains(t, costRecords[0], "costError")
 				require.Contains(t, costRecords[0]["msg"], "0.002000000")
 			})
 		}

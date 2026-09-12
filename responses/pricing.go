@@ -111,7 +111,7 @@ func (req *Request) estimateCall(resp *Response) (float64, error) {
 	if pricing.RegionalUplift != 0 {
 		switch resp.ProcessingRegion {
 		case "global":
-		case "us", "eu":
+		case "us", "eu", "au", "ca", "jp", "in", "sg", "kr", "gb", "ae":
 			tokenCost *= 1 + pricing.RegionalUplift
 		default:
 			err = fmt.Errorf("regional processing charges are unavailable for region %q", resp.ProcessingRegion)

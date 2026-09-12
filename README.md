@@ -138,6 +138,8 @@ The `client.Responses` exposes the following methods:
 - `CreateConversation` creates a persistent conversation container where you can manage context items and reuse it in Responses requests.
 - `Conversation` fetches a full conversation object by ID. It can be further used to manage the conversation.
 
+`Send` and `Poll` return the response and an error if the response status is `incomplete`, `failed`, or `cancelled`. First check that `resp` is not `nil`. Then you can check `resp.Status`, partial output, or usage. You do not need to compare error messages to process the status. An incomplete response does not start local tool execution automatically. `Poll` continues while the response status is `queued` or `in_progress`. If the response is cancelled or a later fetch fails, `Poll` returns the latest response that it received, if available. Cost estimation errors are stored separately in `resp.CostError`.
+
 Other exposed types/functions in the `responses` package:
 - `Content` is an interface listing all types that can be used as content in the Responses API.
 - `Request` is the request body. It has a few additional fields:
@@ -379,7 +381,7 @@ for _, call := range resp.Calls {
 
 The estimator uses each API call's returned model and service tier, rather than the requested tier. This matters when Fast is downgraded to Standard. It records individual estimation errors and returns their `errors.Join` aggregate; `Send` returns execution errors separately. An execution error may accompany a partial response containing already-observed usage. `BillingIncomplete` records a sent request whose billing evidence was not observed. Pending responses also produce an incomplete estimate.
 
-Known search and file-search call fees are included. Container sessions, file-search storage, and tool charges not exposed by the response remain unpriced. When free or fixed-block search-content billing cannot be separated from reported input, the subtotal includes supported output and call charges and reports the input as unpriced. Regional token uplift is applied when the endpoint and model establish it; custom endpoints leave the region unknown. These estimates use public list prices, excluding account-specific discounts or credits. See the [API pricing documentation](https://developers.openai.com/api/docs/pricing).
+Known search and file-search call fees are included. Container sessions, file-search storage, and tool charges not exposed by the response remain unpriced. When free or fixed-block search-content billing cannot be separated from reported input, the subtotal includes supported output and call charges and reports the input as unpriced. Regional token uplift is applied for eligible models on the documented US, EU, Australia, Canada, Japan, India, Singapore, South Korea, UK, and UAE endpoints; custom endpoints leave the region unknown. Regional storage availability does not imply regional inference. These estimates use public list prices, excluding account-specific discounts or credits. See the [API pricing documentation](https://developers.openai.com/api/docs/pricing) and [regional endpoint documentation](https://developers.openai.com/api/docs/guides/your-data).
 
 Before generation, you can count the input and compare explicit usage assumptions:
 

@@ -203,6 +203,14 @@ func TestEstimateCostRegionalPricing(t *testing.T) {
 		{"global", 0.06, ""},
 		{"us", 0.066, ""},
 		{"eu", 0.066, ""},
+		{"au", 0.066, ""},
+		{"ca", 0.066, ""},
+		{"jp", 0.066, ""},
+		{"in", 0.066, ""},
+		{"sg", 0.066, ""},
+		{"kr", 0.066, ""},
+		{"gb", 0.066, ""},
+		{"ae", 0.066, ""},
 		{"", 0.06, "regional"},
 		{"unknown", 0.06, "regional"},
 	} {
@@ -276,6 +284,66 @@ func TestEstimateCostWebSearch(t *testing.T) {
 	got, err := (&responses.Request{}).EstimateCost(resp)
 	require.ErrorContains(t, err, "variant")
 	require.InDelta(t, 0.075, got, 1e-12)
+}
+
+func TestEstimateCostWebSearchUsesRequestFallbackAndEchoedTools(t *testing.T) {
+	search := pricingOutputs(t, `[{"type":"web_search_call","id":"search","action":{"type":"search"}}]`)
+	for _, tt := range []struct {
+		name, variant, wantError string
+		requested                []string
+		echoed                   []tools.Tool
+	}{
+		{name: "request fallback", variant: "web_search", requested: []string{"web_search"}},
+		{name: "request preview fallback", variant: "web_search_preview", requested: []string{"web_search_preview"}, wantError: "free search-content"},
+		{name: "echo overrides conflicting request", variant: "web_search", requested: []string{"web_search_preview"}, echoed: []tools.Tool{{Type: "web_search"}}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &responses.Request{Tools: tt.requested}
+			resp := &responses.Response{
+				Model: models.GPT41, ServiceTier: responses.ServiceTierDefault, ProcessingRegion: "global",
+				Usage: &responses.Usage{}, Outputs: search, Tools: tt.echoed,
+			}
+			// Compare with the same call carrying only the authoritative variant,
+			// so the test does not pin the catalog's token or tool prices.
+			reference := *resp
+			reference.Tools = []tools.Tool{{Type: tt.variant}}
+			want, referenceErr := (&responses.Request{}).EstimateCost(&reference)
+			got, err := req.EstimateCost(resp)
+			if tt.wantError != "" {
+				require.ErrorContains(t, referenceErr, tt.wantError)
+				require.ErrorContains(t, err, tt.wantError)
+			} else {
+				require.NoError(t, referenceErr)
+				require.NoError(t, err)
+			}
+			require.InDelta(t, want, got, 1e-12)
+		})
+	}
+}
+
+func TestEstimateCostRejectsAmbiguousSearchVariants(t *testing.T) {
+	search := pricingOutputs(t, `[{"type":"web_search_call","id":"search","action":{"type":"search"}}]`)
+	for _, source := range []string{"request", "response"} {
+		for _, order := range [][]string{{"web_search", "web_search_preview"}, {"web_search_preview", "web_search"}} {
+			t.Run(source+"/"+order[0], func(t *testing.T) {
+				req := &responses.Request{}
+				resp := &responses.Response{
+					Model: models.GPT41, ServiceTier: responses.ServiceTierDefault, ProcessingRegion: "global",
+					Usage: &responses.Usage{}, Outputs: search,
+				}
+				if source == "request" {
+					req.Tools = order
+				} else {
+					// A single requested variant must not override ambiguous response evidence.
+					req.Tools = []string{"web_search"}
+					resp.Tools = []tools.Tool{{Type: order[0]}, {Type: order[1]}}
+				}
+				got, err := req.EstimateCost(resp)
+				require.ErrorContains(t, err, "tool variant")
+				require.Zero(t, got, "conflicting variants must not select either call fee")
+			})
+		}
+	}
 }
 
 func TestEstimateCostRetainsPartialTokenAndToolCharges(t *testing.T) {

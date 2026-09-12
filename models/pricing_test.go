@@ -218,6 +218,9 @@ func TestCatalogValidity(t *testing.T) {
 	}
 	for model, p := range Data {
 		t.Run(model, func(t *testing.T) {
+			if model != "" {
+				require.NotNil(t, p.standard, "named catalog entries must have Standard pricing")
+			}
 			require.GreaterOrEqual(t, p.LimitContext, 0)
 			require.GreaterOrEqual(t, p.LimitOutput, 0)
 			require.GreaterOrEqual(t, p.LongContextThreshold, 0)

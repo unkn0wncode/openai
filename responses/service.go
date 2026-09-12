@@ -199,8 +199,8 @@ type Response struct {
 	// BillingIncomplete means an API request was sent without observable usage.
 	// It is independent of the API's response status.
 	BillingIncomplete bool
-	// ProcessingRegion is recorded from the API endpoint. "global" means no
-	// regional processing; an empty value means the routing is unknown.
+	// ProcessingRegion is the region recorded from the API endpoint. "global"
+	// means the global endpoint; an empty value means the routing is unknown.
 	ProcessingRegion string
 	// EstimatedCost and CostError are populated by Request.EstimateCost.
 	// If CostError is non-nil, EstimatedCost is only the known subtotal in USD.
