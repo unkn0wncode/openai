@@ -21,7 +21,7 @@ type Usage struct {
 }
 
 // Pricing contains token rates and limits for one model. Its zero value has no
-// pricing. Cost uses Standard rates unless ForTier selects another service tier.
+// pricing. Cost uses text token rates at Standard pricing unless ForTier selects another tier.
 type Pricing struct {
 	LimitContext         int
 	LimitOutput          int
@@ -29,10 +29,24 @@ type Pricing struct {
 	// RegionalUplift is the additional fraction charged for eligible regional processing.
 	RegionalUplift float64
 
+	// Audio and Image contain catalog-only Standard modality rates. Nil means unavailable.
+	// Cost does not use them; resource-specific usage is needed to price these modalities.
+	Audio *ModalityPricing
+	Image *ModalityPricing
+
 	standard *tierRates
 	flex     *tierRates
 	fast     *tierRates
 	tier     string
+}
+
+// ModalityPricing contains Standard input, cached input and output rates in USD
+// per million tokens for one modality. A rate of -1 means unavailable; zero means free.
+// These catalog values do not provide a resource-specific usage or cost calculator.
+type ModalityPricing struct {
+	Input       float64
+	CachedInput float64
+	Output      float64
 }
 
 type tierRates struct {

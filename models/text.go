@@ -1,4 +1,4 @@
-// Package models contains constants and pricing data for all OpenAI models.
+// Package models / text.go contains model constants, token pricing and limits.
 package models
 
 // Constant names are derived from the model ID:
@@ -103,7 +103,7 @@ const (
 	// GPT-6 family
 	GPT6Astra = "gpt-6-astra"
 
-	// Multimodal realtime & audio
+	// Realtime and audio: standard contains text rates; Audio and Image contain other modalities.
 	GPTRealtime             = "gpt-realtime"
 	GPTRealtime15           = "gpt-realtime-1.5"
 	GPTRealtime2            = "gpt-realtime-2"
@@ -311,8 +311,9 @@ var Data = map[string]Pricing{
 		LimitContext: 128000, LimitOutput: 16384,
 	},
 	GPT4oMiniTTS: {
-		standard:     &tierRates{short: tokenRates{input: 0.6, cachedInput: unavailableRate, cacheWrite: 0.6, output: 12}},
-		LimitContext: 128000, LimitOutput: 16384,
+		standard:     &tierRates{short: tokenRates{input: 0.6, cachedInput: unavailableRate, cacheWrite: 0.6, output: unavailableRate}},
+		Audio:        &ModalityPricing{Input: unavailableRate, CachedInput: unavailableRate, Output: 12},
+		LimitContext: 2000,
 	},
 
 	// GPT-5 family
@@ -560,61 +561,83 @@ var Data = map[string]Pricing{
 		RegionalUplift:       0.1,
 	},
 
-	// Multimodal realtime & audio
+	// Realtime and audio: standard contains text rates; Audio and Image contain other modalities.
 	GPTRealtime: {
 		standard:     &tierRates{short: tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 4, output: 16}},
+		Audio:        &ModalityPricing{Input: 32, CachedInput: 0.4, Output: 64},
+		Image:        &ModalityPricing{Input: 5, CachedInput: 0.5, Output: unavailableRate},
 		LimitContext: 128000, LimitOutput: 16384,
 	},
 	GPTRealtime15: {
 		standard:     &tierRates{short: tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 4, output: 16}},
+		Audio:        &ModalityPricing{Input: 32, CachedInput: 0.4, Output: 64},
+		Image:        &ModalityPricing{Input: 5, CachedInput: 0.5, Output: unavailableRate},
 		LimitContext: 128000, LimitOutput: 16384,
 	},
 	GPTRealtime2: {
 		standard:     &tierRates{short: tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 4, output: 24}},
+		Audio:        &ModalityPricing{Input: 32, CachedInput: 0.4, Output: 64},
+		Image:        &ModalityPricing{Input: 5, CachedInput: 0.5, Output: unavailableRate},
 		LimitContext: 128000, LimitOutput: 32000,
 	},
 	GPTRealtime21: {
 		standard:     &tierRates{short: tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 4, output: 24}},
+		Audio:        &ModalityPricing{Input: 32, CachedInput: 0.4, Output: 64},
+		Image:        &ModalityPricing{Input: 5, CachedInput: 0.5, Output: unavailableRate},
 		LimitContext: 128000, LimitOutput: 32000,
 	},
 	GPTRealtime21Mini: {
 		standard:     &tierRates{short: tokenRates{input: 0.6, cachedInput: 0.06, cacheWrite: 0.6, output: 2.4}},
-		LimitContext: 0, LimitOutput: 0,
-	}, // official docs do not provide context/output limits
+		Audio:        &ModalityPricing{Input: 10, CachedInput: 0.3, Output: 20},
+		Image:        &ModalityPricing{Input: 0.8, CachedInput: 0.08, Output: unavailableRate},
+		LimitContext: 128000, LimitOutput: 32000,
+	},
 	GPTRealtime20250828: {
 		standard:     &tierRates{short: tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 4, output: 16}},
+		Audio:        &ModalityPricing{Input: 32, CachedInput: 0.4, Output: 64},
+		Image:        &ModalityPricing{Input: 5, CachedInput: 0.5, Output: unavailableRate},
 		LimitContext: 128000, LimitOutput: 16384,
 	},
 	GPTRealtimeMini: {
 		standard:     &tierRates{short: tokenRates{input: 0.6, cachedInput: 0.06, cacheWrite: 0.6, output: 2.4}},
+		Audio:        &ModalityPricing{Input: 10, CachedInput: 0.3, Output: 20},
+		Image:        &ModalityPricing{Input: 0.8, CachedInput: 0.08, Output: unavailableRate},
 		LimitContext: 128000, LimitOutput: 16384,
 	},
 	GPTRealtimeMini20251215: {
 		standard:     &tierRates{short: tokenRates{input: 0.6, cachedInput: 0.06, cacheWrite: 0.6, output: 2.4}},
+		Audio:        &ModalityPricing{Input: 10, CachedInput: 0.3, Output: 20},
+		Image:        &ModalityPricing{Input: 0.8, CachedInput: 0.08, Output: unavailableRate},
 		LimitContext: 128000, LimitOutput: 16384,
 	},
 	GPTAudio: {
 		standard:     &tierRates{short: tokenRates{input: 2.5, cachedInput: unavailableRate, cacheWrite: 2.5, output: 10}},
+		Audio:        &ModalityPricing{Input: 32, CachedInput: unavailableRate, Output: 64},
 		LimitContext: 128000, LimitOutput: 16384,
 	},
 	GPTAudio15: {
 		standard:     &tierRates{short: tokenRates{input: 2.5, cachedInput: unavailableRate, cacheWrite: 2.5, output: 10}},
+		Audio:        &ModalityPricing{Input: 32, CachedInput: unavailableRate, Output: 64},
 		LimitContext: 128000, LimitOutput: 16384,
 	},
 	GPTAudio20250828: {
 		standard:     &tierRates{short: tokenRates{input: 2.5, cachedInput: unavailableRate, cacheWrite: 2.5, output: 10}},
+		Audio:        &ModalityPricing{Input: 32, CachedInput: unavailableRate, Output: 64},
 		LimitContext: 128000, LimitOutput: 16384,
 	},
 	GPTAudioMini: {
 		standard:     &tierRates{short: tokenRates{input: 0.6, cachedInput: unavailableRate, cacheWrite: 0.6, output: 2.4}},
+		Audio:        &ModalityPricing{Input: 10, CachedInput: unavailableRate, Output: 20},
 		LimitContext: 128000, LimitOutput: 16384,
 	},
 	GPTAudioMini20251006: {
 		standard:     &tierRates{short: tokenRates{input: 0.6, cachedInput: unavailableRate, cacheWrite: 0.6, output: 2.4}},
+		Audio:        &ModalityPricing{Input: 10, CachedInput: unavailableRate, Output: 20},
 		LimitContext: 128000, LimitOutput: 16384,
 	},
 	GPTAudioMini20251215: {
 		standard:     &tierRates{short: tokenRates{input: 0.6, cachedInput: unavailableRate, cacheWrite: 0.6, output: 2.4}},
+		Audio:        &ModalityPricing{Input: 10, CachedInput: unavailableRate, Output: 20},
 		LimitContext: 128000, LimitOutput: 16384,
 	},
 

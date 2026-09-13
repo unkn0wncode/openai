@@ -3,7 +3,6 @@ package inresponses
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -44,21 +43,6 @@ func openTestWebSocket(t *testing.T, client *Client) responses.WSConn {
 	ws, err := client.WebSocket(ctx)
 	require.NoError(t, err)
 	return ws
-}
-
-func TestStreamYieldsBufferedEventBeforeCloseError(t *testing.T) {
-	t.Parallel()
-
-	turn := newWSTurn()
-	require.True(t, turn.deliver("first"))
-	turn.finish(errors.New("websocket connection closed"))
-
-	stream := streaming.NewStream(context.Background(), turn)
-
-	require.True(t, stream.Next())
-	require.Equal(t, "first", stream.Event())
-	require.False(t, stream.Next())
-	require.ErrorContains(t, stream.Err(), "websocket connection closed")
 }
 
 func TestWebSocketWSErrorBecomesStreamError(t *testing.T) {

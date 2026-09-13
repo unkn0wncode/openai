@@ -151,7 +151,7 @@ Other exposed types/functions in the `responses` package:
   - `Response.Model`, `ServiceTier`, and `Status` describe the final API response. Its `Usage` contains token counts, or is nil when usage is unavailable.
   - `Response.Calls` preserves individual API responses with their original outputs and billing evidence. `TotalUsage()` sums their known counters; never price this sum as one request because context thresholds and tiers apply to each call separately.
   - `Response.EstimatedCost` and `CostError` contain the estimate and its limitations. Each entry in `Calls` has its own values. Cost errors are separate from execution errors returned by `Send`.
-  - `Response.<ContentType>()` methods return a slice of outputs of a specific type extracted from the response. For example, `Texts()` returns string of all text outputs, usually just one.
+  - `Response.<ContentType>()` methods extract outputs of a specific type. `Texts()` returns the root assistant's final answer text, excluding commentary and subagent messages.
   - `Response.Outputs` contains all received outputs as `[]output.Any`. `Any` contains parsed `type` field and raw data.
   - `Response.ParsedOutputs` contains all received outputs fully parsed in an `[]any` slice. The `.Parse()` method for populating it is called automatically before the response is returned so you don't need to call it.
 - `ForceToolChoice` function is a helper that fills the `ToolChoice` field of the request, allowing you to enforce the use of a specific tool.
@@ -162,7 +162,7 @@ There are a few concepts in the Responses API that may need further explanation:
 - `responses.Request.PreviousResponseID` field that can be filled with `responses.Response.ID` for chaining requests with automatically managed context.
 - `responses.Request.ContextManagement` field for automatic server-side compaction.
 - `responses.Request.Instructions` field that replaces system messages previously used in the Chat API.
-- Prompt caching configuration via `responses.Request.PromptCacheKey` and `responses.Request.PromptCacheRetention` (for GPT-5.1+ you can set `"24h"` to enable extended caching).
+- Prompt caching through `responses.Request.PromptCacheOptions`, `PromptCacheKey`, and the separate `PromptCacheRetention` policy on earlier models.
 - Our additional fields in the `responses.Request` type, such as `responses.Request.IntermediateMessageHandler`.
 
 ### Inputs
@@ -265,13 +265,20 @@ Possible output types in the `responses.Response.ParsedOutputs` slice are:
   - `output.CodeInterpreterResultFile`
 
 You can simply iterate over the outputs and type-assert each, but also there are helper methods to extract outputs of specific types:
-- `Response.Texts() []string` returns output texts from output messages.
-- `Response.JoinedTexts() string` returns a single string joined from all text outputs with newlines. Since you usually get only one text output, this removes the extra work on a slice of strings you'd have to do with `Texts()`.
-- `Response.FirstText() string` returns the first text output in the response, or an empty string if there are no text outputs.
-- `Response.LastText() string` returns the last text output in the response, or an empty string if there are no text outputs.
+- `Response.Texts() []string` returns text from the root assistant's final-answer messages. It accepts messages with no agent or phase metadata for ordinary responses, and excludes commentary and subagent messages.
+- `Response.JoinedTexts() string` joins `Texts()` with newlines.
+- `Response.FirstText() string` returns the first item from `Texts()`, or an empty string if there are none.
+- `Response.LastText() string` returns the last item from `Texts()`, or an empty string if there are none.
 - `Response.FunctionCalls() []output.FunctionCall` returns all function calls from the response's top level.
 - `Response.CustomToolCalls() []output.CustomToolCall` returns all custom tool calls from the response's top level.
-- `Response.Refusals() []string` returns all refusals texts from output messages.
+- `Response.Refusals() []string` returns refusal text from the same root assistant final-answer messages as `Texts()`.
+- `Response.ReasoningSummaries() []string` returns summaries from reasoning items attributed to the root agent or carrying no agent metadata.
+- `Response.JoinedReasoningSummaries() string` joins `ReasoningSummaries()` with newlines.
+- `Response.Reasonings() []output.Reasoning` returns reasoning items from every agent, preserving their `Agent` metadata.
+
+The filtering applies only to helper results. Use `Outputs` and `ParsedOutputs` to inspect response items with their original attribution, or `Response.Calls` for original per-call outputs, including intermediate messages consumed by `IntermediateMessageHandler`. A response containing only commentary has no answer text.
+
+`FunctionCalls`, `CustomToolCalls`, `ShellCalls`, `ApplyPatchCalls` and `MCPApprovalRequests` include every agent's calls and approvals, preserving attribution so applications can handle pending work. Cost estimates and `TotalUsage()` also account for all agents' work.
 
 ### Chaining requests with PreviousResponseID
 
@@ -350,7 +357,21 @@ A conversation object provides methods for managing the conversation:
 
 Because the conversation context is managed automatically, it is possible for "system" messages to be trimmed out. This is why prompting in Responses API is done via a separate field: `responses.Request.Instructions`. This field is supposed to be supplied with each request and can be easily changed between requests within the same conversation if you want the model to change its behavior.
 
+### Cost controls and tool workflows
+
+`Request.PromptCacheOptions` controls implicit/explicit caching, cache TTL and comparisons with earlier responses. `PromptCacheDiagnostics` explains reuse; use the ordinary `Usage` counters for billing. `ReasoningConfig` supports execution mode, reasoning context, effort and summaries. A `configuration_update` input item changes effort on supported models while preserving the original cached prefix. See the [cache and reasoning example](examples/responses/prompt_cache/main.go).
+
+Register `programmatic_tool_calling` before including it in `Request.Tools`, and set `AllowedCallers` on eligible functions. `Send` preserves program caller IDs, continues to the final root message, and replays opaque output state when `Store` is false. Pending approvals and application-managed tool actions return control. See the [programmatic example](examples/responses/tools/programmatic/main.go).
+
+Async function/custom calls are returned for application-owned execution, even if a handler is registered. Keep the original call ID and return its result against the latest response ID; the SDK does not start background jobs. See the [async example](examples/responses/tools/async/main.go).
+
+`Request.MultiAgent` enables hosted collaboration and the corresponding beta header for HTTP/SSE. Use `resp.JoinedTexts()` to display the root assistant's final answer. Its filtering leaves the response items available in `Outputs` and `ParsedOutputs` with their `Agent` metadata; `Calls` retains the original per-call outputs, including handled intermediate messages. See the [multi-agent example](examples/responses/multi_agent/main.go).
+
+The Responses image-generation tool supports model, quality, size and format options. Generated data is available through `output.ImageGenerationCall` in `ParsedOutputs`; call its `Data()` method to decode the image bytes. Image billing remains incomplete when the response has no image-model usage counters. See the [image-generation example](examples/responses/tools/image_generation/main.go).
+
 ### Cost estimates
+
+All token rates in the model catalogs are USD per million tokens. Cost methods return USD.
 
 For a Standard token estimate, look up the model returned by the API:
 
@@ -362,7 +383,7 @@ if !ok {
 amount, costErr := pricing.Cost(resp.Usage)
 ```
 
-`Cost` excludes hosted tools and regional charges. `pricing.ForTier(resp.ServiceTier)` selects the actual tier before calculating. Both `fast` and `priority` select Fast prices. Missing pricing or usage produces an error, while a known free model or zero-token usage can legitimately cost zero.
+`Cost` treats the supplied input as one context and excludes hosted tools and regional charges. Use `EstimateCost` below when Pro or multi-agent execution may aggregate usage across contexts. `pricing.ForTier(resp.ServiceTier)` selects the actual tier before calculating. Both `fast` and `priority` select Fast prices. Missing pricing or usage produces an error, while a known free model or zero-token usage can legitimately cost zero.
 
 Use the request-aware estimator for an executed Responses request:
 
@@ -379,7 +400,7 @@ for _, call := range resp.Calls {
 }
 ```
 
-The estimator uses each API call's returned model and service tier, rather than the requested tier. This matters when Fast is downgraded to Standard. It records individual estimation errors and returns their `errors.Join` aggregate; `Send` returns execution errors separately. An execution error may accompany a partial response containing already-observed usage. `BillingIncomplete` records a sent request whose billing evidence was not observed. Pending responses also produce an incomplete estimate.
+The estimator uses each API call's returned model and service tier, rather than the requested tier. This matters when Fast is downgraded to Standard. It records individual estimation errors and returns their `errors.Join` aggregate; `Send` returns execution errors separately. An execution error may accompany a partial response containing already-observed usage. `BillingIncomplete` records a sent request whose billing evidence was not observed. Pending responses also produce an incomplete estimate. When aggregate Pro or multi-agent input exceeds a long-context pricing threshold, the estimate remains incomplete because the underlying context sizes are unavailable.
 
 Known search and file-search call fees are included. Container sessions, file-search storage, and tool charges not exposed by the response remain unpriced. When free or fixed-block search-content billing cannot be separated from reported input, the subtotal includes supported output and call charges and reports the input as unpriced. Regional token uplift is applied for eligible models on the documented US, EU, Australia, Canada, Japan, India, Singapore, South Korea, UK, and UAE endpoints; custom endpoints leave the region unknown. Regional storage availability does not imply regional inference. These estimates use public list prices, excluding account-specific discounts or credits. See the [API pricing documentation](https://developers.openai.com/api/docs/pricing) and [regional endpoint documentation](https://developers.openai.com/api/docs/guides/your-data).
 
@@ -437,11 +458,15 @@ if err := stream.Err(); err != nil {
 ```
 
 The `WSConn` interface exposes:
-- `Send` sends a `response.create` event and returns a streaming iterator for the server's reply. Requests on the same connection are queued and processed sequentially by the server.
+- `Send` queues a `response.create` event and returns an iterator, including automatic steering continuations. Later requests wait for earlier iterators to complete or close; deferred write failures are returned by the iterator.
+- `Steer` sends new user input for a response. Continue reading its iterator to receive acknowledgement and automatic continuation events.
+- `Inject` submits function outputs to an active Multi-agent response. Consume all acknowledgements; a failed injection can return input to use in an explicit continuation.
 - `Warmup` sends a request with `generate=false`, returning a response ID for use as `PreviousResponseID` in a subsequent `Send`.
 - `Close` closes the WebSocket connection.
 
 `Send` returns the same `StreamIterator` and event types as the SSE-based `Stream` method. The context passed to `WebSocket` is only used for the initial dial.
+
+For Multi-agent WebSockets, call `client.Responses.WebSocket(ctx, responses.MultiAgentBeta)`. The [steering example](examples/responses/ws_steering/main.go) shows how to keep reading the original stream through its automatic continuation. Responses WebSockets are separate from the Realtime and GPT-Live APIs.
 
 A few usage notes:
 - Use `stream.Seq()` if you want to range over events. It cleans up the request stream when the loop exits.

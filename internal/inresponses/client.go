@@ -47,6 +47,8 @@ var builtinTools = []string{
 	"code_interpreter",
 	"shell",
 	"apply_patch",
+	"image_generation",
+	"programmatic_tool_calling",
 }
 
 // interface compliance checks
@@ -86,12 +88,15 @@ func (c *Client) marshalRequest(data *responses.Request) ([]byte, error) {
 		f, ok := c.Tools.GetFunction(name)
 		if ok {
 			toolList = append(toolList, tools.Tool{
-				Type:        "function",
-				Name:        f.Name,
-				Description: f.Description,
-				Parameters:  f.ParamsSchema,
-				Strict:      f.Strict,
-				Function:    f,
+				Type:           "function",
+				Name:           f.Name,
+				Description:    f.Description,
+				Parameters:     f.ParamsSchema,
+				Strict:         f.Strict,
+				Async:          f.Async,
+				AllowedCallers: f.AllowedCallers,
+				OutputSchema:   f.OutputSchema,
+				Function:       f,
 			})
 			continue
 		}
@@ -143,7 +148,7 @@ func (c *Client) executeRequest(data *responses.Request) (result *response, outc
 	if err != nil {
 		return nil, true, fmt.Errorf("failed to create request: %w", err)
 	}
-	c.AddHeaders(req)
+	c.addResponseHeaders(req, data)
 
 	var resp *http.Response
 	before := time.Now()
@@ -203,15 +208,15 @@ type response struct {
 	Output []output.Any `json:"output"`
 
 	// Tool and Configuration Properties
-	ParallelToolCalls  bool `json:"parallel_tool_calls"`
-	PreviousResponseID any  `json:"previous_response_id"`
-	Reasoning          struct {
-		Effort          any `json:"effort"`
-		GenerateSummary any `json:"generate_summary"`
-	} `json:"reasoning"`
-	Store       bool    `json:"store"`
-	Temperature float64 `json:"temperature"`
-	Text        struct {
+	ParallelToolCalls      bool                              `json:"parallel_tool_calls"`
+	PreviousResponseID     any                               `json:"previous_response_id"`
+	Reasoning              *responses.ReasoningConfig        `json:"reasoning"`
+	MultiAgent             *responses.MultiAgentConfig       `json:"multi_agent"`
+	PromptCacheOptions     *responses.PromptCacheOptions     `json:"prompt_cache_options"`
+	PromptCacheDiagnostics *responses.PromptCacheDiagnostics `json:"prompt_cache_diagnostics"`
+	Store                  bool                              `json:"store"`
+	Temperature            float64                           `json:"temperature"`
+	Text                   struct {
 		Format struct {
 			Type string `json:"type"`
 		} `json:"format"`
@@ -234,14 +239,26 @@ type response struct {
 // project preserves billing evidence before output parsing or local tool execution.
 func (data *response) project() *responses.Response {
 	return &responses.Response{
-		ID:               data.ID,
-		Model:            data.Model,
-		ServiceTier:      data.ServiceTier,
-		Status:           data.Status,
-		Outputs:          data.Output,
-		Usage:            data.Usage,
-		Tools:            data.Tools,
-		ProcessingRegion: data.ProcessingRegion,
+		ID:                     data.ID,
+		Model:                  data.Model,
+		ServiceTier:            data.ServiceTier,
+		Status:                 data.Status,
+		Outputs:                data.Output,
+		Usage:                  data.Usage,
+		Tools:                  data.Tools,
+		ProcessingRegion:       data.ProcessingRegion,
+		Reasoning:              data.Reasoning,
+		MultiAgent:             data.MultiAgent,
+		PromptCacheOptions:     data.PromptCacheOptions,
+		PromptCacheDiagnostics: data.PromptCacheDiagnostics,
+	}
+}
+
+// addResponseHeaders includes the beta opt-in when a Multi-agent configuration is supplied.
+func (c *Client) addResponseHeaders(req *http.Request, data *responses.Request) {
+	c.AddHeaders(req)
+	if data.MultiAgent != nil {
+		req.Header.Set("OpenAI-Beta", responses.MultiAgentBeta)
 	}
 }
 
@@ -374,6 +391,45 @@ func (c *Client) logStreamingCost(req *responses.Request, sentTools []tools.Tool
 		usage := responses.Usage(*streamed.Usage)
 		resp.Usage = &usage
 	}
+	if streamed.Reasoning != nil {
+		resp.Reasoning = &responses.ReasoningConfig{}
+		if streamed.Reasoning.Effort != nil {
+			resp.Reasoning.Effort = *streamed.Reasoning.Effort
+		}
+		if streamed.Reasoning.Mode != nil {
+			resp.Reasoning.Mode = *streamed.Reasoning.Mode
+		}
+		if streamed.Reasoning.Context != nil {
+			resp.Reasoning.Context = *streamed.Reasoning.Context
+		}
+		if streamed.Reasoning.Summary != nil {
+			resp.Reasoning.Summary = *streamed.Reasoning.Summary
+		}
+		if streamed.Reasoning.GenerateSummary != nil {
+			resp.Reasoning.GenerateSummary = *streamed.Reasoning.GenerateSummary
+		}
+	}
+	if streamed.MultiAgent != nil {
+		resp.MultiAgent = &responses.MultiAgentConfig{
+			Enabled:                streamed.MultiAgent.Enabled,
+			MaxConcurrentSubagents: streamed.MultiAgent.MaxConcurrentSubagents,
+		}
+	}
+	if streamed.PromptCacheOptions != nil {
+		resp.PromptCacheOptions = &responses.PromptCacheOptions{
+			Mode:                 streamed.PromptCacheOptions.Mode,
+			TTL:                  streamed.PromptCacheOptions.TTL,
+			ComparisonResponseID: streamed.PromptCacheOptions.ComparisonResponseID,
+		}
+	}
+	if streamed.PromptCacheDiagnostics != nil {
+		resp.PromptCacheDiagnostics = &responses.PromptCacheDiagnostics{
+			Type:                     streamed.PromptCacheDiagnostics.Type,
+			Reason:                   streamed.PromptCacheDiagnostics.Reason,
+			ComparisonReusableTokens: streamed.PromptCacheDiagnostics.ComparisonReusableTokens,
+			CacheMissedTokens:        streamed.PromptCacheDiagnostics.CacheMissedTokens,
+		}
+	}
 	if len(streamed.Output) > 0 {
 		if err := json.Unmarshal(streamed.Output, &resp.Outputs); err != nil {
 			c.Log.Warn("Failed to decode streaming billing outputs", slog.Any("error", err))
@@ -397,6 +453,8 @@ type executableFunctionCall struct {
 	Arguments json.RawMessage
 	F         func(params json.RawMessage) (string, error)
 	CallLimit int
+	Caller    *output.Caller
+	Agent     *output.Agent
 }
 
 // executableCustomToolCall is an intermediate representation of a custom tool call that can be executed.
@@ -405,6 +463,8 @@ type executableCustomToolCall struct {
 	CallID string
 	Input  string
 	F      func(input string) (string, error)
+	Caller *output.Caller
+	Agent  *output.Agent
 }
 
 // sendContext tracks per-Send state across follow-up requests.
@@ -468,6 +528,9 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 	for _, refusal := range resp.Refusals() {
 		c.Log.Warn(fmt.Sprintf("got refusal: %s", refusal))
 	}
+	if hasPendingClientWork(resp.Outputs) {
+		return resp, nil
+	}
 
 	// First pass: analyze outputs and categorize them
 	var messages []output.Message
@@ -485,7 +548,7 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 			messages = append(messages, o)
 			messageOutputs = append(messageOutputs, resp.Outputs[i])
 		case output.FunctionCall:
-			if req.ReturnToolCalls {
+			if req.ReturnToolCalls || o.Async {
 				returnableCalls = append(returnableCalls, o)
 				continue
 			}
@@ -521,9 +584,11 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 				Arguments: []byte(o.Arguments),
 				F:         F,
 				CallLimit: callLimit,
+				Caller:    o.Caller,
+				Agent:     o.Agent,
 			})
 		case output.CustomToolCall:
-			if req.ReturnToolCalls {
+			if req.ReturnToolCalls || o.Async {
 				returnableCustomCalls = append(returnableCustomCalls, o)
 				continue
 			}
@@ -546,6 +611,8 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 				CallID: o.CallID,
 				Input:  o.Input,
 				F:      t.Custom,
+				Caller: o.Caller,
+				Agent:  o.Agent,
 			})
 		default:
 			otherOutputs = append(otherOutputs, resp.Outputs[i])
@@ -556,6 +623,15 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 	switch {
 	// Case 1: All outputs are messages/other outputs
 	case len(executableCalls) == 0 && len(executableCustomCalls) == 0 && len(returnableCalls) == 0 && len(returnableCustomCalls) == 0:
+		if !hasFinalMessage(messages) && hasProgrammaticWork(resp) && !req.ReturnToolCalls {
+			if req.IntermediateMessageHandler != nil {
+				for _, msg := range messages {
+					req.IntermediateMessageHandler(msg)
+				}
+				return c.continueResponse(req, sc, resp, nil, otherOutputs, otherParsedOutputs)
+			}
+			return c.continueResponse(req, sc, resp, nil, resp.Outputs, resp.ParsedOutputs)
+		}
 		return resp, nil
 
 	// Case 2: Any returnable function/custom calls present
@@ -590,6 +666,8 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 				Type:   "function_call_output",
 				CallID: call.CallID,
 				Output: fResult,
+				Caller: call.Caller,
+				Agent:  call.Agent,
 			})
 			if err := json.Unmarshal(b, &anyOut); err != nil {
 				return resp, fmt.Errorf("failed to prepare function_call_output: %w", err)
@@ -623,6 +701,8 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 				Type:   "custom_tool_call_output",
 				CallID: call.CallID,
 				Output: fResult,
+				Caller: call.Caller,
+				Agent:  call.Agent,
 			})
 			if err := json.Unmarshal(b, &anyOut); err != nil {
 				return resp, fmt.Errorf("failed to prepare custom_tool_call_output: %w", err)
@@ -630,46 +710,18 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 			toolOutputs = append(toolOutputs, anyOut)
 		}
 
-		// we have tool outputs, send them in a follow-up request
-		followUpReq := req.Clone()
-		followUpReq.Input = toolOutputs
-		followUpReq.PreviousResponseID = resp.ID
-		followUpReq.Tools = filterBlockedTools(followUpReq.Tools, sc.blockedTools)
-		if len(sc.blockedTools) > 0 {
-			followUpReq.ToolChoice = nil
-		}
-
-		followupResp, err := c.send(followUpReq, sc)
-		if followupResp == nil {
-			return resp, err
-		}
-		followupErr := err
-
-		// Combine unhandled messages (if any) with follow-up response
-		var combinedOutputs []output.Any
-		var combinedParsedOutputs []any
-
-		// Add unhandled messages first, preserving their original wire content.
+		// Keep outputs the caller has not already handled.
+		var previousOutputs []output.Any
+		var previousParsed []any
 		if req.IntermediateMessageHandler == nil {
-			combinedOutputs = append(combinedOutputs, messageOutputs...)
+			previousOutputs = append(previousOutputs, messageOutputs...)
 			for _, msg := range messages {
-				combinedParsedOutputs = append(combinedParsedOutputs, msg)
+				previousParsed = append(previousParsed, msg)
 			}
 		}
-
-		// Add other outputs
-		combinedOutputs = append(combinedOutputs, otherOutputs...)
-		combinedParsedOutputs = append(combinedParsedOutputs, otherParsedOutputs...)
-
-		// Add follow-up response outputs
-		combinedOutputs = append(combinedOutputs, followupResp.Outputs...)
-		combinedParsedOutputs = append(combinedParsedOutputs, followupResp.ParsedOutputs...)
-
-		*resp = *followupResp
-		resp.Outputs = combinedOutputs
-		resp.ParsedOutputs = combinedParsedOutputs
-
-		return resp, followupErr
+		previousOutputs = append(previousOutputs, otherOutputs...)
+		previousParsed = append(previousParsed, otherParsedOutputs...)
+		return c.continueResponse(req, sc, resp, toolOutputs, previousOutputs, previousParsed)
 
 	// Case 4: Only other outputs
 	case len(otherOutputs) > 0:
@@ -678,6 +730,149 @@ func (c *Client) send(req *responses.Request, sc *sendContext) (*responses.Respo
 
 	// This should be unreachable
 	return resp, fmt.Errorf("logic error: unreachable code, stack: %s", string(debug.Stack()))
+}
+
+// hasPendingClientWork keeps approvals and application-owned tools available to
+// the caller rather than continuing a paused program with no result. A matching
+// output in the same response establishes that a hosted call already finished.
+func hasPendingClientWork(items []output.Any) bool {
+	type reference struct {
+		ID                string `json:"id"`
+		CallID            string `json:"call_id"`
+		ApprovalRequestID string `json:"approval_request_id"`
+	}
+	resolved := make(map[string]bool)
+	for _, item := range items {
+		var ref reference
+		switch item.Type {
+		case "shell_call_output", "apply_patch_call_output", "computer_call_output", "local_shell_call_output",
+			"mcp_approval_response", "mcp_call":
+			if item.UnmarshalToTarget(&ref) != nil {
+				continue
+			}
+		default:
+			continue
+		}
+		switch item.Type {
+		case "mcp_approval_response", "mcp_call":
+			if ref.ApprovalRequestID != "" {
+				resolved["mcp_approval_request:"+ref.ApprovalRequestID] = true
+			}
+		case "local_shell_call_output":
+			if ref.ID != "" {
+				resolved["local_shell_call:"+ref.ID] = true
+			}
+		default:
+			if ref.CallID != "" {
+				resolved[strings.TrimSuffix(item.Type, "_output")+":"+ref.CallID] = true
+			}
+		}
+	}
+	for _, item := range items {
+		switch item.Type {
+		case "mcp_approval_request", "shell_call", "apply_patch_call", "computer_call", "local_shell_call":
+		default:
+			continue
+		}
+		var ref reference
+		if item.UnmarshalToTarget(&ref) != nil {
+			return true
+		}
+		id := ref.CallID
+		if item.Type == "mcp_approval_request" || item.Type == "local_shell_call" {
+			id = ref.ID
+		}
+		if id == "" || !resolved[item.Type+":"+id] {
+			return true
+		}
+	}
+	return false
+}
+
+// hasProgrammaticWork identifies a response that may still need a final message.
+func hasProgrammaticWork(resp *responses.Response) bool {
+	for _, item := range resp.Outputs {
+		if item.Type == "program" || item.Type == "program_output" {
+			return true
+		}
+	}
+	for _, tool := range resp.Tools {
+		if tool.Type == "programmatic_tool_calling" {
+			return true
+		}
+	}
+	return false
+}
+
+// hasFinalMessage excludes commentary and subagent replies from the root answer.
+func hasFinalMessage(messages []output.Message) bool {
+	for _, message := range messages {
+		if message.Role == "assistant" && (message.Phase == "" || message.Phase == "final_answer") &&
+			(message.Agent == nil || message.Agent.AgentName == "/root") {
+			return true
+		}
+	}
+	return false
+}
+
+// continueResponse preserves the appropriate stored or stateless context before
+// sending tool results or asking for the final message after a program finishes.
+func (c *Client) continueResponse(req *responses.Request, sc *sendContext, resp *responses.Response,
+	toolOutputs, previousOutputs []output.Any, previousParsed []any,
+) (*responses.Response, error) {
+	followUp := req.Clone()
+	followUp.Input = append([]output.Any{}, toolOutputs...)
+	switch {
+	case req.Conversation != nil:
+		// The conversation already stores the prior input and output items.
+		followUp.PreviousResponseID = ""
+	case req.Store != nil && !*req.Store:
+		history, err := replayInput(req.Input)
+		if err != nil {
+			return resp, err
+		}
+		history = append(history, resp.Outputs...)
+		history = append(history, toolOutputs...)
+		followUp.Input = history
+	default:
+		followUp.PreviousResponseID = resp.ID
+	}
+	followUp.Tools = filterBlockedTools(followUp.Tools, sc.blockedTools)
+	if len(sc.blockedTools) > 0 {
+		followUp.ToolChoice = nil
+	}
+	next, err := c.send(followUp, sc)
+	if next == nil {
+		return resp, err
+	}
+	*resp = *next
+	resp.Outputs = append(previousOutputs, next.Outputs...)
+	resp.ParsedOutputs = append(previousParsed, next.ParsedOutputs...)
+	return resp, err
+}
+
+// replayInput converts the input to raw items so stateless continuations retain
+// all wire fields, including program fingerprints, caller and agent metadata.
+func replayInput(value any) ([]output.Any, error) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("encode replay input: %w", err)
+	}
+	if len(data) > 0 && data[0] == '"' {
+		var text string
+		if err := json.Unmarshal(data, &text); err != nil {
+			return nil, fmt.Errorf("decode replay text: %w", err)
+		}
+		data, err = json.Marshal([]output.Message{{Role: "user", Content: text}})
+		if err != nil {
+			return nil, fmt.Errorf("encode replay message: %w", err)
+		}
+	}
+	var items []output.Any
+	if err := json.Unmarshal(data, &items); err != nil {
+		return nil, fmt.Errorf("decode replay items: %w", err)
+	}
+	return items, nil
 }
 
 // filterBlockedTools removes blocked tool names from the provided list.
@@ -835,7 +1030,7 @@ func (c *Client) streamEvents(ctx context.Context, data *responses.Request) (str
 		cancel()
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	c.AddHeaders(req)
+	c.addResponseHeaders(req, data)
 
 	before := time.Now()
 	resp, err := c.HTTPClient.Do(req)

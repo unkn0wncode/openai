@@ -4,6 +4,7 @@ package models
 import (
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"slices"
@@ -15,11 +16,6 @@ import (
 )
 
 var testToken string
-
-var docsOnlyModels = map[string]struct{}{
-	DALLE2: {},
-	DALLE3: {},
-}
 
 // TestMain prepares the test environment by reading the API token from the .env file.
 func TestMain(m *testing.M) {
@@ -77,7 +73,7 @@ func TestModelsList(t *testing.T) {
 	// inventorize models from our package and from API to match them later
 
 	var apiModels []string
-	var packageModels []string
+	packageSet := make(map[string]struct{})
 	for _, model := range respData.Models {
 		if model.OwnedBy != "openai" && model.OwnedBy != "system" {
 			// skip non-OpenAI models, such as organization-owned fine-tuned models
@@ -88,38 +84,37 @@ func TestModelsList(t *testing.T) {
 		apiModels = append(apiModels, model.ID)
 	}
 
-	// go through all implemented models and add them to maps
+	// Collect distinct IDs from every catalog, independently of available pricing estimates.
 	for model := range Data {
-		packageModels = append(packageModels, model)
+		packageSet[model] = struct{}{}
 	}
 	for model := range DataEmbedding {
-		packageModels = append(packageModels, model)
+		packageSet[model] = struct{}{}
+	}
+	for model := range ImageData {
+		packageSet[model] = struct{}{}
 	}
 	for model := range PricePerImageData {
-		packageModels = append(packageModels, model)
+		packageSet[model] = struct{}{}
 	}
 	for model := range VideoData {
-		packageModels = append(packageModels, model)
+		packageSet[model] = struct{}{}
 	}
 	for model := range DataTTS {
-		packageModels = append(packageModels, model)
+		packageSet[model] = struct{}{}
 	}
 	for model := range DataRealtimeDuration {
-		packageModels = append(packageModels, model)
+		packageSet[model] = struct{}{}
 	}
+
+	delete(packageSet, "") // skip default model placeholder
+	packageModels := slices.Sorted(maps.Keys(packageSet))
 
 	// find mismatches:
 	// 1. models in the package but not in the API are "deleted"
 	// 2. models in the API but not in the package are "unimplemented"
 
 	for _, model := range packageModels {
-		if model == "" {
-			// skip default model placeholder
-			continue
-		}
-		if _, ok := docsOnlyModels[model]; ok {
-			continue
-		}
 		t.Run("is_deleted:"+model, func(t *testing.T) {
 			require.True(
 				t,

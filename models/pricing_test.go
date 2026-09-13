@@ -186,6 +186,15 @@ func TestCatalogValidity(t *testing.T) {
 			require.GreaterOrEqual(t, p.LongContextThreshold, 0)
 			require.False(t, math.IsNaN(p.RegionalUplift) || math.IsInf(p.RegionalUplift, 0))
 			require.GreaterOrEqual(t, p.RegionalUplift, 0.0)
+			for _, modality := range []*ModalityPricing{p.Audio, p.Image} {
+				if modality == nil {
+					continue
+				}
+				for _, rate := range []float64{modality.Input, modality.CachedInput, modality.Output} {
+					require.False(t, math.IsNaN(rate) || math.IsInf(rate, 0))
+					require.True(t, rate >= 0 || rate == unavailableRate, "invalid modality rate %v", rate)
+				}
+			}
 			for _, tier := range []*tierRates{p.standard, p.flex, p.fast} {
 				if tier == nil {
 					continue
@@ -202,6 +211,70 @@ func TestCatalogValidity(t *testing.T) {
 						require.True(t, rate >= 0 || rate == unavailableRate, "invalid rate %v", rate)
 					}
 				}
+			}
+		})
+	}
+}
+
+// TestModalityCatalogValidity checks published catalog data without pinning model IDs or prices.
+func TestModalityCatalogValidity(t *testing.T) {
+	require.NotEmpty(t, ImageData)
+	require.Contains(t, ImageData, DefaultImage)
+	for model, p := range ImageData {
+		t.Run("image/"+model, func(t *testing.T) {
+			require.NotEmpty(t, model)
+			for _, rate := range []float64{p.PriceInText, p.PriceInTextCached, p.PriceInImage, p.PriceInImageCached, p.PriceOut, p.PriceOutText} {
+				require.False(t, math.IsNaN(rate) || math.IsInf(rate, 0))
+				require.True(t, rate >= 0 || rate == unavailableRate, "invalid image rate %v", rate)
+			}
+			for _, limit := range []int{p.LimitPrompt, p.LimitInImages, p.LimitInImageSize, p.LimitOutImages} {
+				require.GreaterOrEqual(t, limit, 0)
+			}
+		})
+	}
+	for model, qualities := range PricePerImageData {
+		t.Run("image estimate/"+model, func(t *testing.T) {
+			require.Contains(t, ImageData, model)
+			for quality, sizes := range qualities {
+				require.NotEmpty(t, quality)
+				for size, rate := range sizes {
+					require.NotEmpty(t, size)
+					require.False(t, math.IsNaN(rate) || math.IsInf(rate, 0))
+					require.GreaterOrEqual(t, rate, 0.0)
+				}
+			}
+		})
+	}
+	require.NotEmpty(t, DataTTS)
+	for model, p := range DataTTS {
+		t.Run("speech/"+model, func(t *testing.T) {
+			require.NotEmpty(t, model)
+			for _, rate := range []float64{p.PricePerCharacter, p.PriceInText, p.PriceOutAudio, p.ApproxUSDPerMinute} {
+				require.False(t, math.IsNaN(rate) || math.IsInf(rate, 0))
+				require.True(t, rate >= 0 || rate == unavailableRate, "invalid speech rate %v", rate)
+			}
+			require.GreaterOrEqual(t, p.LimitCharacters, 0)
+			require.GreaterOrEqual(t, p.LimitInputTokens, 0)
+		})
+	}
+	require.NotEmpty(t, DataRealtimeDuration)
+	for model, p := range DataRealtimeDuration {
+		t.Run("duration/"+model, func(t *testing.T) {
+			require.NotEmpty(t, model)
+			require.False(t, math.IsNaN(p.PricePerMinute) || math.IsInf(p.PricePerMinute, 0))
+			require.GreaterOrEqual(t, p.PricePerMinute, 0.0)
+			require.GreaterOrEqual(t, p.LimitContext, 0)
+			require.GreaterOrEqual(t, p.LimitOutput, 0)
+		})
+	}
+	require.NotEmpty(t, VideoData)
+	for model, sizes := range VideoData {
+		t.Run("video/"+model, func(t *testing.T) {
+			require.NotEmpty(t, model)
+			for size, rate := range sizes {
+				require.NotEmpty(t, size)
+				require.False(t, math.IsNaN(rate) || math.IsInf(rate, 0))
+				require.GreaterOrEqual(t, rate, 0.0)
 			}
 		})
 	}

@@ -99,6 +99,10 @@ func (req *Request) estimateCall(resp *Response) (float64, error) {
 		(resp.ServiceTier == ServiceTierFast || resp.ServiceTier == ServiceTierPriority) {
 		return toolCost, errors.Join(errors.New("fast pricing is unavailable for GPT-6 Astra with EU data residency"), toolErr)
 	}
+	if resp.Usage != nil && pricing.LongContextThreshold > 0 &&
+		resp.Usage.InputTokens > pricing.LongContextThreshold && req.hasAggregateWork(resp) {
+		return toolCost, errors.Join(errors.New("long-context pricing is unavailable without the context sizes of aggregated model work"), toolErr)
+	}
 	tokenCost, tokenErr := pricing.Cost(resp.Usage)
 	if unknownInput && resp.Usage != nil {
 		// Keep output charges at the context rate selected by the original input.
@@ -118,6 +122,33 @@ func (req *Request) estimateCall(resp *Response) (float64, error) {
 		}
 	}
 	return tokenCost + toolCost, errors.Join(tokenErr, err, toolErr)
+}
+
+// hasAggregateWork identifies execution modes where a reported token total may
+// combine model work whose individual contexts determine the long-context rate.
+func (req *Request) hasAggregateWork(resp *Response) bool {
+	mode := ""
+	if resp.Reasoning != nil {
+		mode = resp.Reasoning.Mode
+	}
+	multiAgent := resp.MultiAgent
+	if req != nil {
+		if mode == "" && req.Reasoning != nil {
+			mode = req.Reasoning.Mode
+		}
+		if multiAgent == nil {
+			multiAgent = req.MultiAgent
+		}
+	}
+	if mode == "pro" || multiAgent != nil && multiAgent.Enabled {
+		return true
+	}
+	for _, item := range resp.Outputs {
+		if item.Type == "multi_agent_call" || item.Type == "multi_agent_call_output" || item.Type == "agent_message" {
+			return true
+		}
+	}
+	return false
 }
 
 // toolCost reads raw output discriminators, so unfamiliar outputs can be
@@ -199,6 +230,8 @@ func (req *Request) toolCost(resp *Response) (cost float64, unknownInput bool, e
 			errs = append(errs, errors.New("file search storage charges are not available from response usage"))
 		case "code_interpreter_call":
 			errs = append(errs, errors.New("container session charges are not available from response usage"))
+		case "image_generation_call":
+			errs = append(errs, errors.New("image-generation model and token usage are not available from response output"))
 		case "shell_call":
 			knownLocal := false
 			for _, tool := range resp.Tools {
