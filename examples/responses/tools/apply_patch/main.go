@@ -1,3 +1,4 @@
+// Package main demonstrates Responses API apply patch usage.
 package main
 
 import (
@@ -30,7 +31,7 @@ func main() {
 		Tools:      []string{"apply_patch"},
 		ToolChoice: responses.ForceToolChoice("apply_patch", ""),
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 		User: "responses-apply-patch-example",
 	}
@@ -69,7 +70,7 @@ func main() {
 		PreviousResponseID: resp.ID,
 		Input:              []output.ApplyPatchCallOutput{toolOutput},
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	})
 	if err != nil {

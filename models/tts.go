@@ -10,37 +10,63 @@ const (
 )
 
 // TTSPricing captures pricing and limits specific to text-to-speech models.
+// PricePerCharacter is USD per character; token prices are USD per million tokens.
+// A rate of -1 means unavailable.
+// ApproxUSDPerMinute is an estimate, not a duration-based billing rate.
 type TTSPricing struct {
 	PricePerCharacter  float64
+	PriceInText        float64
+	PriceOutAudio      float64
 	ApproxUSDPerMinute float64
 	LimitCharacters    int
+	LimitInputTokens   int
 }
 
 // DataTTS lists pricing information for text-to-speech models.
 var DataTTS = map[string]TTSPricing{
 	TTS11106: {
-		PricePerCharacter:  0.00001500,
-		ApproxUSDPerMinute: 0.01500,
-		LimitCharacters:    16384,
+		PricePerCharacter:  0.000015,
+		PriceInText:        unavailableRate,
+		PriceOutAudio:      unavailableRate,
+		ApproxUSDPerMinute: unavailableRate,
+		LimitCharacters:    4096,
 	},
 	TTS1HD: {
-		PricePerCharacter:  0.00003000,
-		ApproxUSDPerMinute: 0.03000,
-		LimitCharacters:    16384,
+		PricePerCharacter:  0.000030,
+		PriceInText:        unavailableRate,
+		PriceOutAudio:      unavailableRate,
+		ApproxUSDPerMinute: unavailableRate,
+		LimitCharacters:    4096,
 	},
 	TTS1HD1106: {
-		PricePerCharacter:  0.00003000,
-		ApproxUSDPerMinute: 0.03000,
-		LimitCharacters:    16384,
+		PricePerCharacter:  0.000030,
+		PriceInText:        unavailableRate,
+		PriceOutAudio:      unavailableRate,
+		ApproxUSDPerMinute: unavailableRate,
+		LimitCharacters:    4096,
+	},
+	GPT4oMiniTTS: {
+		PricePerCharacter:  unavailableRate,
+		PriceInText:        0.6,
+		PriceOutAudio:      12,
+		ApproxUSDPerMinute: unavailableRate,
+		LimitCharacters:    4096,
+		LimitInputTokens:   2000,
 	},
 	GPT4oMiniTTS20250320: {
-		PricePerCharacter:  0.00001500,
-		ApproxUSDPerMinute: 0.01500,
-		LimitCharacters:    16384,
+		PricePerCharacter:  unavailableRate,
+		PriceInText:        0.6,
+		PriceOutAudio:      12,
+		ApproxUSDPerMinute: unavailableRate,
+		LimitCharacters:    4096,
+		LimitInputTokens:   2000,
 	},
 	GPT4oMiniTTS20251215: {
-		PricePerCharacter:  0.00001500,
-		ApproxUSDPerMinute: 0.01500,
-		LimitCharacters:    16384,
+		PricePerCharacter:  unavailableRate,
+		PriceInText:        0.6,
+		PriceOutAudio:      12,
+		ApproxUSDPerMinute: unavailableRate,
+		LimitCharacters:    4096,
+		LimitInputTokens:   2000,
 	},
 }

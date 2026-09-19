@@ -1,3 +1,4 @@
+// Package main demonstrates Responses API web search usage.
 package main
 
 import (
@@ -29,7 +30,7 @@ func main() {
 		Input: "What's the newest version of Golang? Use web_search tool to check.",
 		Tools: []string{"web_search"}, // GPT-5 cannot force tool choice for web_search
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 		User: "example-user",
 	}

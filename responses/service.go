@@ -13,7 +13,9 @@ import (
 	"github.com/unkn0wncode/openai/content/input"
 	"github.com/unkn0wncode/openai/content/output"
 	openai "github.com/unkn0wncode/openai/internal"
+	"github.com/unkn0wncode/openai/models"
 	"github.com/unkn0wncode/openai/responses/streaming"
+	"github.com/unkn0wncode/openai/tools"
 )
 
 const (
@@ -27,6 +29,7 @@ const (
 	ServiceTierDefault  = "default"  // standard pricing and performance for the selected model
 	ServiceTierFlex     = "flex"     // slower but cheaper
 	ServiceTierPriority = "priority" // faster but more expensive
+	ServiceTierFast     = "fast"     // same request behavior as priority
 )
 
 // Service is the service layer for OpenAI responses API.
@@ -34,11 +37,15 @@ type Service interface {
 	// Send sends a request to the Responses API.
 	Send(req *Request) (response *Response, err error)
 
+	// CountInputTokens counts the input for a request without generating a response.
+	CountInputTokens(ctx context.Context, req *Request) (int, error)
+
 	// Stream sends a request with parameter "stream":true and returns a streaming iterator.
 	Stream(ctx context.Context, req *Request) (*streaming.StreamIterator, error)
 
-	// WebSocket opens a persistent WebSocket connection for response.create events.
-	WebSocket(ctx context.Context) (WSConn, error)
+	// WebSocket opens a persistent connection, optionally enabling beta features
+	// through the OpenAI-Beta header.
+	WebSocket(ctx context.Context, betas ...string) (WSConn, error)
 
 	// NewMessage creates a new empty message.
 	NewMessage() *output.Message
@@ -81,7 +88,14 @@ type Content interface {
 		output.ApplyPatchCallOutput |
 		output.ShellCall |
 		output.ShellCallOutput |
-		input.ItemReference
+		output.ImageGenerationCall |
+		output.Program |
+		output.ProgramOutput |
+		output.MultiAgentCall |
+		output.MultiAgentCallOutput |
+		output.AgentMessage |
+		input.ItemReference |
+		input.ConfigurationUpdate
 }
 
 // Request is the request body for the Responses API.
@@ -91,31 +105,33 @@ type Request struct {
 	Input any    `json:"input"` // string or []Any
 
 	// Optional
-	Include              []string          `json:"include,omitempty"`                // Additional data to include in response: "file_search_call.results", "message.input_image.image_url", "computer_call_output.output.image_url"
-	Instructions         string            `json:"instructions,omitempty"`           // System message for context
-	Conversation         any               `json:"conversation,omitempty"`           // ID or a Conversation object containing an ID
-	ContextManagement    []ContextConfig   `json:"context_management,omitempty"`     // Compaction configuration
-	MaxOutputTokens      int               `json:"max_output_tokens,omitempty"`      // Max tokens to generate
-	Metadata             map[string]string `json:"metadata,omitempty"`               // Key-value pairs
-	ParallelToolCalls    *bool             `json:"parallel_tool_calls,omitempty"`    // Allow parallel tool calls, default true
-	PreviousResponseID   string            `json:"previous_response_id,omitempty"`   // ID of previous response
-	Prompt               *Prompt           `json:"prompt,omitempty"`                 // Reference to a prompt template and its variables
-	PromptCacheKey       string            `json:"prompt_cache_key,omitempty"`       // Used for matching similar requests with cached input
-	PromptCacheRetention string            `json:"prompt_cache_retention,omitempty"` // Prompt cache retention policy: "in_memory" (default) or "24h"
-	Reasoning            *ReasoningConfig  `json:"reasoning,omitempty"`              // Reasoning configuration
-	SafetyIdentifier     string            `json:"safety_identifier,omitempty"`      // Stable unique identifier for end user, preferably anonymized
-	ServiceTier          string            `json:"service_tier,omitempty"`           // Service tier to use, default "auto"
-	Store                *bool             `json:"store,omitempty"`                  // Whether to store the response, default true
-	Stream               bool              `json:"stream,omitempty"`                 // Stream the response, default false
-	StreamOptions        *StreamOptions    `json:"stream_options,omitempty"`         // Streaming configuration
-	Temperature          float64           `json:"temperature,omitempty"`            // default 1
-	Text                 *TextOptions      `json:"text,omitempty"`                   // Text format configuration
-	ToolChoice           json.RawMessage   `json:"tool_choice,omitempty"`            // default "auto", can be "none", "required", or an object
-	TopP                 float64           `json:"top_p,omitempty"`                  // default 1
-	Truncation           string            `json:"truncation,omitempty"`             // "auto" or "disabled"
-	User                 string            `json:"user,omitempty"`                   // Deprecated: use SafetyIdentifier and PromptCacheKey instead
-	Background           bool              `json:"background,omitempty"`             // if true, the API returns immediately with only a response ID
-	Generate             *bool             `json:"generate,omitempty"`               // if false, warm up request state without generating model output
+	Include              []string            `json:"include,omitempty"`                // Additional data to include in response: "file_search_call.results", "message.input_image.image_url", "computer_call_output.output.image_url"
+	Instructions         string              `json:"instructions,omitempty"`           // System message for context
+	Conversation         any                 `json:"conversation,omitempty"`           // ID or a Conversation object containing an ID
+	ContextManagement    []ContextConfig     `json:"context_management,omitempty"`     // Compaction configuration
+	MaxOutputTokens      int                 `json:"max_output_tokens,omitempty"`      // Max tokens to generate
+	Metadata             map[string]string   `json:"metadata,omitempty"`               // Key-value pairs
+	ParallelToolCalls    *bool               `json:"parallel_tool_calls,omitempty"`    // Allow parallel tool calls, default true
+	PreviousResponseID   string              `json:"previous_response_id,omitempty"`   // ID of previous response
+	Prompt               *Prompt             `json:"prompt,omitempty"`                 // Reference to a prompt template and its variables
+	PromptCacheKey       string              `json:"prompt_cache_key,omitempty"`       // Used for matching similar requests with cached input
+	PromptCacheRetention string              `json:"prompt_cache_retention,omitempty"` // Legacy maximum retention policy: "in_memory" or "24h"; independent of PromptCacheOptions.TTL
+	PromptCacheOptions   *PromptCacheOptions `json:"prompt_cache_options,omitempty"`
+	Reasoning            *ReasoningConfig    `json:"reasoning,omitempty"`         // Reasoning configuration
+	MultiAgent           *MultiAgentConfig   `json:"multi_agent,omitempty"`       // Enables the Responses multi-agent beta
+	SafetyIdentifier     string              `json:"safety_identifier,omitempty"` // Stable unique identifier for end user, preferably anonymized
+	ServiceTier          string              `json:"service_tier,omitempty"`      // Service tier to use, default "auto"
+	Store                *bool               `json:"store,omitempty"`             // Whether to store the response, default true
+	Stream               bool                `json:"stream,omitempty"`            // Stream the response, default false
+	StreamOptions        *StreamOptions      `json:"stream_options,omitempty"`    // Streaming configuration
+	Temperature          float64             `json:"temperature,omitempty"`       // default 1
+	Text                 *TextOptions        `json:"text,omitempty"`              // Text format configuration
+	ToolChoice           json.RawMessage     `json:"tool_choice,omitempty"`       // default "auto", can be "none", "required", or an object
+	TopP                 float64             `json:"top_p,omitempty"`             // default 1
+	Truncation           string              `json:"truncation,omitempty"`        // "auto" or "disabled"
+	User                 string              `json:"user,omitempty"`              // Deprecated: use SafetyIdentifier and PromptCacheKey instead
+	Background           bool                `json:"background,omitempty"`        // if true, the API returns immediately with only a response ID
+	Generate             *bool               `json:"generate,omitempty"`          // if false, warm up request state without generating model output
 
 	// names of tools/functions to include, will be marshaled as their full structs from tools registry
 	Tools []string `json:"-"`
@@ -177,10 +193,37 @@ type StreamOptions struct {
 
 // Response is a wrapper for outputs returned from the Responses API.
 type Response struct {
-	ID            string
-	Outputs       []output.Any
-	ParsedOutputs []any
+	ID                     string
+	Model                  string
+	ServiceTier            string
+	Status                 string
+	Outputs                []output.Any
+	ParsedOutputs          []any
+	Usage                  *Usage
+	Tools                  []tools.Tool
+	Reasoning              *ReasoningConfig
+	MultiAgent             *MultiAgentConfig
+	PromptCacheOptions     *PromptCacheOptions
+	PromptCacheDiagnostics *PromptCacheDiagnostics
+
+	// Calls contains the individual API responses observed by Send, including
+	// automatic tool follow-ups, or the latest response returned by Poll.
+	// Their outputs are not combined, and their own Calls slices are empty.
+	Calls []Response
+	// BillingIncomplete means an API request was sent without observable usage.
+	// It is independent of the API's response status.
+	BillingIncomplete bool
+	// ProcessingRegion is the region recorded from the API endpoint. "global"
+	// means the global endpoint; an empty value means the routing is unknown.
+	ProcessingRegion string
+	// EstimatedCost and CostError are populated by Request.EstimateCost.
+	// If CostError is non-nil, EstimatedCost is only the known subtotal in USD.
+	EstimatedCost float64
+	CostError     error
 }
+
+// Usage contains token usage for a response.
+type Usage models.Usage
 
 // Parse parses the []output.Any and places the parsed objects in ParsedOutputs.
 func (r *Response) Parse() error {
@@ -198,7 +241,15 @@ func (r *Response) Parse() error {
 	return nil
 }
 
-// Texts returns a slice of strings gathered from text output objects in the response.
+// isFinalAnswer selects assistant answers, excluding commentary and subagent messages.
+func isFinalAnswer(message output.Message) bool {
+	return message.Role == "assistant" && (message.Phase == "" || message.Phase == "final_answer") &&
+		(message.Agent == nil || message.Agent.AgentName == "/root")
+}
+
+// Texts returns text from the root assistant's final answers.
+// The agent must be absent or /root, and the phase must be absent or final_answer.
+// Outputs and ParsedOutputs are unchanged by this selection.
 // Parsing of the content is done automatically if not already done, and errors are ignored. To
 // have errors checked, use Response.Parse() first.
 func (r *Response) Texts() []string {
@@ -209,7 +260,7 @@ func (r *Response) Texts() []string {
 
 	var texts []string
 	for _, o := range r.ParsedOutputs {
-		if msg, ok := o.(output.Message); ok {
+		if msg, ok := o.(output.Message); ok && isFinalAnswer(msg) {
 			if msg.Content == nil {
 				continue
 			}
@@ -232,13 +283,13 @@ func (r *Response) Texts() []string {
 	return texts
 }
 
-// JoinedTexts returns a single string joined from all text outputs in the response with newlines.
-// Normally there's only one text output.
+// JoinedTexts returns the root assistant's final texts joined with newlines.
+// It uses the same message selection as Texts.
 func (r *Response) JoinedTexts() string {
 	return strings.Join(r.Texts(), "\n")
 }
 
-// FirstText returns the first text output in the response, or an empty string.
+// FirstText returns the first text selected by Texts, or an empty string.
 func (r *Response) FirstText() string {
 	texts := r.Texts()
 	if len(texts) == 0 {
@@ -247,7 +298,7 @@ func (r *Response) FirstText() string {
 	return texts[0]
 }
 
-// LastText returns the last text output in the response, or an empty string.
+// LastText returns the last text selected by Texts, or an empty string.
 func (r *Response) LastText() string {
 	texts := r.Texts()
 	if len(texts) == 0 {
@@ -256,7 +307,7 @@ func (r *Response) LastText() string {
 	return texts[len(texts)-1]
 }
 
-// FunctionCalls returns a slice of FunctionCall objects from the response.
+// FunctionCalls returns function calls from all agents, preserving their attribution.
 func (r *Response) FunctionCalls() []output.FunctionCall {
 	if r.ParsedOutputs == nil {
 		//nolint:errcheck // error intentionally ignored because there's no logger for it and it's not critical
@@ -272,7 +323,7 @@ func (r *Response) FunctionCalls() []output.FunctionCall {
 	return functionCalls
 }
 
-// CustomToolCalls returns a slice of CustomToolCall objects from the response.
+// CustomToolCalls returns custom tool calls from all agents, preserving their attribution.
 func (r *Response) CustomToolCalls() []output.CustomToolCall {
 	if r.ParsedOutputs == nil {
 		//nolint:errcheck // error intentionally ignored because there's no logger for it and it's not critical
@@ -288,7 +339,8 @@ func (r *Response) CustomToolCalls() []output.CustomToolCall {
 	return customFunctionCalls
 }
 
-// Refusals returns a slice of Refusal objects from the response.
+// Refusals returns refusal texts from the root assistant's final answers.
+// It uses the same message selection as Texts.
 func (r *Response) Refusals() []string {
 	if r.ParsedOutputs == nil {
 		//nolint:errcheck // error intentionally ignored because there's no logger for it and it's not critical
@@ -296,7 +348,7 @@ func (r *Response) Refusals() []string {
 	}
 	var refusals []string
 	for _, o := range r.ParsedOutputs {
-		if ms, ok := o.(output.Message); ok {
+		if ms, ok := o.(output.Message); ok && isFinalAnswer(ms) {
 			if _, ok := ms.Content.([]any); !ok {
 				continue
 			}
@@ -313,7 +365,7 @@ func (r *Response) Refusals() []string {
 	return refusals
 }
 
-// Reasonings returns a slice of Reasoning objects from the response.
+// Reasonings returns reasoning objects from all agents, preserving their attribution.
 func (r *Response) Reasonings() []output.Reasoning {
 	if r.ParsedOutputs == nil {
 		//nolint:errcheck // error intentionally ignored because there's no logger for it and it's not critical
@@ -328,10 +380,14 @@ func (r *Response) Reasonings() []output.Reasoning {
 	return reasonings
 }
 
-// ReasoningSummaries returns a slice of summary texts from reasoning outputs.
+// ReasoningSummaries returns summary texts from the root assistant's reasoning.
+// Reasoning without agent metadata is included. Use Reasonings for all agents' summaries.
 func (r *Response) ReasoningSummaries() []string {
 	var summaries []string
 	for _, rr := range r.Reasonings() {
+		if rr.Agent != nil && rr.Agent.AgentName != "/root" {
+			continue
+		}
 		for _, s := range rr.Summary {
 			summaries = append(summaries, s.Text)
 		}
@@ -339,12 +395,12 @@ func (r *Response) ReasoningSummaries() []string {
 	return summaries
 }
 
-// JoinedReasoningSummaries returns all reasoning summaries joined by newlines.
+// JoinedReasoningSummaries returns the root assistant's reasoning summaries joined by newlines.
 func (r *Response) JoinedReasoningSummaries() string {
 	return strings.Join(r.ReasoningSummaries(), "\n")
 }
 
-// MCPApprovalRequests returns a slice of MCPApprovalRequest objects from the response.
+// MCPApprovalRequests returns approval requests from all agents, preserving their attribution.
 func (r *Response) MCPApprovalRequests() []output.MCPApprovalRequest {
 	if r.ParsedOutputs == nil {
 		//nolint:errcheck // error intentionally ignored because there's no logger for it and it's not critical
@@ -481,7 +537,7 @@ func (l *ConversationItemList) Parse() error {
 	return nil
 }
 
-// ShellCalls returns a slice of ShellCall objects from the response.
+// ShellCalls returns shell calls from all agents, preserving their attribution.
 func (r *Response) ShellCalls() []output.ShellCall {
 	if r.ParsedOutputs == nil {
 		//nolint:errcheck // error intentionally ignored because there's no logger for it and it's not critical
@@ -496,7 +552,7 @@ func (r *Response) ShellCalls() []output.ShellCall {
 	return shellCalls
 }
 
-// ApplyPatchCalls returns a slice of ApplyPatchCall objects from the response.
+// ApplyPatchCalls returns patch calls from all agents, preserving their attribution.
 func (r *Response) ApplyPatchCalls() []output.ApplyPatchCall {
 	if r.ParsedOutputs == nil {
 		//nolint:errcheck // error intentionally ignored because there's no logger for it and it's not critical
@@ -513,8 +569,33 @@ func (r *Response) ApplyPatchCalls() []output.ApplyPatchCall {
 
 // ReasoningConfig represents configuration options for reasoning models.
 type ReasoningConfig struct {
-	Effort          string `json:"effort,omitempty"`           // "none", "minimal", "low", "medium", or "high"
-	GenerateSummary string `json:"generate_summary,omitempty"` // "concise" or "detailed"
+	Effort          string `json:"effort,omitempty"`           // "none", "minimal", "low", "medium", "high", "xhigh", or "max"; model-dependent
+	Mode            string `json:"mode,omitempty"`             // "standard" or "pro"
+	Context         string `json:"context,omitempty"`          // "auto", "current_turn", or "all_turns"
+	Summary         string `json:"summary,omitempty"`          // "auto", "concise", or "detailed"
+	GenerateSummary string `json:"generate_summary,omitempty"` // Deprecated: use Summary instead
+}
+
+// PromptCacheOptions controls cache breakpoints and optional reuse diagnostics.
+type PromptCacheOptions struct {
+	Mode                 string `json:"mode,omitempty"` // "implicit" (default) or "explicit"
+	TTL                  string `json:"ttl,omitempty"`  // minimum cache lifetime; currently "30m"
+	ComparisonResponseID string `json:"comparison_response_id,omitempty"`
+}
+
+// PromptCacheDiagnostics explains cache reuse relative to a comparison response.
+// Token counts are diagnostic estimates, not billing usage; nil means unavailable.
+type PromptCacheDiagnostics struct {
+	Type                     string `json:"type"` // "cache_hit", "cache_miss", "comparison_response_not_found", or "unavailable"
+	Reason                   string `json:"reason,omitempty"`
+	ComparisonReusableTokens *int   `json:"comparison_reusable_tokens,omitempty"`
+	CacheMissedTokens        *int   `json:"cache_missed_tokens,omitempty"`
+}
+
+// MultiAgentConfig enables hosted collaboration within a Responses request.
+type MultiAgentConfig struct {
+	Enabled                bool `json:"enabled"`
+	MaxConcurrentSubagents int  `json:"max_concurrent_subagents,omitempty"`
 }
 
 // TextOptions represents the format configuration for text responses.
@@ -555,6 +636,8 @@ func ForceToolChoice(toolType string, name string) json.RawMessage {
 		return json.RawMessage(`{"type": "shell"}`)
 	case "apply_patch":
 		return json.RawMessage(`{"type": "apply_patch"}`)
+	case "image_generation":
+		return json.RawMessage(`{"type": "image_generation"}`)
 	default:
 		return json.RawMessage(`"auto"`)
 	}

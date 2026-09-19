@@ -1,3 +1,4 @@
+// Package main demonstrates Responses API conversation usage.
 package main
 
 import (
@@ -50,7 +51,7 @@ func main() {
 		Input:        "Greet me and mention my favorite language.",
 		Conversation: conv.ID,
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	})
 	if err != nil {

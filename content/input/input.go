@@ -52,6 +52,8 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[InputFile](a)
 	case "item_reference":
 		return unmarshalToType[ItemReference](a)
+	case "configuration_update":
+		return unmarshalToType[ConfigurationUpdate](a)
 	default:
 		return nil, fmt.Errorf("unsupported content type: %s", a.Type)
 	}
@@ -155,32 +157,41 @@ func (i ImageURL) String() string {
 
 // InputImage is an image given to the model.
 type InputImage struct {
-	Type     string `json:"type"`             // "input_image"
-	Detail   string `json:"detail,omitempty"` // "auto", "high", "low"
-	ImageURL string `json:"image_url,omitempty"`
-	FileID   string `json:"file_id,omitempty"`
+	Type                  string                 `json:"type"`             // "input_image"
+	Detail                string                 `json:"detail,omitempty"` // "auto", "high", "low", or "original"; model-dependent
+	ImageURL              string                 `json:"image_url,omitempty"`
+	FileID                string                 `json:"file_id,omitempty"`
+	PromptCacheBreakpoint *PromptCacheBreakpoint `json:"prompt_cache_breakpoint,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
 // It fills in the "type" field with "input_image", discarding any prior value.
 func (i InputImage) MarshalJSON() ([]byte, error) {
 	i.Type = "input_image"
+	if i.PromptCacheBreakpoint != nil && i.PromptCacheBreakpoint.Mode == "" {
+		i.PromptCacheBreakpoint = &PromptCacheBreakpoint{Mode: "explicit"}
+	}
 	type alias InputImage
 	return openai.Marshal(alias(i))
 }
 
 // InputFile is a file given to the model.
 type InputFile struct {
-	Type     string `json:"type"` // "input_file"
-	FileData string `json:"file_data,omitempty"`
-	FileName string `json:"filename,omitempty"`
-	FileID   string `json:"file_id,omitempty"`
+	Type                  string                 `json:"type"` // "input_file"
+	FileData              string                 `json:"file_data,omitempty"`
+	FileName              string                 `json:"filename,omitempty"`
+	FileID                string                 `json:"file_id,omitempty"`
+	FileURL               string                 `json:"file_url,omitempty"`
+	PromptCacheBreakpoint *PromptCacheBreakpoint `json:"prompt_cache_breakpoint,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
 // It fills in the "type" field with "input_file", discarding any prior value.
 func (i InputFile) MarshalJSON() ([]byte, error) {
 	i.Type = "input_file"
+	if i.PromptCacheBreakpoint != nil && i.PromptCacheBreakpoint.Mode == "" {
+		i.PromptCacheBreakpoint = &PromptCacheBreakpoint{Mode: "explicit"}
+	}
 	type alias InputFile
 	return openai.Marshal(alias(i))
 }
@@ -197,4 +208,23 @@ func (i ItemReference) MarshalJSON() ([]byte, error) {
 	i.Type = "item_reference"
 	type alias ItemReference
 	return openai.Marshal(alias(i))
+}
+
+// ConfigurationUpdate changes reasoning effort for subsequent conversation turns.
+type ConfigurationUpdate struct {
+	Type      string           `json:"type"` // "configuration_update"
+	ID        string           `json:"id,omitempty"`
+	Reasoning *ReasoningUpdate `json:"reasoning,omitempty"`
+}
+
+// ReasoningUpdate contains the reasoning settings supported by configuration updates.
+type ReasoningUpdate struct {
+	Effort string `json:"effort,omitempty"`
+}
+
+// MarshalJSON fills the type field with "configuration_update".
+func (c ConfigurationUpdate) MarshalJSON() ([]byte, error) {
+	c.Type = "configuration_update"
+	type alias ConfigurationUpdate
+	return openai.Marshal(alias(c))
 }

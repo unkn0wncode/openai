@@ -61,17 +61,24 @@ func (rfs ResponseFormatStr) MarshalJSON() ([]byte, error) {
 	return openai.Marshal(rf)
 }
 
+// responseUsage contains token usage returned by Chat Completions.
+type responseUsage struct {
+	Prompt              int `json:"prompt_tokens"`
+	Completion          int `json:"completion_tokens"`
+	Total               int `json:"total_tokens"`
+	PromptTokensDetails struct {
+		CachedTokens     int `json:"cached_tokens"`
+		CacheWriteTokens int `json:"cache_write_tokens"`
+	} `json:"prompt_tokens_details"`
+}
+
 // response is the response body for the Chat Completion API.
 type response struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Created int    `json:"created"` // Unix timestamp
-	Model   string `json:"model"`
-	Usage   struct {
-		Prompt     int `json:"prompt_tokens"`
-		Completion int `json:"completion_tokens"`
-		Total      int `json:"total_tokens"`
-	} `json:"usage"`
+	ID      string         `json:"id"`
+	Object  string         `json:"object"`
+	Created int            `json:"created"` // Unix timestamp
+	Model   string         `json:"model"`
+	Usage   *responseUsage `json:"usage"`
 	Choices []struct {
 		Message      chat.Message `json:"message"`
 		FinishReason string       `json:"finish_reason"` // stop/length/content_filter/null
@@ -116,18 +123,6 @@ func countTokens(data chat.Request) int {
 	return len(openai.TokenEncoderChat.Encode(string(b), nil, nil))
 }
 
-// // promptPrice returns approximate price of the request's input in USD.
-// // Mind that output is not included and is priced higher, but usually is much shorter than input.
-// // Returns zero if pricing for the model is not known.
-// func (c *Client) promptPrice(data chat.Request) float64 {
-// 	pricing, ok := models.Data[data.Model]
-// 	if !ok {
-// 		c.Config.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", data.Model))
-// 		return 0
-// 	}
-// 	return float64(countTokens(data)) * pricing.PriceIn
-// }
-
 func contextTokenLimit(model string) int {
 	modelData, ok := models.Data[model]
 	if !ok {
@@ -148,7 +143,7 @@ func trimMessages(data chat.Request) []chat.Message {
 	messages := data.Messages
 	maxTokens := data.MaxCompletionTokens
 	if maxTokens == 0 {
-		maxTokens = data.MaxTokens
+		maxTokens = data.MaxTokens //nolint:staticcheck // Honor the legacy field when MaxCompletionTokens is unset.
 	}
 	for len(data.Messages) > minMessages && countTokens(data) > contextTokenLimit(data.Model)-maxTokens {
 		messages = nil
@@ -217,16 +212,17 @@ func (c *Client) execute(data chat.Request) (*response, error) {
 	}
 	c.Config.AddHeaders(req)
 
-	var resp *http.Response
-	var duration time.Duration
-
-	resp, err = c.Config.HTTPClient.Do(req)
+	start := time.Now()
+	resp, err := c.Config.HTTPClient.Do(req)
+	duration := time.Since(start)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
 	if err != nil {
-		c.handleBadRequest(resp, data.Model, duration)
 		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, c.handleBadRequest(resp, data.Model, duration)
 	}
 
 	// Read the response body
@@ -240,32 +236,32 @@ func (c *Client) execute(data chat.Request) (*response, error) {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	c.Config.Log.Info(fmt.Sprintf(
-		"Consumed OpenAI tokens: %d + %d = %d ($%f) on model '%s' in %s",
-		res.Usage.Prompt, res.Usage.Completion,
-		res.Usage.Total, c.cost(&res), res.Model, duration,
-	))
+	cost, costErr := c.cost(&res)
+	if costErr != nil {
+		c.Config.Log.Debug(fmt.Sprintf(
+			"Chat token-cost estimate unavailable on model %q in %s: %v",
+			res.Model, duration, costErr,
+		))
+	} else {
+		c.Config.Log.Debug(fmt.Sprintf(
+			"Consumed OpenAI tokens: %d + %d = %d (standard-tier token-cost estimate $%.9f) on model %q in %s",
+			res.Usage.Prompt, res.Usage.Completion,
+			res.Usage.Total, cost, res.Model, duration,
+		))
+	}
 
 	return &res, nil
 }
 
-// handleBadRequest handles the case when the API returns a 400 Bad Request status.
+// handleBadRequest handles unsuccessful HTTP responses.
 // Logs the request duration and returns an error with the response body.
 func (c *Client) handleBadRequest(resp *http.Response, model string, duration time.Duration) error {
 	c.Config.Log.Debug(fmt.Sprintf("Chat request timing: %s", duration))
 	body, _ := io.ReadAll(resp.Body)
-	errMsg := fmt.Errorf(
+	return fmt.Errorf(
 		"request (model %s) failed with status: %s, response body: %s",
 		model, resp.Status, string(body),
 	)
-	c.enableLogTripper()
-	return errMsg
-}
-
-// enableLogTripper enables LogTripper for the API requests and logs that it's enabled.
-func (c *Client) enableLogTripper() {
-	c.Config.Log.Debug("Enable LogTripper")
-	c.Config.EnableLogTripper()
 }
 
 // checkFirst checks if API response is valid,
@@ -324,15 +320,24 @@ func (c *Client) checkFirst(resp *response) (string, error) {
 	return content, nil
 }
 
-// cost returns the resulting cost of the completed request in USD.
-// Returns zero if pricing for the model is not known.
-func (c *Client) cost(resp *response) float64 {
+// cost estimates the request's token cost at standard-tier prices in USD.
+func (c *Client) cost(resp *response) (float64, error) {
 	pricing, ok := models.Data[resp.Model]
 	if !ok {
-		c.Config.Log.Warn(fmt.Sprintf("No pricing for found model '%s'", resp.Model))
-		return 0
+		c.Config.Log.Warn(fmt.Sprintf("No pricing found for model %q", resp.Model))
+		return 0, fmt.Errorf("no pricing found for model %q", resp.Model)
 	}
-	return float64(resp.Usage.Prompt)*pricing.PriceIn + float64(resp.Usage.Completion)*pricing.PriceOut
+	var usage *models.Usage
+	if resp.Usage != nil {
+		usage = &models.Usage{
+			InputTokens:  resp.Usage.Prompt,
+			OutputTokens: resp.Usage.Completion,
+			TotalTokens:  resp.Usage.Total,
+		}
+		usage.InputTokensDetails.CachedTokens = resp.Usage.PromptTokensDetails.CachedTokens
+		usage.InputTokensDetails.CacheWriteTokens = resp.Usage.PromptTokensDetails.CacheWriteTokens
+	}
+	return pricing.Cost(usage)
 }
 
 // marshalRequest builds request body including function calls based on registered tools

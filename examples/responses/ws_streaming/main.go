@@ -1,3 +1,4 @@
+// Package main demonstrates Responses API ws streaming usage.
 package main
 
 import (
@@ -31,7 +32,7 @@ func main() {
 		Model: models.Default,
 		Input: "Write a 1000-character long Lorem Ipsum text.",
 		Reasoning: &responses.ReasoningConfig{
-			Effort: "none",
+			Effort: "low",
 		},
 	})
 	if err != nil {

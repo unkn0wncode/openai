@@ -2,41 +2,141 @@
 package models
 
 const (
-	DefaultImage       = GPTImage2
-	GPTImage1          = "gpt-image-1"
-	GPTImage15         = "gpt-image-1.5"
-	GPTImage1Mini      = "gpt-image-1-mini"
-	GPTImage2          = "gpt-image-2"
-	GPTImage220260421  = "gpt-image-2-2026-04-21"
-	ChatGPTImageLatest = "chatgpt-image-latest"
-	DALLE2             = "dall-e-2"
-	DALLE3             = "dall-e-3"
+	DefaultImage               = GPTImage2
+	GPTImage1                  = "gpt-image-1"
+	GPTImage15                 = "gpt-image-1.5"
+	GPTImage1Mini              = "gpt-image-1-mini"
+	GPTImage2                  = "gpt-image-2"
+	GPTImage25Flare            = "gpt-image-2.5-flare"
+	GPTImage25Flare20260908    = "gpt-image-2.5-flare-2026-09-08"
+	GPTImage25Sunburst         = "gpt-image-2.5-sunburst"
+	GPTImage25Sunburst20260908 = "gpt-image-2.5-sunburst-2026-09-08"
+	GPTImage220260421          = "gpt-image-2-2026-04-21"
+	ChatGPTImageLatest         = "chatgpt-image-latest"
 )
 
 // ImageData contains pricing and limits for image generation models.
+// Token prices are USD per million tokens; -1 means unavailable and zero means free.
+// PriceOut is the image output rate, while PriceOutText is the text output rate.
 // Prompt size limit is in characters here, not in tokens.
+// A nil PricePerImage means no per-image estimate is available.
 var ImageData = map[string]struct {
-	PriceInText      float64
-	PriceInImage     float64
-	PriceOut         float64
-	PricePerImage    PricePerImage
-	LimitPrompt      int
-	LimitInImages    int
-	LimitInImageSize int // in bytes
-	LimitOutImages   int
+	PriceInText        float64
+	PriceInTextCached  float64
+	PriceInImage       float64
+	PriceInImageCached float64
+	PriceOut           float64
+	PriceOutText       float64
+	PricePerImage      PricePerImage
+	LimitPrompt        int
+	LimitInImages      int
+	LimitInImageSize   int // in bytes
+	LimitOutImages     int
 }{
-	GPTImage1:         {0.00000500, 0.00001000, 0.00004000, PricePerImageData[GPTImage1], 32000, 16, 25 * 1024 * 1024, 10},
-	GPTImage1Mini:     {0.00000200, 0.00000250, 0.00000800, PricePerImageData[GPTImage1Mini], 32000, 16, 25 * 1024 * 1024, 10},
-	GPTImage2:         {0.00000500, 0.00000800, 0.00003000, PricePerImageData[GPTImage2], 32000, 16, 25 * 1024 * 1024, 10},
-	GPTImage220260421: {0.00000500, 0.00000800, 0.00003000, PricePerImageData[GPTImage220260421], 32000, 16, 25 * 1024 * 1024, 10},
-	DALLE2:            {0.00000000, 0.00000000, 0.00000000, PricePerImageData[DALLE2], 1000, 1, 4 * 1024 * 1024, 1},
-	DALLE3:            {0.00000000, 0.00000000, 0.00000000, PricePerImageData[DALLE3], 4000, 1, 4 * 1024 * 1024, 1},
+	GPTImage1: {
+		PriceInText:        5,
+		PriceInTextCached:  1.25,
+		PriceInImage:       10,
+		PriceInImageCached: 2.5,
+		PriceOut:           40,
+		PriceOutText:       unavailableRate,
+		PricePerImage:      PricePerImageData[GPTImage1],
+		LimitPrompt:        32000, LimitInImages: 16, LimitInImageSize: 25 * 1024 * 1024, LimitOutImages: 10,
+	},
+	GPTImage15: {
+		PriceInText:        5,
+		PriceInTextCached:  1.25,
+		PriceInImage:       8,
+		PriceInImageCached: 2,
+		PriceOut:           32,
+		PriceOutText:       10,
+		PricePerImage:      PricePerImageData[GPTImage15],
+		LimitPrompt:        32000, LimitInImages: 16, LimitInImageSize: 25 * 1024 * 1024, LimitOutImages: 10,
+	},
+	GPTImage1Mini: {
+		PriceInText:        2,
+		PriceInTextCached:  0.2,
+		PriceInImage:       2.5,
+		PriceInImageCached: 0.25,
+		PriceOut:           8,
+		PriceOutText:       unavailableRate,
+		PricePerImage:      PricePerImageData[GPTImage1Mini],
+		LimitPrompt:        32000, LimitInImages: 16, LimitInImageSize: 25 * 1024 * 1024, LimitOutImages: 10,
+	},
+	GPTImage2: {
+		PriceInText:        5,
+		PriceInTextCached:  1.25,
+		PriceInImage:       8,
+		PriceInImageCached: 2,
+		PriceOut:           30,
+		PriceOutText:       unavailableRate,
+		PricePerImage:      PricePerImageData[GPTImage2],
+		LimitPrompt:        32000, LimitInImages: 16, LimitInImageSize: 25 * 1024 * 1024, LimitOutImages: 10,
+	},
+	GPTImage220260421: {
+		PriceInText:        5,
+		PriceInTextCached:  1.25,
+		PriceInImage:       8,
+		PriceInImageCached: 2,
+		PriceOut:           30,
+		PriceOutText:       unavailableRate,
+		PricePerImage:      PricePerImageData[GPTImage220260421],
+		LimitPrompt:        32000, LimitInImages: 16, LimitInImageSize: 25 * 1024 * 1024, LimitOutImages: 10,
+	},
+	GPTImage25Flare: {
+		PriceInText:        5,
+		PriceInTextCached:  1.25,
+		PriceInImage:       8,
+		PriceInImageCached: 2,
+		PriceOut:           30,
+		PriceOutText:       unavailableRate,
+		LimitPrompt:        32000, LimitInImages: 16, LimitInImageSize: 50 * 1024 * 1024, LimitOutImages: 10,
+	},
+	GPTImage25Flare20260908: {
+		PriceInText:        5,
+		PriceInTextCached:  1.25,
+		PriceInImage:       8,
+		PriceInImageCached: 2,
+		PriceOut:           30,
+		PriceOutText:       unavailableRate,
+		LimitPrompt:        32000, LimitInImages: 16, LimitInImageSize: 50 * 1024 * 1024, LimitOutImages: 10,
+	},
+	GPTImage25Sunburst: {
+		PriceInText:        5,
+		PriceInTextCached:  1.25,
+		PriceInImage:       8,
+		PriceInImageCached: 2,
+		PriceOut:           30,
+		PriceOutText:       unavailableRate,
+		LimitPrompt:        32000, LimitInImages: 16, LimitInImageSize: 50 * 1024 * 1024, LimitOutImages: 10,
+	},
+	GPTImage25Sunburst20260908: {
+		PriceInText:        5,
+		PriceInTextCached:  1.25,
+		PriceInImage:       8,
+		PriceInImageCached: 2,
+		PriceOut:           30,
+		PriceOutText:       unavailableRate,
+		LimitPrompt:        32000, LimitInImages: 16, LimitInImageSize: 50 * 1024 * 1024, LimitOutImages: 10,
+	},
+	ChatGPTImageLatest: {
+		PriceInText:        5,
+		PriceInTextCached:  1.25,
+		PriceInImage:       8,
+		PriceInImageCached: 2,
+		PriceOut:           32,
+		PriceOutText:       10,
+		PricePerImage:      PricePerImageData[ChatGPTImageLatest],
+		LimitPrompt:        32000, LimitInImages: 16, LimitInImageSize: 25 * 1024 * 1024, LimitOutImages: 10,
+	},
 }
 
-// PricePerImage maps quality and size to price per generated image in USD.
+// PricePerImage maps quality and size to estimated price per generated image in USD.
+// A missing quality or size has no estimate, rather than a zero price.
 type PricePerImage map[string]map[string]float64
 
-// PricePerImageData contains pricing of generated images for image generation models.
+// PricePerImageData contains model-specific estimates for generated images.
+// Entries do not describe every supported quality or size; use ImageData for model inventory.
 // GPT Image 2 per-image prices are calculator-derived estimates as of 2026-05-18;
 // token prices in ImageData are the authoritative billing rates.
 var PricePerImageData = map[string]PricePerImage{
@@ -140,25 +240,6 @@ var PricePerImageData = map[string]PricePerImage{
 			"1024x1024": 0.211,
 			"1024x1536": 0.165,
 			"1536x1024": 0.165,
-		},
-	},
-	DALLE2: {
-		"standard": {
-			"256x256":   0.016,
-			"512x512":   0.018,
-			"1024x1024": 0.02,
-		},
-	},
-	DALLE3: {
-		"standard": {
-			"1024x1024": 0.04,
-			"1024x1792": 0.08,
-			"1792x1024": 0.08,
-		},
-		"hd": {
-			"1024x1024": 0.08,
-			"1024x1792": 0.12,
-			"1792x1024": 0.12,
 		},
 	},
 }

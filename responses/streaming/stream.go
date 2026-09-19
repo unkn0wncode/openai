@@ -1,4 +1,4 @@
-// Package streaming provides a streaming iterator API for OpenAI Responses API.
+// Package streaming / stream.go provides a streaming iterator for the OpenAI Responses API.
 package streaming
 
 import (
@@ -10,6 +10,12 @@ import (
 )
 
 // Source provides events and terminal state for a stream.
+// A source that implements ContinuesAfterResponse() bool and returns true owns
+// the response lifecycle: iteration waits for Done even after a terminal response
+// event. This allows WebSocket sources to deliver steering continuations and
+// acknowledgements that arrive after a response completes.
+// If the source implements EventConsumed(), it is notified when an event leaves
+// the queue so it can distinguish queued terminal events from observed ones.
 type Source interface {
 	// Events returns stream events. Implementations may leave buffered events
 	// readable after Done is closed, so consumers should read any ready event
@@ -140,13 +146,17 @@ func (s *Stream) handleEvent(ev any, ok bool) bool {
 		}
 		return false
 	}
+	if source, ok := s.src.(interface{ EventConsumed() }); ok {
+		source.EventConsumed()
+	}
 	switch ev.(type) {
 	case Error, WSError:
 		s.stop(&StreamError{Event: ev})
 		return false
 	}
 	s.current = ev
-	if IsTerminalEvent(ev) {
+	continuing, ok := s.src.(interface{ ContinuesAfterResponse() bool })
+	if IsTerminalEvent(ev) && (!ok || !continuing.ContinuesAfterResponse()) {
 		s.stop(nil)
 	}
 	return true

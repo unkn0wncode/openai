@@ -32,7 +32,7 @@ var (
 var EmptyParamsSchema = []byte(`{"type":"object","properties":{}}`)
 
 // FunctionCall reperesents a function that AI can request to be executed.
-// All fields except F and CallLimit are required.
+// Name, Description, and ParamsSchema are required.
 // If F is not provided, calls to this function will be returned instead of being executed.
 // Name must be unique.
 // Description will be used by AI to understand what the function does.
@@ -53,6 +53,12 @@ type FunctionCall struct {
 	// additional limitations for schema apply if set to true:
 	// https://platform.openai.com/docs/guides/structured-outputs/supported-schemas
 	Strict bool `json:"strict,omitempty"`
+	// Async lets the model continue before the application returns the result.
+	Async bool `json:"async,omitempty"`
+	// AllowedCallers selects "direct", "programmatic", or both invocation contexts.
+	AllowedCallers []string `json:"allowed_callers,omitempty"`
+	// OutputSchema describes JSON encoded in the function's output string.
+	OutputSchema json.RawMessage `json:"output_schema,omitempty"`
 
 	// the function to be executed, if nil then the function call will be returned
 	// instead of being executed
@@ -135,7 +141,8 @@ func (tco ToolChoiceOption) MarshalJSON() ([]byte, error) {
 // Tool represents a tool that can be used by the model.
 type Tool struct {
 	// Type of tool: "function", "file_search", "web_search" (and preview), "computer_use_preview",
-	// "mcp", "local_shell", "code_interpreter", "shell", "apply_patch"
+	// "mcp", "local_shell", "code_interpreter", "shell", "apply_patch", "custom",
+	// "image_generation", "programmatic_tool_calling"
 	Type string `json:"type"`
 
 	// fields for functions
@@ -148,6 +155,12 @@ type Tool struct {
 	Parameters json.RawMessage `json:"parameters,omitempty"`
 	// Whether to enforce strict schema validation
 	Strict bool `json:"strict,omitempty"`
+	// Async applies to client-owned function and custom tools.
+	Async bool `json:"async,omitempty"`
+	// AllowedCallers selects "direct", "programmatic", or both for eligible tools.
+	AllowedCallers []string `json:"allowed_callers,omitempty"`
+	// OutputSchema describes JSON encoded in a function's output string.
+	OutputSchema json.RawMessage `json:"output_schema,omitempty"`
 	// Underlying FunctionCall (not sent to API)
 	Function FunctionCall `json:"-"`
 
@@ -221,6 +234,25 @@ type Tool struct {
 	// Note that the field itself is required but the list of IDs is optional:
 	//  {"type": "auto"}
 	Container any `json:"container,omitempty"`
+
+	// fields for image_generation
+	Model             string               `json:"model,omitempty"`
+	Action            string               `json:"action,omitempty"`             // "auto", "generate", or "edit"
+	Quality           string               `json:"quality,omitempty"`            // "auto", "low", "medium", "high", "xhigh", or "max"; model-dependent
+	Size              string               `json:"size,omitempty"`               // "auto" or a supported WIDTHxHEIGHT
+	Background        string               `json:"background,omitempty"`         // "auto", "opaque", or "transparent"
+	OutputFormat      string               `json:"output_format,omitempty"`      // "png", "webp", or "jpeg"
+	OutputCompression *int                 `json:"output_compression,omitempty"` // pointer permits explicit zero
+	PartialImages     int                  `json:"partial_images,omitempty"`
+	InputFidelity     string               `json:"input_fidelity,omitempty"` // "low" or "high"
+	InputImageMask    *ImageGenerationMask `json:"input_image_mask,omitempty"`
+	Moderation        string               `json:"moderation,omitempty"` // "auto" or "low"
+}
+
+// ImageGenerationMask identifies the mask used for image editing.
+type ImageGenerationMask struct {
+	FileID   string `json:"file_id,omitempty"`
+	ImageURL string `json:"image_url,omitempty"`
 }
 
 // CustomToolFormat represents the `format` object for custom tools.
@@ -296,12 +328,15 @@ func (r *Registry) RegisterTool(tool Tool) error {
 		}
 
 		fc := FunctionCall{
-			Name:         tool.Name,
-			Description:  tool.Description,
-			ParamsSchema: tool.Parameters,
-			Strict:       tool.Strict,
-			F:            tool.Function.F,
-			CallLimit:    tool.Function.CallLimit,
+			Name:           tool.Name,
+			Description:    tool.Description,
+			ParamsSchema:   tool.Parameters,
+			Strict:         tool.Strict,
+			Async:          tool.Async,
+			AllowedCallers: tool.AllowedCallers,
+			OutputSchema:   tool.OutputSchema,
+			F:              tool.Function.F,
+			CallLimit:      tool.Function.CallLimit,
 		}
 
 		return r.CreateFunction(fc)
@@ -340,9 +375,8 @@ func (r *Registry) RegisterTool(tool Tool) error {
 		// Computer use preview can have display dimensions and environment
 		// No specific validation required
 
-	case "shell", "apply_patch":
-		// These tools have no additional configuration at registration time.
-		// All parameters are defined by the platform and the model.
+	case "shell", "apply_patch", "image_generation", "programmatic_tool_calling", "mcp", "local_shell", "code_interpreter":
+		// These tools have no required registration fields beyond their type.
 
 	default:
 		return fmt.Errorf("unsupported tool type: %s", tool.Type)

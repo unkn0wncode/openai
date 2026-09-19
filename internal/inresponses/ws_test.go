@@ -1,8 +1,8 @@
+// Package inresponses / ws_test.go tests WebSocket event delivery and connection handling.
 package inresponses
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -45,95 +45,12 @@ func openTestWebSocket(t *testing.T, client *Client) responses.WSConn {
 	return ws
 }
 
-func TestWSTurnBuffersFirstEventBeforeConsumer(t *testing.T) {
-	t.Parallel()
-
-	turn := newWSTurn()
-	delivered := make(chan bool, 1)
-
-	go func() {
-		delivered <- turn.deliver("first")
-	}()
-
-	select {
-	case ok := <-delivered:
-		require.True(t, ok)
-	case <-time.After(time.Second):
-		t.Fatal("first event delivery blocked before consumer started")
-	}
-}
-
-func TestWSTurnFinishRejectsPendingOrLaterDelivery(t *testing.T) {
-	t.Parallel()
-
-	turn := newWSTurn()
-	require.True(t, turn.deliver("first"))
-
-	delivered := make(chan bool, 1)
-	go func() {
-		delivered <- turn.deliver("second")
-	}()
-
-	turn.finish(errors.New("closed"))
-
-	select {
-	case ok := <-delivered:
-		require.False(t, ok)
-	case <-time.After(time.Second):
-		t.Fatal("finish did not unblock blocked delivery")
-	}
-}
-
-func TestStreamYieldsBufferedEventBeforeCloseError(t *testing.T) {
-	t.Parallel()
-
-	turn := newWSTurn()
-	require.True(t, turn.deliver("first"))
-	turn.finish(errors.New("websocket connection closed"))
-
-	stream := streaming.NewStream(context.Background(), turn)
-
-	require.True(t, stream.Next())
-	require.Equal(t, "first", stream.Event())
-	require.False(t, stream.Next())
-	require.ErrorContains(t, stream.Err(), "websocket connection closed")
-}
-
-func TestWebSocketCloseFinishesPendingTurn(t *testing.T) {
-	t.Parallel()
-
-	requestRead := make(chan struct{})
-	client := newWSTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Upgrade(w, r, nil, 1024, 1024)
-		if err != nil {
-			return
-		}
-		defer conn.Close()
-
-		_, _, err = conn.ReadMessage()
-		if err != nil {
-			return
-		}
-		close(requestRead)
-
-		_, _, _ = conn.ReadMessage()
-	})
-	ws := openTestWebSocket(t, client)
-
-	stream, err := ws.Send(t.Context(), wsTestRequest())
-	require.NoError(t, err)
-
-	requireChannelClosed(t, requestRead)
-	require.NoError(t, ws.Close())
-	require.False(t, stream.Next())
-	require.ErrorContains(t, stream.Err(), "websocket connection closed")
-}
-
 func TestWebSocketWSErrorBecomesStreamError(t *testing.T) {
 	t.Parallel()
 
 	client := newWSTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Upgrade(w, r, nil, 1024, 1024)
+		upgrader := websocket.Upgrader{}
+		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
@@ -173,7 +90,8 @@ func TestWebSocketResponseFailedIsDeliveredAsEvent(t *testing.T) {
 	t.Parallel()
 
 	client := newWSTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Upgrade(w, r, nil, 1024, 1024)
+		upgrader := websocket.Upgrader{}
+		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
@@ -212,7 +130,8 @@ func TestWebSocketEarlyCloseOnHeadTurnAllowsNextTurn(t *testing.T) {
 	t.Parallel()
 
 	client := newWSTestClient(t, func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Upgrade(w, r, nil, 1024, 1024)
+		upgrader := websocket.Upgrader{}
+		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}

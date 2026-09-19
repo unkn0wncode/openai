@@ -1,9 +1,12 @@
-// Package streaming provides types for streaming responses from the OpenAI Responses API.
+// Package streaming / types.go defines streaming event types for the OpenAI Responses API.
 package streaming
 
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/unkn0wncode/openai/content/output"
+	"github.com/unkn0wncode/openai/models"
 )
 
 // Any is a partial representation of a content object with only the "type" field unmarshaled.
@@ -95,6 +98,10 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[ResponseReasoningSummaryTextDelta](a)
 	case "response.reasoning_summary_text.done":
 		return unmarshalToType[ResponseReasoningSummaryTextDone](a)
+	case "response.reasoning_text.delta":
+		return unmarshalToType[ResponseReasoningTextDelta](a)
+	case "response.reasoning_text.done":
+		return unmarshalToType[ResponseReasoningTextDone](a)
 	case "response.image_generation_call.completed":
 		return unmarshalToType[ResponseImageGenerationCallCompleted](a)
 	case "response.image_generation_call.generating":
@@ -145,6 +152,16 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[ResponseCustomToolCallInputDelta](a)
 	case "response.custom_tool_call_input.done":
 		return unmarshalToType[ResponseCustomToolCallInputDone](a)
+	case "response.steer.accepted":
+		return unmarshalToType[ResponseSteerAccepted](a)
+	case "response.steer.pending":
+		return unmarshalToType[ResponseSteerPending](a)
+	case "response.steer.failed":
+		return unmarshalToType[ResponseSteerFailed](a)
+	case "response.inject.created":
+		return unmarshalToType[ResponseInjectCreated](a)
+	case "response.inject.failed":
+		return unmarshalToType[ResponseInjectFailed](a)
 	case "error":
 		return unmarshalErrorEvent(a)
 	default:
@@ -182,8 +199,9 @@ func unmarshalErrorEvent(a interface{ UnmarshalToTarget(any) error }) (any, erro
 type (
 	// BaseEvent contains the common fields for all streaming events.
 	BaseEvent struct {
-		Type           string `json:"type"`
-		SequenceNumber int    `json:"sequence_number"`
+		Type           string        `json:"type"`
+		SequenceNumber int           `json:"sequence_number"`
+		Agent          *output.Agent `json:"agent,omitempty"` // owning agent for multi-agent item events
 	}
 
 	// OutputItemReference contains the common fields for events referencing an output item.
@@ -198,6 +216,9 @@ type (
 		BaseEvent
 		Response Response `json:"response"`
 	}
+
+	// ResponseUsage contains token usage for a response.
+	ResponseUsage = models.Usage
 
 	// Response represents a response object payload in streaming events.
 	Response struct {
@@ -219,10 +240,27 @@ type (
 		ParallelToolCalls  bool            `json:"parallel_tool_calls"`
 		PreviousResponseID *string         `json:"previous_response_id"`
 		Reasoning          *struct {
-			Effort          *string `json:"effort"`           // "low", "medium", or "high"
+			Effort          *string `json:"effort"`           // model-dependent, including "xhigh" and "max"
+			Mode            *string `json:"mode"`             // "standard" or "pro"
+			Context         *string `json:"context"`          // effective reasoning context
 			GenerateSummary *string `json:"generate_summary"` // Deprecated: use "summary" instead
 			Summary         *string `json:"summary"`          // "auto", "concise", or "detailed"
 		} `json:"reasoning"`
+		MultiAgent *struct {
+			Enabled                bool `json:"enabled"`
+			MaxConcurrentSubagents int  `json:"max_concurrent_subagents"`
+		} `json:"multi_agent"`
+		PromptCacheOptions *struct {
+			Mode                 string `json:"mode"`
+			TTL                  string `json:"ttl"`
+			ComparisonResponseID string `json:"comparison_response_id"`
+		} `json:"prompt_cache_options"`
+		PromptCacheDiagnostics *struct {
+			Type                     string `json:"type"`
+			Reason                   string `json:"reason"`
+			ComparisonReusableTokens *int   `json:"comparison_reusable_tokens"`
+			CacheMissedTokens        *int   `json:"cache_missed_tokens"`
+		} `json:"prompt_cache_diagnostics"`
 		Store       bool     `json:"store"`
 		Temperature *float64 `json:"temperature"`
 		Text        struct {
@@ -237,22 +275,11 @@ type (
 				Strict      *bool           `json:"strict"`
 			} `json:"format"`
 		} `json:"text"`
-		ToolChoice json.RawMessage `json:"tool_choice"` // string, ToolChoiceMode, HostedTool, FunctionTool, or MCPTool
-		Tools      json.RawMessage `json:"tools"`       // array of Tool
-		TopP       *float64        `json:"top_p"`
-		Truncation *string         `json:"truncation"` // "auto", "disabled" (default)
-		Usage      *struct {
-			InputTokens        int `json:"input_tokens"`
-			InputTokensDetails struct {
-				CachedTokens int `json:"cached_tokens"`
-				PromptTokens int `json:"prompt_tokens"`
-			} `json:"input_tokens_details"`
-			OutputTokens        int `json:"output_tokens"`
-			OutputTokensDetails struct {
-				ReasoningTokens int `json:"reasoning_tokens"`
-			} `json:"output_tokens_details"`
-			TotalTokens int `json:"total_tokens"`
-		} `json:"usage"`
+		ToolChoice   json.RawMessage   `json:"tool_choice"` // string, ToolChoiceMode, HostedTool, FunctionTool, or MCPTool
+		Tools        json.RawMessage   `json:"tools"`       // array of Tool
+		TopP         *float64          `json:"top_p"`
+		Truncation   *string           `json:"truncation"` // "auto", "disabled" (default)
+		Usage        *ResponseUsage    `json:"usage"`
 		User         string            `json:"user"`
 		Metadata     map[string]string `json:"metadata"`
 		Background   *bool             `json:"background"`
@@ -262,7 +289,7 @@ type (
 			Variables map[string]json.RawMessage `json:"variables"`
 			Version   *string                    `json:"version"`
 		} `json:"prompt"`
-		ServiceTier *string `json:"service_tier"` // "default", "auto", or "flex"
+		ServiceTier *string `json:"service_tier"` // actual processing tier, including default, flex, fast, or priority
 		TopLogprobs *int    `json:"top_logprobs"`
 	}
 )
@@ -336,13 +363,19 @@ type (
 		SummaryIndex int    `json:"summary_index"`
 		Text         string `json:"text"`
 	}
-	ResponseImageGenerationCallCompleted    OutputItemReference // response.image_generation_call.completed
-	ResponseImageGenerationCallGenerating   OutputItemReference // response.image_generation_call.generating
-	ResponseImageGenerationCallInProgress   OutputItemReference // response.image_generation_call.in_progress
-	ResponseImageGenerationCallPartialImage struct {            // response.image_generation_call.partial_image
+	ResponseReasoningTextDelta              ResponseOutputTextDelta // response.reasoning_text.delta
+	ResponseReasoningTextDone               ResponseOutputTextDone  // response.reasoning_text.done
+	ResponseImageGenerationCallCompleted    OutputItemReference     // response.image_generation_call.completed
+	ResponseImageGenerationCallGenerating   OutputItemReference     // response.image_generation_call.generating
+	ResponseImageGenerationCallInProgress   OutputItemReference     // response.image_generation_call.in_progress
+	ResponseImageGenerationCallPartialImage struct {                // response.image_generation_call.partial_image
 		OutputItemReference
 		PartialImageIndex int    `json:"partial_image_index"`
 		PartialImageB64   string `json:"partial_image_b64"`
+		Background        string `json:"background,omitempty"`
+		OutputFormat      string `json:"output_format,omitempty"`
+		Quality           string `json:"quality,omitempty"`
+		Size              string `json:"size,omitempty"`
 	}
 	ResponseMCPCallArgumentsDelta struct { // response.mcp_call_arguments.delta
 		OutputItemReference

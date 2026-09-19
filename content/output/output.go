@@ -5,31 +5,36 @@
 package output
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/unkn0wncode/openai/content/input"
 	openai "github.com/unkn0wncode/openai/internal"
 )
 
-// Any is a partial representation of a content object with only the "type" field unmarshaled.
+// Any is a partial representation of a content object with its type and agent unmarshaled.
 // It can be used to find a correct type and further unmarshal the raw content.
 type Any struct {
-	Type string `json:"type"`
-	raw  json.RawMessage
+	Type  string `json:"type"`
+	Agent *Agent `json:"agent,omitempty"`
+	raw   json.RawMessage
 }
 
 // UnmarshalJSON implements the json.Unmarshaler interface.
-// It extracts only the "type" field, then saves the raw JSON for later.
+// It extracts the type and agent, then saves the raw JSON for later.
 func (a *Any) UnmarshalJSON(data []byte) error {
-	// Extract only the "type" field, then save raw JSON for later.
+	// Extract the type and agent, then save raw JSON for later.
 	var tmp struct {
-		Type string `json:"type"`
+		Type  string `json:"type"`
+		Agent *Agent `json:"agent,omitempty"`
 	}
 	if err := json.Unmarshal(data, &tmp); err != nil {
 		return err
 	}
 	a.Type = tmp.Type
+	a.Agent = tmp.Agent
 	a.raw = data
 	return nil
 }
@@ -42,8 +47,14 @@ func (a *Any) UnmarshalToTarget(target any) error {
 // Unmarshal unmarshals the full content into a type specified in the "type" field.
 func (a *Any) Unmarshal() (any, error) {
 	switch a.Type {
+	case "text":
+		return unmarshalToType[input.Text](a)
 	case "output_text":
 		return unmarshalToType[OutputText](a)
+	case "summary_text":
+		return unmarshalToType[ReasoningSummary](a)
+	case "reasoning_text":
+		return unmarshalToType[ReasoningText](a)
 	case "input_text":
 		return unmarshalToType[input.InputText](a)
 	case "input_image":
@@ -52,6 +63,22 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[input.InputFile](a)
 	case "item_reference":
 		return unmarshalToType[input.ItemReference](a)
+	case "configuration_update":
+		return unmarshalToType[input.ConfigurationUpdate](a)
+	case "encrypted_content":
+		return unmarshalToType[EncryptedContent](a)
+	case "image_generation_call":
+		return unmarshalToType[ImageGenerationCall](a)
+	case "program":
+		return unmarshalToType[Program](a)
+	case "program_output":
+		return unmarshalToType[ProgramOutput](a)
+	case "multi_agent_call":
+		return unmarshalToType[MultiAgentCall](a)
+	case "multi_agent_call_output":
+		return unmarshalToType[MultiAgentCallOutput](a)
+	case "agent_message":
+		return unmarshalToType[AgentMessage](a)
 	case "image_url":
 		return unmarshalToType[ImageURL](a)
 	case "refusal":
@@ -64,6 +91,8 @@ func (a *Any) Unmarshal() (any, error) {
 		return unmarshalToType[ComputerCall](a)
 	case "computer_call_output":
 		return unmarshalToType[ComputerCallOutput](a)
+	case "computer_screenshot":
+		return unmarshalToType[ComputerScreenshot](a)
 	case "web_search_call":
 		return unmarshalToType[WebSearchCall](a)
 	case "function_call":
@@ -131,6 +160,7 @@ type OutputText struct {
 	Type        string          `json:"type"` // "output_text"
 	Text        string          `json:"text"`
 	Annotations []AnyAnnotation `json:"annotations"` // required even when empty
+	Logprobs    json.RawMessage `json:"logprobs,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -198,6 +228,12 @@ func (a *AnyAnnotation) UnmarshalJSON(data []byte) error {
 // UnmarshalToTarget unmarshals the annotation into a given target.
 func (a *AnyAnnotation) UnmarshalToTarget(target any) error {
 	return json.Unmarshal(a.raw, target)
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It returns the saved annotation content.
+func (a AnyAnnotation) MarshalJSON() ([]byte, error) {
+	return a.raw, nil
 }
 
 // Unmarshal unmarshals the full annotation content into a type specified in the "type" field.
@@ -296,6 +332,8 @@ type Message struct {
 	Role    string `json:"role"`             // "assistant"
 	Status  string `json:"status,omitempty"` // "in_progress", "completed", "incomplete"
 	Content any    `json:"content"`
+	Phase   string `json:"phase,omitempty"` // "commentary" or "final_answer"
+	Agent   *Agent `json:"agent,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -315,6 +353,8 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 		Type   string `json:"type"`
 		Role   string `json:"role"`
 		Status string `json:"status,omitempty"`
+		Phase  string `json:"phase,omitempty"`
+		Agent  *Agent `json:"agent,omitempty"`
 	}
 	if err := json.Unmarshal(data, &tmpNoContent); err != nil {
 		return fmt.Errorf("failed to unmarshal non-content part of message: %w", err)
@@ -324,6 +364,8 @@ func (m *Message) UnmarshalJSON(data []byte) error {
 	m.Type = tmpNoContent.Type
 	m.Role = tmpNoContent.Role
 	m.Status = tmpNoContent.Status
+	m.Phase = tmpNoContent.Phase
+	m.Agent = tmpNoContent.Agent
 
 	// then try to unmarshal content as a string
 	var tmpString struct {
@@ -368,6 +410,7 @@ type FileSearchCall struct {
 	Queries []string           `json:"queries"`
 	Status  string             `json:"status"` // "in_progress", "searching", "incomplete", "failed"
 	Results []FileSearchResult `json:"results"`
+	Agent   *Agent             `json:"agent,omitempty"`
 }
 
 // FileSearchResult describes a result of a file search.
@@ -395,6 +438,7 @@ type ComputerCall struct {
 	Action              any           `json:"action"`                // TODO: implement Click, DoubleClick, Drag, KeyPress, Move, Screenshot, Scroll, Type, Wait
 	PendingSafetyChecks []SafetyCheck `json:"pending_safety_checks"` // required even when empty
 	Status              string        `json:"status"`                // "in_progress", "completed", "incomplete"
+	Agent               *Agent        `json:"agent,omitempty"`
 }
 
 // SafetyCheck describes a safety check that is pending for a computer call.
@@ -423,6 +467,7 @@ type ComputerCallOutput struct {
 	ID                       string               `json:"id"`
 	Status                   string               `json:"status"` // "in_progress", "completed", "incomplete"
 	AcknowledgedSafetyChecks []SafetyCheck        `json:"acknowledged_safety_checks,omitempty"`
+	Agent                    *Agent               `json:"agent,omitempty"`
 }
 
 // ComputerScreenshot describes a screenshot of the computer in a computer use flow.
@@ -430,12 +475,19 @@ type ComputerScreenshot struct {
 	Type     string `json:"type"` // "computer_screenshot"
 	FileID   string `json:"file_id,omitempty"`
 	ImageURL string `json:"image_url,omitempty"`
+	Detail   string `json:"detail,omitempty"` // "auto", "high", "low", "original"
+
+	PromptCacheBreakpoint *input.PromptCacheBreakpoint `json:"prompt_cache_breakpoint,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
 // It fills in the "type" field with "computer_screenshot", discarding any prior value.
+// Empty breakpoint mode is filled with "explicit".
 func (c ComputerScreenshot) MarshalJSON() ([]byte, error) {
 	c.Type = "computer_screenshot"
+	if c.PromptCacheBreakpoint != nil && c.PromptCacheBreakpoint.Mode == "" {
+		c.PromptCacheBreakpoint = &input.PromptCacheBreakpoint{Mode: "explicit"}
+	}
 	type alias ComputerScreenshot
 	return openai.Marshal(alias(c))
 }
@@ -454,6 +506,7 @@ type WebSearchCall struct {
 	ID     string             `json:"id"`
 	Status string             `json:"status"` // "in_progress", "completed", "incomplete"
 	Action AnyWebSearchAction `json:"action"`
+	Agent  *Agent             `json:"agent,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -563,8 +616,11 @@ type FunctionCall struct {
 
 	// optional
 
-	CallID string `json:"call_id"`
-	Status string `json:"status"` // "in_progress", "completed", "incomplete"
+	CallID string  `json:"call_id"`
+	Status string  `json:"status"` // "in_progress", "completed", "incomplete"
+	Agent  *Agent  `json:"agent,omitempty"`
+	Caller *Caller `json:"caller,omitempty"`
+	Async  bool    `json:"async,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -590,8 +646,10 @@ type FunctionCallOutput struct {
 
 	// optional
 
-	ID     string `json:"id,omitempty"`
-	Status string `json:"status,omitempty"` // "in_progress", "completed", "incomplete"
+	ID     string  `json:"id,omitempty"`
+	Status string  `json:"status,omitempty"` // "in_progress", "completed", "incomplete"
+	Agent  *Agent  `json:"agent,omitempty"`
+	Caller *Caller `json:"caller,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -614,7 +672,10 @@ type CustomToolCall struct {
 
 	// optional
 
-	CallID string `json:"call_id,omitempty"`
+	CallID string  `json:"call_id,omitempty"`
+	Agent  *Agent  `json:"agent,omitempty"`
+	Caller *Caller `json:"caller,omitempty"`
+	Async  bool    `json:"async,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -635,8 +696,10 @@ type CustomToolCallOutput struct {
 
 	// optional
 
-	ID     string `json:"id,omitempty"`
-	Status string `json:"status,omitempty"`
+	ID     string  `json:"id,omitempty"`
+	Status string  `json:"status,omitempty"`
+	Agent  *Agent  `json:"agent,omitempty"`
+	Caller *Caller `json:"caller,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -655,6 +718,8 @@ type ApplyPatchCall struct {
 	CallID    string              `json:"call_id"`
 	Status    string              `json:"status"` // "in_progress" or "completed"
 	Operation ApplyPatchOperation `json:"operation"`
+	Agent     *Agent              `json:"agent,omitempty"`
+	Caller    *Caller             `json:"caller,omitempty"`
 }
 
 // ApplyPatchOperation describes a file operation requested by the apply_patch tool.
@@ -681,8 +746,10 @@ type ApplyPatchCallOutput struct {
 	CallID string `json:"call_id"`
 	Status string `json:"status"` // "completed" or "failed"
 	// optional
-	ID     string `json:"id,omitempty"`
-	Output string `json:"output,omitempty"` // human-readable status or error message
+	ID     string  `json:"id,omitempty"`
+	Output string  `json:"output,omitempty"` // human-readable status or error message
+	Agent  *Agent  `json:"agent,omitempty"`
+	Caller *Caller `json:"caller,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -695,10 +762,12 @@ func (a ApplyPatchCallOutput) MarshalJSON() ([]byte, error) {
 
 // Reasoning describes model's internal thinking process.
 type Reasoning struct {
-	Type    string             `json:"type"` // "reasoning"
-	ID      string             `json:"id"`
-	Status  string             `json:"status"`  // "in_progress", "completed", "incomplete"
-	Summary []ReasoningSummary `json:"summary"` // required even when empty
+	Type             string             `json:"type"` // "reasoning"
+	ID               string             `json:"id"`
+	Status           string             `json:"status"`  // "in_progress", "completed", "incomplete"
+	Summary          []ReasoningSummary `json:"summary"` // required even when empty
+	Agent            *Agent             `json:"agent,omitempty"`
+	EncryptedContent string             `json:"encrypted_content,omitempty"`
 }
 
 // Compaction is an opaque compaction item emitted by the Responses API.
@@ -707,6 +776,7 @@ type Compaction struct {
 	Type             string `json:"type"` // "compaction"
 	ID               string `json:"id,omitempty"`
 	EncryptedContent string `json:"encrypted_content"`
+	Agent            *Agent `json:"agent,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -754,6 +824,7 @@ type MCPListTools struct {
 	// optional
 
 	Error string `json:"error,omitempty"`
+	Agent *Agent `json:"agent,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -784,6 +855,7 @@ type MCPApprovalRequest struct {
 	ServerLabel string          `json:"server_label"`
 	Name        string          `json:"name"`
 	Arguments   json.RawMessage `json:"arguments"`
+	Agent       *Agent          `json:"agent,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -802,6 +874,7 @@ func (m MCPApprovalRequest) Respond(approve bool, reason string) MCPApprovalResp
 		ApprovalRequestID: m.ID,
 		Approve:           approve,
 		Reason:            reason,
+		Agent:             m.Agent,
 	}
 }
 
@@ -817,6 +890,7 @@ type MCPApprovalResponse struct {
 
 	ID     string `json:"id,omitempty"`
 	Reason string `json:"reason,omitempty"`
+	Agent  *Agent `json:"agent,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -841,6 +915,7 @@ type MCPCall struct {
 
 	Error  string `json:"error,omitempty"`
 	Output string `json:"output,omitempty"`
+	Agent  *Agent `json:"agent,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -858,6 +933,7 @@ type LocalShellCall struct {
 	CallID string           `json:"call_id"`
 	Action LocalShellAction `json:"action"`
 	Status string           `json:"status"`
+	Agent  *Agent           `json:"agent,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -902,6 +978,7 @@ type LocalShellCallOutput struct {
 	// optional
 
 	Status string `json:"status,omitempty"` // "in_progress", "completed", "incomplete"
+	Agent  *Agent `json:"agent,omitempty"`
 }
 
 // MarshalJSON implements the json.Marshaler interface.
@@ -919,6 +996,8 @@ type ShellCall struct {
 	CallID string      `json:"call_id"`
 	Action ShellAction `json:"action"`
 	Status string      `json:"status"` // "in_progress", "completed"
+	Agent  *Agent      `json:"agent,omitempty"`
+	Caller *Caller     `json:"caller,omitempty"`
 }
 
 // ShellAction describes the action requested by the shell tool.
@@ -944,6 +1023,8 @@ type ShellCallOutput struct {
 	MaxOutputLength int    `json:"max_output_length,omitempty"`
 	// Output contains one or more results from executing the requested shell commands.
 	Output []ShellCommandResult `json:"output"`
+	Agent  *Agent               `json:"agent,omitempty"`
+	Caller *Caller              `json:"caller,omitempty"`
 }
 
 // ShellCommandResult describes the result of executing a single shell command.
@@ -980,6 +1061,7 @@ type CodeInterpreterCall struct {
 	// optional
 
 	ContainerID string `json:"container_id,omitempty"`
+	Agent       *Agent `json:"agent,omitempty"`
 }
 
 // CodeInterpreterResultText describes a log of a call interpreter tool.
@@ -1067,4 +1149,168 @@ func (c CodeInterpreterCall) MarshalJSON() ([]byte, error) {
 	c.Type = "code_interpreter_call"
 	type alias CodeInterpreterCall
 	return openai.Marshal(alias(c))
+}
+
+// Agent identifies the agent associated with an output item or streaming event.
+type Agent struct {
+	AgentName string `json:"agent_name"`
+}
+
+// Caller identifies whether a tool call originated directly or from a program.
+type Caller struct {
+	Type     string `json:"type"` // "direct" or "program"
+	CallerID string `json:"caller_id,omitempty"`
+}
+
+// ImageGenerationCall describes an image generated by the hosted image tool.
+type ImageGenerationCall struct {
+	Type          string  `json:"type"` // "image_generation_call"
+	ID            string  `json:"id"`
+	Result        *string `json:"result"` // base64 image, or null while unavailable
+	Status        string  `json:"status"` // "in_progress", "completed", "generating", "failed"
+	Action        string  `json:"action,omitempty"`
+	Background    string  `json:"background,omitempty"`
+	OutputFormat  string  `json:"output_format,omitempty"`
+	Quality       string  `json:"quality,omitempty"`
+	RevisedPrompt string  `json:"revised_prompt,omitempty"`
+	Size          string  `json:"size,omitempty"`
+	Agent         *Agent  `json:"agent,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "image_generation_call", discarding any prior value.
+func (i ImageGenerationCall) MarshalJSON() ([]byte, error) {
+	i.Type = "image_generation_call"
+	type alias ImageGenerationCall
+	return openai.Marshal(alias(i))
+}
+
+// Data returns the decoded image bytes.
+// It returns an error if Result is unavailable or contains invalid base64.
+func (i ImageGenerationCall) Data() ([]byte, error) {
+	if i.Result == nil {
+		return nil, errors.New("image data is unavailable")
+	}
+	return base64.StdEncoding.DecodeString(*i.Result)
+}
+
+// Program contains JavaScript executed by the hosted programmatic tool calling runtime.
+// Its fingerprint must be preserved when replaying the item in subsequent requests.
+type Program struct {
+	Type        string `json:"type"` // "program"
+	ID          string `json:"id"`
+	CallID      string `json:"call_id"`
+	Code        string `json:"code"`
+	Fingerprint string `json:"fingerprint"`
+	Agent       *Agent `json:"agent,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "program", discarding any prior value.
+func (p Program) MarshalJSON() ([]byte, error) {
+	p.Type = "program"
+	type alias Program
+	return openai.Marshal(alias(p))
+}
+
+// ProgramOutput contains the result of a hosted program.
+type ProgramOutput struct {
+	Type   string `json:"type"` // "program_output"
+	ID     string `json:"id"`
+	CallID string `json:"call_id"`
+	Result string `json:"result"`
+	Status string `json:"status"` // "completed" or "incomplete"
+	Agent  *Agent `json:"agent,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "program_output", discarding any prior value.
+func (p ProgramOutput) MarshalJSON() ([]byte, error) {
+	p.Type = "program_output"
+	type alias ProgramOutput
+	return openai.Marshal(alias(p))
+}
+
+// MultiAgentCall describes a hosted collaboration action.
+// The API executes these calls and supplies their outputs.
+type MultiAgentCall struct {
+	Type      string `json:"type"` // "multi_agent_call"
+	ID        string `json:"id"`
+	CallID    string `json:"call_id"`
+	Action    string `json:"action"`
+	Arguments string `json:"arguments"`
+	Agent     *Agent `json:"agent,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "multi_agent_call", discarding any prior value.
+func (m MultiAgentCall) MarshalJSON() ([]byte, error) {
+	m.Type = "multi_agent_call"
+	type alias MultiAgentCall
+	return openai.Marshal(alias(m))
+}
+
+// MultiAgentCallOutput contains the result of a hosted collaboration action.
+type MultiAgentCallOutput struct {
+	Type   string       `json:"type"` // "multi_agent_call_output"
+	ID     string       `json:"id"`
+	CallID string       `json:"call_id"`
+	Action string       `json:"action"`
+	Output []OutputText `json:"output"`
+	Agent  *Agent       `json:"agent,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "multi_agent_call_output", discarding any prior value.
+func (m MultiAgentCallOutput) MarshalJSON() ([]byte, error) {
+	m.Type = "multi_agent_call_output"
+	type alias MultiAgentCallOutput
+	return openai.Marshal(alias(m))
+}
+
+// AgentMessage carries content between agents.
+// Agent identifies the recipient; Author and Recipient describe the message direction.
+type AgentMessage struct {
+	Type      string `json:"type"` // "agent_message"
+	ID        string `json:"id"`
+	Author    string `json:"author"`
+	Recipient string `json:"recipient"`
+	Content   []Any  `json:"content"`
+	Agent     *Agent `json:"agent,omitempty"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "agent_message", discarding any prior value.
+func (m AgentMessage) MarshalJSON() ([]byte, error) {
+	m.Type = "agent_message"
+	type alias AgentMessage
+	return openai.Marshal(alias(m))
+}
+
+// EncryptedContent is opaque content decrypted by the API during model execution.
+type EncryptedContent struct {
+	Type             string `json:"type"` // "encrypted_content"
+	EncryptedContent string `json:"encrypted_content"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "encrypted_content", discarding any prior value.
+func (c EncryptedContent) MarshalJSON() ([]byte, error) {
+	c.Type = "encrypted_content"
+	type alias EncryptedContent
+	return openai.Marshal(alias(c))
+}
+
+// ReasoningText is reasoning text included in an agent message.
+type ReasoningText struct {
+	Type string `json:"type"` // "reasoning_text"
+	Text string `json:"text"`
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+// It fills in the "type" field with "reasoning_text", discarding any prior value.
+func (r ReasoningText) MarshalJSON() ([]byte, error) {
+	r.Type = "reasoning_text"
+	type alias ReasoningText
+	return openai.Marshal(alias(r))
 }
