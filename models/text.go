@@ -15,7 +15,7 @@ const (
 	Latest      = GPT6Astra
 	Default     = Latest
 	DefaultMini = GPT56Terra
-	DefaultNano = GPT56Luna
+	DefaultNano = GPT6Luna
 
 	// Chat aliases
 	ChatLatest = "chat-latest"
@@ -102,6 +102,8 @@ const (
 
 	// GPT-6 family
 	GPT6Astra = "gpt-6-astra"
+	GPT6Sol   = "gpt-6-sol"
+	GPT6Luna  = "gpt-6-luna"
 
 	// Realtime and audio: standard contains text rates; Audio and Image contain other modalities.
 	GPTRealtime             = "gpt-realtime"
@@ -556,6 +558,22 @@ var Data = map[string]Pricing{
 		standard:     &tierRates{short: tokenRates{input: 10, cachedInput: 1, cacheWrite: 12.5, output: 50}, long: &tokenRates{input: 20, cachedInput: 2, cacheWrite: 25, output: 75}},
 		fast:         &tierRates{short: tokenRates{input: 20, cachedInput: 2, cacheWrite: 25, output: 100}, long: &tokenRates{input: 40, cachedInput: 4, cacheWrite: 50, output: 150}},
 		flex:         &tierRates{short: tokenRates{input: 5, cachedInput: 0.5, cacheWrite: 6.25, output: 25}, long: &tokenRates{input: 10, cachedInput: 1, cacheWrite: 12.5, output: 37.5}},
+		LimitContext: 1050000, LimitOutput: 128000,
+		LongContextThreshold: 272000,
+		RegionalUplift:       0.1,
+	},
+	GPT6Sol: {
+		standard:     &tierRates{short: tokenRates{input: 2, cachedInput: 0.2, cacheWrite: 2.5, output: 10}, long: &tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 5, output: 15}},
+		fast:         &tierRates{short: tokenRates{input: 4, cachedInput: 0.4, cacheWrite: 5, output: 20}, long: &tokenRates{input: 8, cachedInput: 0.8, cacheWrite: 10, output: 30}},
+		flex:         &tierRates{short: tokenRates{input: 1, cachedInput: 0.1, cacheWrite: 1.25, output: 5}, long: &tokenRates{input: 2, cachedInput: 0.2, cacheWrite: 2.5, output: 7.5}},
+		LimitContext: 1050000, LimitOutput: 128000,
+		LongContextThreshold: 272000,
+		RegionalUplift:       0.1,
+	},
+	GPT6Luna: {
+		standard:     &tierRates{short: tokenRates{input: 0.1, cachedInput: 0.01, cacheWrite: 0.125, output: 0.5}, long: &tokenRates{input: 0.2, cachedInput: 0.02, cacheWrite: 0.25, output: 0.75}},
+		fast:         &tierRates{short: tokenRates{input: 0.2, cachedInput: 0.02, cacheWrite: 0.25, output: 1}, long: &tokenRates{input: 0.4, cachedInput: 0.04, cacheWrite: 0.5, output: 1.5}},
+		flex:         &tierRates{short: tokenRates{input: 0.05, cachedInput: 0.005, cacheWrite: 0.0625, output: 0.25}, long: &tokenRates{input: 0.1, cachedInput: 0.01, cacheWrite: 0.125, output: 0.375}},
 		LimitContext: 1050000, LimitOutput: 128000,
 		LongContextThreshold: 272000,
 		RegionalUplift:       0.1,
