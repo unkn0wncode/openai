@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
+	"sort"
 	"sync"
 )
 
@@ -201,7 +201,7 @@ type Tool struct {
 	// The URL for the MCP server.
 	ServerURL string `json:"server_url,omitempty"`
 	// Optional HTTP headers to send to the MCP server. Use for authentication or other purposes.
-	Headers http.Header `json:"headers,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
 	// List of allowed tool names.
 	// TODO: it also can be a filter object but it's functionally same as just []string. Add if it allows something more in future.
 	AllowedTools []string `json:"allowed_tools,omitempty"`
@@ -312,7 +312,8 @@ func (al MCPApprovalList) MarshalJSON() ([]byte, error) {
 
 // RegisterTool registers a tool that can be used by the model.
 // To allow the model to use a tool in a particular request,
-// add the tool to the request's "tools" field.
+// add its name to the request's "tools" field. MCP servers use ServerLabel as
+// their registry name; "mcp" selects all registered MCP servers.
 func (r *Registry) RegisterTool(tool Tool) error {
 	// Validate the tool based on its type
 	switch tool.Type {
@@ -387,6 +388,9 @@ func (r *Registry) RegisterTool(tool Tool) error {
 
 	// Check for duplicate tool names
 	name := tool.Name
+	if tool.Type == "mcp" {
+		name = tool.ServerLabel
+	}
 	if name == "" {
 		name = tool.Type
 	}
@@ -427,4 +431,23 @@ func (r *Registry) GetTool(name string) (Tool, bool) {
 
 	tool, ok := r.Tools[name]
 	return tool, ok
+}
+
+// GetToolsByType returns registered tools of the given type in registry-name order.
+func (r *Registry) GetToolsByType(toolType string) []Tool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var names []string
+	for name, tool := range r.Tools {
+		if tool.Type == toolType {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	var result []Tool
+	for _, name := range names {
+		result = append(result, r.Tools[name])
+	}
+	return result
 }

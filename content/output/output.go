@@ -844,8 +844,8 @@ type MCPTool struct {
 
 	// optional
 
-	Description string          `json:"description,omitempty"`
-	Annotations []AnyAnnotation `json:"annotations,omitempty"`
+	Description string         `json:"description,omitempty"`
+	Annotations map[string]any `json:"annotations,omitempty"`
 }
 
 // MCPApprovalRequest describes a request to approve an MCP tool call.

@@ -66,12 +66,22 @@ func (c *Client) marshalRequest(data *responses.Request) ([]byte, error) {
 	}
 
 	var toolList []tools.Tool
+	mcpLabels := make(map[string]bool)
+	addTool := func(tool tools.Tool) {
+		if tool.Type == "mcp" {
+			if mcpLabels[tool.ServerLabel] {
+				return
+			}
+			mcpLabels[tool.ServerLabel] = true
+		}
+		toolList = append(toolList, tool)
+	}
 	for _, name := range data.Tools {
-		// if given tool is builtin, add it by type
+		// MCP selects every registered server; other builtins select one tool.
 		if slices.Contains(builtinTools, name) {
-			for _, t := range c.Tools.Tools {
-				if t.Type == name {
-					toolList = append(toolList, t)
+			for _, tool := range c.Tools.GetToolsByType(name) {
+				addTool(tool)
+				if name != "mcp" {
 					break
 				}
 			}
@@ -81,7 +91,7 @@ func (c *Client) marshalRequest(data *responses.Request) ([]byte, error) {
 		// try to get tool by name, if not found try to get function by name
 		t, ok := c.Tools.GetTool(name)
 		if ok {
-			toolList = append(toolList, t)
+			addTool(t)
 			continue
 		}
 

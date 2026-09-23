@@ -133,7 +133,8 @@ type Request struct {
 	Background           bool                `json:"background,omitempty"`        // if true, the API returns immediately with only a response ID
 	Generate             *bool               `json:"generate,omitempty"`          // if false, warm up request state without generating model output
 
-	// names of tools/functions to include, will be marshaled as their full structs from tools registry
+	// Names of tools/functions to include, marshaled from the tools registry.
+	// Use an MCP server label to select one server, or "mcp" to select all servers.
 	Tools []string `json:"-"`
 
 	// Custom (not part of the API)
