@@ -34,10 +34,11 @@ type Pricing struct {
 	Audio *ModalityPricing
 	Image *ModalityPricing
 
-	standard *tierRates
-	flex     *tierRates
-	fast     *tierRates
-	tier     string
+	standard  *tierRates
+	flex      *tierRates
+	fast      *tierRates
+	ultrafast *tierRates
+	tier      string
 }
 
 // ModalityPricing contains Standard input, cached input and output rates in USD
@@ -81,6 +82,11 @@ func (p Pricing) ForTier(tier string) (Pricing, error) {
 			return Pricing{}, errors.New("fast pricing unavailable for model")
 		}
 		p.tier = "fast"
+	case "ultrafast":
+		if p.ultrafast == nil {
+			return Pricing{}, errors.New("ultrafast pricing unavailable for model")
+		}
+		p.tier = "ultrafast"
 	default:
 		return Pricing{}, fmt.Errorf("pricing unavailable for service tier %q", tier)
 	}
@@ -123,6 +129,8 @@ func (u *Usage) Cost(p Pricing) (float64, error) {
 		tier = p.flex
 	case "fast":
 		tier = p.fast
+	case "ultrafast":
+		tier = p.ultrafast
 	}
 	rates := &tier.short
 	if p.LongContextThreshold != 0 && u.InputTokens > p.LongContextThreshold {

@@ -318,8 +318,9 @@ func (data *response) checkResponseData(resp *responses.Response) error {
 	return nil
 }
 
-// processingRegion retyrns region name recognized by documented OpenAI endpoints; arbitrary proxies
+// processingRegion returns region name recognized by documented OpenAI endpoints; arbitrary proxies
 // do not establish the region used for billing.
+// https://developers.openai.com/api/docs/guides/your-data#which-models-and-features-are-eligible-for-data-residency
 func processingRegion(endpoint *url.URL) string {
 	host := strings.ToLower(endpoint.Hostname())
 	switch host {

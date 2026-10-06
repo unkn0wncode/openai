@@ -228,16 +228,50 @@ func TestEstimateCostRegionalPricing(t *testing.T) {
 			require.InDelta(t, tt.want, got, 1e-12)
 		})
 	}
-	for _, tier := range []string{responses.ServiceTierFast, responses.ServiceTierPriority} {
-		t.Run("eu/"+tier, func(t *testing.T) {
+	for _, model := range []string{models.GPT6Astra, models.GPT61Sol, models.GPT6Sol, models.GPT6Luna} {
+		for _, tier := range []string{responses.ServiceTierFast, responses.ServiceTierPriority} {
+			t.Run("eu/"+model+"/"+tier, func(t *testing.T) {
+				resp := &responses.Response{
+					Model: model, ServiceTier: tier, ProcessingRegion: "eu",
+					Usage:   &responses.Usage{InputTokens: 1000, OutputTokens: 1000},
+					Outputs: []output.Any{{Type: "file_search_call"}},
+				}
+				got, err := (&responses.Request{}).EstimateCost(resp)
+				require.ErrorContains(t, err, "EU")
+				require.InDelta(t, 0.0025, got, 1e-12)
+			})
+		}
+	}
+	t.Run("eu/"+models.GPT56Sol+"/fast", func(t *testing.T) {
+		resp := &responses.Response{
+			Model: models.GPT56Sol, ServiceTier: responses.ServiceTierFast, ProcessingRegion: "eu",
+			Usage: &responses.Usage{InputTokens: 1000, OutputTokens: 1000},
+		}
+		got, err := (&responses.Request{}).EstimateCost(resp)
+		require.NoError(t, err)
+		require.InDelta(t, 0.0528, got, 1e-12)
+	})
+	for _, tt := range []struct {
+		region string
+		want   float64
+		err    string
+	}{
+		{"global", 0.36, ""},
+		{"us", 0.396, ""},
+		{"eu", 0, "ultrafast"},
+	} {
+		t.Run("ultrafast/"+tt.region, func(t *testing.T) {
 			resp := &responses.Response{
-				Model: models.GPT6Astra, ServiceTier: tier, ProcessingRegion: "eu",
-				Usage:   &responses.Usage{InputTokens: 1000, OutputTokens: 1000},
-				Outputs: []output.Any{{Type: "file_search_call"}},
+				Model: models.GPT6Astra, ServiceTier: responses.ServiceTierUltrafast, ProcessingRegion: tt.region,
+				Usage: &responses.Usage{InputTokens: 1000, OutputTokens: 1000},
 			}
 			got, err := (&responses.Request{}).EstimateCost(resp)
-			require.ErrorContains(t, err, "EU")
-			require.InDelta(t, 0.0025, got, 1e-12)
+			if tt.err == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.err)
+			}
+			require.InDelta(t, tt.want, got, 1e-12)
 		})
 	}
 }

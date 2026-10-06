@@ -289,7 +289,7 @@ type (
 			Variables map[string]json.RawMessage `json:"variables"`
 			Version   *string                    `json:"version"`
 		} `json:"prompt"`
-		ServiceTier *string `json:"service_tier"` // actual processing tier, including default, flex, fast, or priority
+		ServiceTier *string `json:"service_tier"` // actual processing tier, including default, flex, fast, priority, or ultrafast
 		TopLogprobs *int    `json:"top_logprobs"`
 	}
 )

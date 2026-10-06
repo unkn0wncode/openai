@@ -25,11 +25,12 @@ const (
 	TextFormatTypeJSONSchema = "json_schema"
 
 	// Service tiers
-	ServiceTierAuto     = "auto"     // service tier configured in the Project settings
-	ServiceTierDefault  = "default"  // standard pricing and performance for the selected model
-	ServiceTierFlex     = "flex"     // slower but cheaper
-	ServiceTierPriority = "priority" // faster but more expensive
-	ServiceTierFast     = "fast"     // same request behavior as priority
+	ServiceTierAuto      = "auto"      // service tier configured in the Project settings
+	ServiceTierDefault   = "default"   // standard pricing and performance for the selected model
+	ServiceTierFlex      = "flex"      // slower but cheaper
+	ServiceTierPriority  = "priority"  // faster but more expensive
+	ServiceTierFast      = "fast"      // same request behavior as priority
+	ServiceTierUltrafast = "ultrafast" // fastest and most expensive; limited model availability
 )
 
 // Service is the service layer for OpenAI responses API.

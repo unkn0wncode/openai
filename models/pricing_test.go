@@ -24,6 +24,10 @@ func testPricing() Pricing {
 			short: tokenRates{input: 6, cachedInput: 2, cacheWrite: 10, output: 19},
 			long:  &tokenRates{input: 20, cachedInput: 7, cacheWrite: 30, output: 50},
 		},
+		ultrafast: &tierRates{
+			short: tokenRates{input: 18, cachedInput: 6, cacheWrite: 30, output: 60},
+			long:  &tokenRates{input: 60, cachedInput: 20, cacheWrite: 90, output: 150},
+		},
 	}
 }
 
@@ -58,6 +62,7 @@ func TestServiceTierCost(t *testing.T) {
 		{"default", 0.000175, 0.001305},
 		{"flex", 0.000090, 0.000480},
 		{"fast", 0.000535, 0.002490},
+		{"ultrafast", 0.001620, 0.007450},
 	} {
 		t.Run(tt.tier, func(t *testing.T) {
 			p, err := testPricing().ForTier(tt.tier)
@@ -88,6 +93,8 @@ func TestLongContextBoundary(t *testing.T) {
 		{"flex", 101, 0.000404},
 		{"fast", 100, 0.000655},
 		{"fast", 101, 0.002110},
+		{"ultrafast", 100, 0.001980},
+		{"ultrafast", 101, 0.006310},
 	} {
 		t.Run(tt.tier+"/"+strconv.Itoa(tt.input), func(t *testing.T) {
 			p, err := testPricing().ForTier(tt.tier)
@@ -120,8 +127,8 @@ func TestUnavailablePricing(t *testing.T) {
 		require.Error(t, err, "tier %q", tier)
 	}
 	p := testPricing()
-	p.flex, p.fast = nil, nil
-	for _, tier := range []string{"flex", "fast", "priority"} {
+	p.flex, p.fast, p.ultrafast = nil, nil, nil
+	for _, tier := range []string{"flex", "fast", "priority", "ultrafast"} {
 		_, err := p.ForTier(tier)
 		require.Error(t, err, "tier %q", tier)
 	}
@@ -195,7 +202,7 @@ func TestCatalogValidity(t *testing.T) {
 					require.True(t, rate >= 0 || rate == unavailableRate, "invalid modality rate %v", rate)
 				}
 			}
-			for _, tier := range []*tierRates{p.standard, p.flex, p.fast} {
+			for _, tier := range []*tierRates{p.standard, p.flex, p.fast, p.ultrafast} {
 				if tier == nil {
 					continue
 				}

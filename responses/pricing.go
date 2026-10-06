@@ -95,9 +95,17 @@ func (req *Request) estimateCall(resp *Response) (float64, error) {
 	if err != nil {
 		return toolCost, errors.Join(err, toolErr)
 	}
-	if resp.Model == models.GPT6Astra && resp.ProcessingRegion == "eu" &&
-		(resp.ServiceTier == ServiceTierFast || resp.ServiceTier == ServiceTierPriority) {
-		return toolCost, errors.Join(errors.New("fast pricing is unavailable for GPT-6 Astra with EU data residency"), toolErr)
+	// https://developers.openai.com/api/docs/guides/your-data#which-models-and-features-are-eligible-for-data-residency
+	if resp.ProcessingRegion == "eu" && (resp.ServiceTier == ServiceTierFast || resp.ServiceTier == ServiceTierPriority) {
+		switch resp.Model {
+		case models.GPT6Astra, models.GPT61Sol, models.GPT6Sol, models.GPT6Luna:
+			return toolCost, errors.Join(fmt.Errorf("fast pricing is unavailable for %s with EU data residency", resp.Model), toolErr)
+		}
+	}
+	// https://developers.openai.com/api/docs/guides/ultrafast-mode#availability
+	if resp.ServiceTier == ServiceTierUltrafast && resp.ProcessingRegion != "" &&
+		resp.ProcessingRegion != "global" && resp.ProcessingRegion != "us" {
+		return toolCost, errors.Join(fmt.Errorf("ultrafast pricing is unavailable for region %q", resp.ProcessingRegion), toolErr)
 	}
 	if resp.Usage != nil && pricing.LongContextThreshold > 0 &&
 		resp.Usage.InputTokens > pricing.LongContextThreshold && req.hasAggregateWork(resp) {
@@ -112,6 +120,8 @@ func (req *Request) estimateCall(resp *Response) (float64, error) {
 		tokenErr = errors.Join(tokenErr, inputErr)
 		tokenCost -= inputCost
 	}
+	// https://developers.openai.com/api/docs/pricing
+	// https://developers.openai.com/api/docs/guides/your-data#which-models-and-features-are-eligible-for-data-residency
 	if pricing.RegionalUplift != 0 {
 		switch resp.ProcessingRegion {
 		case "global":
