@@ -104,6 +104,7 @@ Currently implemented APIs:
 - Chat (Legacy)
 - Moderation
 - Embeddings
+- Decisions
 - Completions (Legacy)
 
 Not implemented:
@@ -553,6 +554,38 @@ Example:
 ```go
 vec, _ := client.Embedding.One("Hello, world!")
 fmt.Printf("Vector length: %d\n", len(vec))
+```
+
+## Decisions API
+
+The Decisions API service accessible through `Client.Decisions` evaluates typed questions against shared input:
+- `Send` sends the request and returns a `Decision` with one `Answer` per question, in question order.
+
+`Request.Input` is a list of user messages. Each `Message` is an ordered list of `Text` and `Image` parts. Parts within a message are joined without separators, while separate messages stay distinguishable to the model. `Image.Data` takes raw image bytes and is sent as a base64 data URL, the only image form the API accepts. `Base64Image.Data` takes an already base64-encoded image, either plain or as a data URL whose declared type is replaced with the detected one; `Send` logs a warning when they differ. `TextInput(text)` builds an input from a string as a single text message. The model defaults to `models.DefaultDecision`.
+
+Question types are `predicate` (`Answer.Probability`), `choice` (`Answer.Choice` with a string or bool value) and `score` (`Answer.Score` over ordered levels). Choice and score answers also include `Confidence` and `Probabilities`. A question may be declined with an answer of type `refusal`.
+
+The `Decision` type offers methods:
+- `Answer(name)` returns the answer to the named question.
+- `EstimateCost` estimates the charge in USD from `models.DecisionData`. Only input tokens are charged, including cached ones; regional processing and long-context rates apply.
+
+Example:
+
+```go
+decision, _ := client.Decisions.Send(ctx, &decisions.Request{
+    Input: decisions.TextInput("I was charged twice for my order."),
+    Questions: []decisions.Question{{
+        Type:         decisions.QuestionTypeChoice,
+        Name:         "department",
+        Instructions: "Which department should handle this complaint?",
+        Choices: []decisions.Choice{
+            {Value: "billing", Description: "Payments, invoices, and refunds."},
+            {Value: "other", Description: "Requests outside these categories."},
+        },
+    }},
+})
+department, _ := decision.Answer("department")
+fmt.Println(department.Choice, department.Confidence)
 ```
 
 ## Completions API (Legacy)

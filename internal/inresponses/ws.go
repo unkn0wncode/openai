@@ -892,7 +892,7 @@ func (w *wsClient) Send(ctx context.Context, req *responses.Request) (*streaming
 	}
 	turn.tools = sent.Tools
 	if endpoint, err := url.Parse(w.client.BaseAPI); err == nil {
-		turn.processingRegion = processingRegion(endpoint)
+		turn.processingRegion = openai.ProcessingRegion(endpoint)
 	}
 
 	w.mu.Lock()

@@ -159,6 +159,9 @@ const (
 	OmniModeration20240926 = "omni-moderation-2024-09-26"
 	TextModerationLatest   = "text-moderation-latest"
 	TextModerationStable   = "text-moderation-stable"
+
+	// Decisions
+	DefaultDecision = GPT6Luna
 )
 
 // Data contains token prices and limits for each model.
@@ -779,5 +782,16 @@ var Data = map[string]Pricing{
 	TextEmbedding3Small: {
 		standard:     &tierRates{short: tokenRates{input: 0.02, cachedInput: unavailableRate, cacheWrite: 0.02, output: unavailableRate}},
 		LimitContext: 8191, LimitOutput: 1536,
+	},
+}
+
+// DecisionData contains Decisions API rates, which are separate from the model rates in Data.
+// Only input is charged: cache reads and writes are billed at the input rate, and output is free.
+// https://developers.openai.com/api/docs/guides/decisions#pricing-and-availability
+var DecisionData = map[string]Pricing{
+	GPT6Luna: {
+		standard:             &tierRates{short: tokenRates{input: 0.1, cachedInput: 0.1, cacheWrite: 0.1, output: 0}, long: &tokenRates{input: 0.2, cachedInput: 0.2, cacheWrite: 0.2, output: 0}},
+		LongContextThreshold: 272000,
+		RegionalUplift:       0.1,
 	},
 }

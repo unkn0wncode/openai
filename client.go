@@ -4,10 +4,12 @@ package openai
 import (
 	"github.com/unkn0wncode/openai/chat"
 	"github.com/unkn0wncode/openai/completion"
+	"github.com/unkn0wncode/openai/decisions"
 	"github.com/unkn0wncode/openai/embedding"
 	openai "github.com/unkn0wncode/openai/internal"
 	"github.com/unkn0wncode/openai/internal/inchat"
 	"github.com/unkn0wncode/openai/internal/incompletion"
+	"github.com/unkn0wncode/openai/internal/indecisions"
 	"github.com/unkn0wncode/openai/internal/inembedding"
 	"github.com/unkn0wncode/openai/internal/inmoderation"
 	"github.com/unkn0wncode/openai/internal/inresponses"
@@ -23,6 +25,7 @@ type Client struct {
 	Completion completion.Service
 	Responses  responses.Service
 	Embedding  embedding.Service
+	Decisions  decisions.Service
 
 	config *openai.Config
 }
@@ -36,6 +39,7 @@ func NewClient(token string) *Client {
 	c.Completion = incompletion.NewClient(c.config)
 	c.Responses = inresponses.NewClient(c.config)
 	c.Embedding = inembedding.NewClient(c.config)
+	c.Decisions = indecisions.NewClient(c.config)
 	return c
 }
 

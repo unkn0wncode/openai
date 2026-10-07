@@ -108,6 +108,24 @@ func (p Pricing) Cost(usage interface {
 	return usage.Cost(p)
 }
 
+// RegionalCost adds the regional processing uplift to cost for a region recorded from the API endpoint.
+// On error, cost is returned unchanged as a subtotal.
+// https://developers.openai.com/api/docs/pricing
+// https://developers.openai.com/api/docs/guides/your-data#which-models-and-features-are-eligible-for-data-residency
+func (p Pricing) RegionalCost(cost float64, region string) (float64, error) {
+	if p.RegionalUplift == 0 {
+		return cost, nil
+	}
+	switch region {
+	case "global":
+		return cost, nil
+	case "us", "eu", "au", "ca", "jp", "in", "sg", "kr", "gb", "ae":
+		return cost * (1 + p.RegionalUplift), nil
+	default:
+		return cost, fmt.Errorf("regional processing charges are unavailable for region %q", region)
+	}
+}
+
 // Cost returns the token-cost estimate in USD. A nonnil error means the returned
 // amount is only the subtotal of priced tokens.
 func (u *Usage) Cost(p Pricing) (float64, error) {

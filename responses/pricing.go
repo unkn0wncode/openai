@@ -120,17 +120,7 @@ func (req *Request) estimateCall(resp *Response) (float64, error) {
 		tokenErr = errors.Join(tokenErr, inputErr)
 		tokenCost -= inputCost
 	}
-	// https://developers.openai.com/api/docs/pricing
-	// https://developers.openai.com/api/docs/guides/your-data#which-models-and-features-are-eligible-for-data-residency
-	if pricing.RegionalUplift != 0 {
-		switch resp.ProcessingRegion {
-		case "global":
-		case "us", "eu", "au", "ca", "jp", "in", "sg", "kr", "gb", "ae":
-			tokenCost *= 1 + pricing.RegionalUplift
-		default:
-			err = fmt.Errorf("regional processing charges are unavailable for region %q", resp.ProcessingRegion)
-		}
-	}
+	tokenCost, err = pricing.RegionalCost(tokenCost, resp.ProcessingRegion)
 	return tokenCost + toolCost, errors.Join(tokenErr, err, toolErr)
 }
 

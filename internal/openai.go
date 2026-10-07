@@ -10,7 +10,9 @@ import (
 	"mime"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -178,6 +180,23 @@ func (c *HTTPClient) WithRetry(req *http.Request) (*http.Response, error) {
 	}, c.RequestAttempts, c.RetryInterval)
 
 	return resp, err
+}
+
+// ProcessingRegion returns region name recognized by documented OpenAI endpoints; arbitrary proxies
+// do not establish the region used for billing.
+// https://developers.openai.com/api/docs/guides/your-data#which-models-and-features-are-eligible-for-data-residency
+func ProcessingRegion(endpoint *url.URL) string {
+	host := strings.ToLower(endpoint.Hostname())
+	switch host {
+	case "api.openai.com":
+		return "global"
+	case "us.api.openai.com", "eu.api.openai.com", "au.api.openai.com", "ca.api.openai.com",
+		"jp.api.openai.com", "in.api.openai.com", "sg.api.openai.com", "kr.api.openai.com",
+		"gb.api.openai.com", "ae.api.openai.com":
+		return strings.TrimSuffix(host, ".api.openai.com")
+	default:
+		return ""
+	}
 }
 
 // Encoders for counting tokens.

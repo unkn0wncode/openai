@@ -11,7 +11,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -183,7 +182,7 @@ func (c *Client) executeRequest(data *responses.Request) (result *response, outc
 	if err := json.Unmarshal(body, &res); err != nil {
 		return nil, false, fmt.Errorf("failed to decode response: %w", err)
 	}
-	res.ProcessingRegion = processingRegion(req.URL)
+	res.ProcessingRegion = openai.ProcessingRegion(req.URL)
 	res.Duration = duration
 	if res.Tools == nil {
 		// Preserve the resolved definitions actually sent, even when not echoed.
@@ -316,23 +315,6 @@ func (data *response) checkResponseData(resp *responses.Response) error {
 		}
 	}
 	return nil
-}
-
-// processingRegion returns region name recognized by documented OpenAI endpoints; arbitrary proxies
-// do not establish the region used for billing.
-// https://developers.openai.com/api/docs/guides/your-data#which-models-and-features-are-eligible-for-data-residency
-func processingRegion(endpoint *url.URL) string {
-	host := strings.ToLower(endpoint.Hostname())
-	switch host {
-	case "api.openai.com":
-		return "global"
-	case "us.api.openai.com", "eu.api.openai.com", "au.api.openai.com", "ca.api.openai.com",
-		"jp.api.openai.com", "in.api.openai.com", "sg.api.openai.com", "kr.api.openai.com",
-		"gb.api.openai.com", "ae.api.openai.com":
-		return strings.TrimSuffix(host, ".api.openai.com")
-	default:
-		return ""
-	}
 }
 
 // logCost records terminal usage and the estimate already stored on resp.
@@ -945,7 +927,7 @@ func (c *Client) Poll(ctx context.Context, id string, interval time.Duration) (*
 		if err := json.Unmarshal(body, &raw); err != nil {
 			return last, fmt.Errorf("failed to decode poll response: %w", err)
 		}
-		raw.ProcessingRegion = processingRegion(req.URL)
+		raw.ProcessingRegion = openai.ProcessingRegion(req.URL)
 		last = raw.project()
 		last.Calls = []responses.Response{*last}
 		last.EstimatedCost, last.CostError = (&responses.Request{}).EstimateCost(last)
@@ -1125,7 +1107,7 @@ func (c *Client) streamEvents(ctx context.Context, data *responses.Request) (str
 				src.finish(fmt.Errorf("failed to unmarshal event data: %w", err))
 				return
 			}
-			c.logStreamingCost(data, sent.Tools, processingRegion(req.URL), event)
+			c.logStreamingCost(data, sent.Tools, openai.ProcessingRegion(req.URL), event)
 
 			select {
 			case src.events <- event:

@@ -2,8 +2,13 @@
 package openai
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
 	"os"
 	"strings"
 	"testing"
@@ -12,6 +17,7 @@ import (
 	"github.com/unkn0wncode/openai/chat"
 	"github.com/unkn0wncode/openai/completion"
 	"github.com/unkn0wncode/openai/content/output"
+	"github.com/unkn0wncode/openai/decisions"
 	"github.com/unkn0wncode/openai/models"
 	"github.com/unkn0wncode/openai/responses"
 	"github.com/unkn0wncode/openai/responses/streaming"
@@ -351,6 +357,67 @@ func TestClient_Embedding(t *testing.T) {
 	vec, err := c.Embedding.One("Hello, world!")
 	require.NoError(t, err)
 	require.NotEmpty(t, vec)
+}
+
+// TestClient_Decisions checks that each question type returns its typed answer in question order.
+func TestClient_Decisions(t *testing.T) {
+	t.Parallel()
+	c := NewClient(integrationToken(t))
+
+	decision, err := c.Decisions.Send(t.Context(), &decisions.Request{
+		Input: decisions.TextInput("I was charged twice for my order and can't get a refund."),
+		Questions: []decisions.Question{
+			{Type: decisions.QuestionTypePredicate, Name: "billing", Instructions: "Is this about a payment?"},
+			{Type: decisions.QuestionTypeChoice, Name: "department", Instructions: "Which department should handle this?", Choices: []decisions.Choice{
+				{Value: "billing", Description: "Payments, invoices, and refunds."},
+				{Value: "shipping", Description: "Delivery and tracking."},
+			}},
+			{Type: decisions.QuestionTypeScore, Name: "severity", Instructions: "How severe is this issue?", Levels: []decisions.Level{
+				{Label: "Minor"}, {Label: "Major"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, models.DefaultDecision, decision.Model)
+	require.Len(t, decision.Answers, 3)
+	for i, want := range []string{decisions.QuestionTypePredicate, decisions.QuestionTypeChoice, decisions.QuestionTypeScore} {
+		require.Equal(t, want, decision.Answers[i].Type, decision.Answers[i].Name)
+	}
+	billing, ok := decision.Answer("billing")
+	require.True(t, ok)
+	require.Greater(t, billing.Probability, 0.5)
+	department, ok := decision.Answer("department")
+	require.True(t, ok)
+	require.Equal(t, "billing", department.Choice)
+	severity, ok := decision.Answer("severity")
+	require.True(t, ok)
+	require.Len(t, severity.Probabilities, 2)
+	require.Positive(t, decision.Usage.InputTokens)
+	cost, err := decision.EstimateCost()
+	require.NoError(t, err)
+	require.Positive(t, cost)
+}
+
+// TestClient_Decisions_Image checks that inline image bytes are accepted and evaluated.
+func TestClient_Decisions_Image(t *testing.T) {
+	t.Parallel()
+	c := NewClient(integrationToken(t))
+
+	img := image.NewRGBA(image.Rect(0, 0, 64, 64))
+	draw.Draw(img, img.Bounds(), image.NewUniform(color.RGBA{R: 255, A: 255}), image.Point{}, draw.Src)
+	var buf bytes.Buffer
+	require.NoError(t, png.Encode(&buf, img))
+
+	decision, err := c.Decisions.Send(t.Context(), &decisions.Request{
+		Input: []decisions.Message{{decisions.Text("Inspect this image."), decisions.Image{Data: buf.Bytes()}}},
+		Questions: []decisions.Question{
+			{Type: decisions.QuestionTypePredicate, Name: "red", Instructions: "Is the image a solid red square?"},
+		},
+	})
+	require.NoError(t, err)
+	red, ok := decision.Answer("red")
+	require.True(t, ok)
+	require.Greater(t, red.Probability, 0.5)
 }
 
 func TestClient_Responses_ConversationsLifecycle(t *testing.T) {
