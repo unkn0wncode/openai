@@ -587,6 +587,7 @@ var Data = map[string]Pricing{
 		standard:     &tierRates{short: tokenRates{input: 2, cachedInput: 0.1, cacheWrite: 2.5, output: 10}, long: &tokenRates{input: 4, cachedInput: 0.2, cacheWrite: 5, output: 15}},
 		fast:         &tierRates{short: tokenRates{input: 4, cachedInput: 0.2, cacheWrite: 5, output: 20}, long: &tokenRates{input: 8, cachedInput: 0.4, cacheWrite: 10, output: 30}},
 		flex:         &tierRates{short: tokenRates{input: 1, cachedInput: 0.05, cacheWrite: 1.25, output: 5}, long: &tokenRates{input: 2, cachedInput: 0.1, cacheWrite: 2.5, output: 7.5}},
+		ultrafast:    &tierRates{short: tokenRates{input: 12, cachedInput: 0.6, cacheWrite: 15, output: 60}, long: &tokenRates{input: 24, cachedInput: 1.2, cacheWrite: 30, output: 90}},
 		LimitContext: 1050000, LimitOutput: 128000,
 		LongContextThreshold: 272000,
 		RegionalUplift:       0.1,
